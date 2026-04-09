@@ -1,0 +1,193 @@
+version: "3.9"
+
+# ─── VestGO — Stack de produção ───────────────────────────────────────────────
+# Uso:
+#   docker compose --env-file .env up -d
+#
+# Pré-requisitos:
+#   - Rede externa: docker network create rvproxy_npm_backend_network
+#   - .env preenchido a partir de .env.example
+#   - Nginx Proxy Manager apontando para aliases:
+#       vestgo-web → porta 3000 (www.mosfet.com.br ou app.mosfet.com.br)
+#       vestgo-api → porta 3001 (api.mosfet.com.br)
+#       vestgo-storage → porta 9001 (storage.mosfet.com.br)
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Frontend — Next.js 14 ────────────────────────────────────────────────────
+  vestgo-web:
+    image: ghcr.io/${GITHUB_REPO}/vestgo-web:${IMAGE_TAG:-latest}
+    container_name: vestgo-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${API_URL}
+      NEXT_PUBLIC_APP_URL: ${APP_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${APP_URL}
+      INTERNAL_API_URL: http://vestgo-api:3001
+    depends_on:
+      vestgo-api:
+        condition: service_healthy
+    networks:
+      vestgo_internal: {}
+      rvproxy_npm_backend_network:
+        aliases:
+          - vestgo-web
+    labels:
+      - "com.vestgo.service=web"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Backend — Fastify API ─────────────────────────────────────────────────────
+  vestgo-api:
+    image: ghcr.io/${GITHUB_REPO}/vestgo-api:${IMAGE_TAG:-latest}
+    container_name: vestgo-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@vestgo-db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@vestgo-redis:6379
+      MINIO_ENDPOINT: vestgo-minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-vestgo-uploads}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${APP_URL}
+    depends_on:
+      vestgo-db:
+        condition: service_healthy
+      vestgo-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      vestgo_internal: {}
+      rvproxy_npm_backend_network:
+        aliases:
+          - vestgo-api
+    labels:
+      - "com.vestgo.service=api"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Banco de Dados — PostgreSQL 16 + PostGIS ──────────────────────────────────
+  vestgo-db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: vestgo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - vestgo_db_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - vestgo_internal
+    labels:
+      - "com.vestgo.service=db"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ── Cache — Redis 7 ───────────────────────────────────────────────────────────
+  vestgo-redis:
+    image: redis:7-alpine
+    container_name: vestgo-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+    volumes:
+      - vestgo_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vestgo_internal
+    labels:
+      - "com.vestgo.service=redis"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ── Object Storage — MinIO ────────────────────────────────────────────────────
+  vestgo-minio:
+    image: minio/minio:latest
+    container_name: vestgo-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_CONSOLE_URL}
+    volumes:
+      - vestgo_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      vestgo_internal: {}
+      rvproxy_npm_backend_network:
+        aliases:
+          - vestgo-storage
+    labels:
+      - "com.vestgo.service=minio"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ── Volumes persistentes ───────────────────────────────────────────────────────
+volumes:
+  vestgo_db_data:
+    name: vestgo_db_data
+  vestgo_redis_data:
+    name: vestgo_redis_data
+  vestgo_minio_data:
+    name: vestgo_minio_data
+
+# ── Redes ──────────────────────────────────────────────────────────────────────
+networks:
+  vestgo_internal:
+    name: vestgo_internal
+    driver: bridge
+
+  rvproxy_npm_backend_network:
+    external: true

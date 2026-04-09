@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .soft-field {
+    @apply bg-[#eeeeee] border-0 rounded-2xl transition-all duration-200;
+  }
+
+  .soft-field:focus-within {
+    @apply bg-white shadow-md;
+    outline: 2px solid #006a62;
+    outline-offset: -2px;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-sm;
+  }
+
+  /* Scrollbar invisível mas funcional */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
