@@ -1,7 +1,15 @@
 // web/lib/api.ts
 // Cliente HTTP tipado para o Fastify backend
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+function getApiUrl() {
+  const publicUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+  if (typeof window === 'undefined') {
+    return process.env.INTERNAL_API_URL ?? publicUrl;
+  }
+
+  return publicUrl;
+}
 
 export type CollectionPoint = {
   id: string;
@@ -30,7 +38,7 @@ export type NearbyResponse = {
 };
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getApiUrl()}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',

@@ -1,21 +1,32 @@
-// api/src/server.ts
-import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import Fastify from 'fastify';
 import dotenv from 'dotenv';
 
-import prismaPlugin from './plugins/prisma';
-import redisPlugin from './plugins/redis';
-import authPlugin from './plugins/auth';
-
-import healthRoutes from './modules/health';
 import authRoutes from './modules/auth/auth';
 import collectionPointRoutes from './modules/collection-points/collection-points';
-
+import healthRoutes from './modules/health';
+import authPlugin from './plugins/auth';
+import prismaPlugin from './plugins/prisma';
+import redisPlugin from './plugins/redis';
 
 dotenv.config();
 
+function getAllowedOrigins() {
+  const configuredOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (process.env.NODE_ENV !== 'production' && !configuredOrigins.includes('http://localhost:3000')) {
+    configuredOrigins.push('http://localhost:3000');
+  }
+
+  return configuredOrigins;
+}
+
 const app = Fastify({
+  trustProxy: process.env.TRUST_PROXY === 'true',
   logger: {
     transport:
       process.env.NODE_ENV === 'development'
@@ -24,25 +35,19 @@ const app = Fastify({
   },
 });
 
-// ─── Plugins globais ──────────────────────────────────────────────────────────
-
-const allowedOrigins = [
-  process.env.CORS_ORIGIN ?? 'http://localhost:3000',
-  'http://localhost:3000',
-];
+const allowedOrigins = getAllowedOrigins();
 
 app.register(cors, {
-  origin: (origin, cb) => {
-    // Permite requisições sem origin (ex: curl, Postman)
+  origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`Origin não permitida: ${origin}`), false);
+      callback(null, true);
+      return;
     }
+
+    callback(new Error(`Origin nao permitida: ${origin}`), false);
   },
   credentials: true,
 });
-
 
 app.register(jwt, {
   secret: process.env.JWT_SECRET ?? 'change_me_in_production',
@@ -53,26 +58,17 @@ app.register(prismaPlugin);
 app.register(redisPlugin);
 app.register(authPlugin);
 
-// ─── Rotas ───────────────────────────────────────────────────────────────────
-
-app.register(healthRoutes,          { prefix: '/health' });
-app.register(authRoutes,            { prefix: '/auth' });
+app.register(healthRoutes, { prefix: '/health' });
+app.register(authRoutes, { prefix: '/auth' });
 app.register(collectionPointRoutes, { prefix: '/collection-points' });
-
-
-// TODO: registrar módulos futuros aqui
-// app.register(donationRoutes,        { prefix: '/donations' });
-// app.register(collectionPointRoutes, { prefix: '/collection-points' });
-
-// ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 const start = async () => {
   try {
     const port = Number(process.env.PORT) || 3001;
     await app.listen({ port, host: '0.0.0.0' });
-    console.log(`🚀 Fastify rodando em http://localhost:${port}`);
-  } catch (err) {
-    app.log.error(err);
+    console.log(`Fastify rodando em http://localhost:${port}`);
+  } catch (error) {
+    app.log.error(error);
     process.exit(1);
   }
 };

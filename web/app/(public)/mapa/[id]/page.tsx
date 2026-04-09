@@ -41,7 +41,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
       <div className="max-w-sm mx-auto">
         {/* ── Header ── */}
         <header className="flex items-center gap-3 px-5 py-4 bg-white border-b border-gray-100">
-          <Link href="/mapa" className="p-2 -ml-2 rounded-xl hover:bg-surface">
+          <Link href="/" className="p-2 -ml-2 rounded-xl hover:bg-surface">
             <ArrowLeft size={20} className="text-on-surface" />
           </Link>
           <span className="text-base font-semibold text-on-surface truncate">
@@ -134,7 +134,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
           {/* ── CTA ── */}
           <Link
-            href="/login"
+            href="/login?callbackUrl=%2Fmapa"
             className="block w-full bg-primary text-white text-center font-semibold py-4 rounded-2xl hover:bg-primary-dark transition-colors active:scale-[0.97]"
           >
             Iniciar minha doação aqui

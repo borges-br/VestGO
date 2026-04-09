@@ -43,7 +43,7 @@ export default async function LandingPage() {
             />
           </div>
           <Link
-            href="/mapa"
+            href="/login?callbackUrl=%2Fmapa"
             className="flex items-center justify-center gap-2 bg-primary text-white rounded-2xl py-4 font-semibold text-sm w-full hover:bg-primary-dark transition-colors active:scale-[0.97]"
           >
             <Navigation size={16} />
@@ -96,13 +96,13 @@ export default async function LandingPage() {
                     <p className="font-semibold text-sm text-on-surface mt-1">{point.name}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{point.address}</p>
                   </div>
-                  <Link href="/mapa" className="text-xs border border-gray-200 text-gray-500 px-3 py-1.5 rounded-xl whitespace-nowrap">
+                  <Link href="/login?callbackUrl=%2Fmapa" className="text-xs border border-gray-200 text-gray-500 px-3 py-1.5 rounded-xl whitespace-nowrap">
                     Ver mais
                   </Link>
                 </div>
               </div>
             ))}
-            <Link href="/mapa" className="w-full text-sm text-primary font-semibold flex items-center justify-center gap-1 py-3">
+            <Link href="/login?callbackUrl=%2Fmapa" className="w-full text-sm text-primary font-semibold flex items-center justify-center gap-1 py-3">
               Ver mais pontos <ArrowRight size={14} />
             </Link>
           </div>

@@ -79,7 +79,7 @@ export function MapaPageContent() {
 
   useEffect(() => {
     fetchPoints(center[0], center[1]);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={`flex flex-col bg-surface font-sans overflow-hidden ${isLoggedIn ? 'h-[calc(100vh-7.5rem)]' : 'h-screen'}`}>
