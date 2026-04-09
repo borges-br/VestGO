@@ -1,59 +1,58 @@
 services:
   vestgo-web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
+    image: ${WEB_IMAGE}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-${API_PUBLIC_URL:-http://localhost:3001}}
-      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://vestgo-api:3001}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-${APP_PUBLIC_URL:-http://localhost:3000}}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-vestgo-local-secret-change-me}
-      AUTH_SECRET: ${AUTH_SECRET:-vestgo-local-secret-change-me}
+      NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL}
+      INTERNAL_API_URL: http://vestgo-api:3001
+      NEXTAUTH_URL: ${APP_PUBLIC_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_SECRET: ${AUTH_SECRET}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
-    ports:
-      - "3000:3000"
     depends_on:
       vestgo-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
       start_period: 20s
     networks:
-      - vestgo_internal
+      vestgo_internal:
+      vestgo_proxy:
+        aliases:
+          - vestgo-web
 
   vestgo-api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
+    image: ${API_IMAGE}
+    pull_policy: always
     restart: unless-stopped
-    command: sh -c "npx prisma db push && npm run start"
+    command: sh -c "npx prisma migrate deploy && npm run start"
     environment:
       NODE_ENV: production
       PORT: ${PORT:-3001}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-vestgo}:${POSTGRES_PASSWORD:-vestgo}@vestgo-db:5432/${POSTGRES_DB:-vestgo}}
-      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:-vestgo_redis_password}@vestgo-redis:6379}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-vestgo-storage}
       MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-vestgo_minio}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-vestgo_minio_secret}
-      MINIO_BUCKET: ${MINIO_BUCKET:-vestgo-uploads}
-      JWT_SECRET: ${JWT_SECRET:-vestgo-jwt-secret}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-vestgo-refresh-secret}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
-      TRUST_PROXY: ${TRUST_PROXY:-false}
-    ports:
-      - "3001:3001"
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
     depends_on:
       vestgo-db:
         condition: service_healthy
       vestgo-redis:
+        condition: service_healthy
+      vestgo-storage:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
@@ -62,23 +61,24 @@ services:
       retries: 5
       start_period: 20s
     networks:
-      - vestgo_internal
+      vestgo_internal:
+      vestgo_proxy:
+        aliases:
+          - vestgo-api
 
   vestgo-db:
     image: postgis/postgis:16-3.4-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-vestgo}
-      POSTGRES_USER: ${POSTGRES_USER:-vestgo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vestgo}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - vestgo_db_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-    ports:
-      - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vestgo} -d ${POSTGRES_DB:-vestgo}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -91,35 +91,39 @@ services:
     restart: unless-stopped
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD:-vestgo_redis_password}
+      --requirepass ${REDIS_PASSWORD}
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --save 60 1000
     volumes:
       - vestgo_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-vestgo_redis_password}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - vestgo_internal
 
-  vestgo-minio:
+  vestgo-storage:
     image: minio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-vestgo_minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-vestgo_minio_secret}
-      MINIO_BROWSER_REDIRECT_URL: ${MINIO_CONSOLE_URL:-http://localhost:9001}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_SERVER_URL: ${STORAGE_PUBLIC_URL}
     volumes:
       - vestgo_minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       vestgo_internal:
+      vestgo_proxy:
         aliases:
           - vestgo-storage
 
@@ -131,3 +135,6 @@ volumes:
 networks:
   vestgo_internal:
     driver: bridge
+  vestgo_proxy:
+    external: true
+    name: ${NPM_EXTERNAL_NETWORK:-rvproxy_npm_backend_network}

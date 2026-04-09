@@ -63,7 +63,7 @@ export function CollectionMap({
       map?.remove();
       mapInstanceRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
 
   // Atualiza marcadores quando os pontos mudam
