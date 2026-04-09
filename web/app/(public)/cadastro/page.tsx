@@ -17,8 +17,6 @@ import {
 type Perfil = 'DONOR' | 'COLLECTION_POINT' | 'NGO';
 type Step = 'perfil' | 'form' | 'success';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
 const perfis = [
   {
     id: 'DONOR' as Perfil,
@@ -93,7 +91,7 @@ function CadastroForm() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/register`, {
+      const response = await fetch('/api/backend/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
