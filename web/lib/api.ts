@@ -8,7 +8,7 @@ function getApiUrl() {
     return process.env.INTERNAL_API_URL ?? publicUrl;
   }
 
-  return publicUrl;
+  return '/api/backend';
 }
 
 export type CollectionPoint = {
