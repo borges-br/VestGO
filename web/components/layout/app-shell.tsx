@@ -1,15 +1,16 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/topbar';
 import { useNotifications } from '@/hooks/use-notifications';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { unreadCount, preview, markAsRead } = useNotifications();
 
-  // Trava o scroll do body enquanto o sidebar estiver aberto
   useEffect(() => {
     if (sidebarOpen) {
       document.body.style.overflow = 'hidden';
@@ -21,8 +22,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [sidebarOpen]);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
+    <div className="min-h-screen bg-surface">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <TopBar
         onMenuOpen={() => setSidebarOpen(true)}
@@ -30,8 +35,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         notifPreview={preview}
         onNotifRead={markAsRead}
       />
-      <main className="flex-1 pb-20 max-w-sm mx-auto w-full overflow-y-auto">
-        {children}
+      <main className="mx-auto w-full max-w-shell pb-[calc(var(--mobile-nav-height)+0.75rem)] pt-[calc(var(--topbar-height)+0.75rem)] md:pb-8">
+        <div className="min-h-[calc(100vh-var(--topbar-height)-1rem)]">
+          {children}
+        </div>
       </main>
       <BottomNav />
     </div>

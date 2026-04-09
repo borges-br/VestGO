@@ -1,50 +1,47 @@
 'use client';
-import { Home, Map, Plus, Truck, User } from 'lucide-react';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-const navItems = [
-  { href: '/inicio', icon: Home, label: 'Início' },
-  { href: '/mapa', icon: Map, label: 'Mapa' },
-  { href: '/doar', icon: Plus, label: '', isFab: true },
-  { href: '/rastreio', icon: Truck, label: 'Rastreio' },
-  { href: '/perfil', icon: User, label: 'Perfil' },
-];
+import {
+  MOBILE_NAV_ITEMS,
+  isNavigationItemActive,
+} from '@/components/layout/navigation';
 
 export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 h-16 flex items-center px-4 z-40">
-      <div className="max-w-sm mx-auto w-full flex justify-between items-end pb-1">
-        {navItems.map(({ href, icon: Icon, label, isFab }) => {
-          const isActive = pathname === href;
-
-          if (isFab) {
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-label="Nova doação"
-                className="flex flex-col items-center -mt-7"
-              >
-                <div className="bg-primary w-14 h-14 rounded-2xl flex items-center justify-center shadow-fab transition-transform active:scale-95">
-                  <Plus size={26} className="text-white" />
-                </div>
-              </Link>
-            );
-          }
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/70 bg-white/95 backdrop-blur-xl md:hidden">
+      <div className="mx-auto flex h-mobilebar max-w-[40rem] items-center justify-between px-2 pb-[max(env(safe-area-inset-bottom),0px)]">
+        {MOBILE_NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive = isNavigationItemActive(pathname, item);
+          const isPrimaryAction = item.href === '/doar';
 
           return (
             <Link
-              key={href}
-              href={href}
-              className={`flex flex-col items-center gap-0.5 px-3 transition-colors ${
-                isActive ? 'text-primary' : 'text-gray-400'
-              }`}
+              key={item.href}
+              href={item.href}
+              className="flex min-w-0 flex-1 items-center justify-center"
             >
-              <Icon size={22} />
-              <span className="text-[10px] font-medium">{label}</span>
+              <span
+                className={`flex min-w-0 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-semibold transition-colors ${
+                  isActive ? 'text-primary-deeper' : 'text-gray-400'
+                }`}
+              >
+                <span
+                  className={`flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${
+                    isActive
+                      ? 'bg-primary-light text-primary'
+                      : isPrimaryAction
+                        ? 'bg-primary-deeper text-white'
+                        : 'bg-transparent text-gray-400'
+                  }`}
+                >
+                  <Icon size={19} />
+                </span>
+                <span className="truncate">{item.mobileLabel ?? item.label}</span>
+              </span>
             </Link>
           );
         })}

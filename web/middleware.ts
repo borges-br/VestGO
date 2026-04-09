@@ -7,6 +7,7 @@ const protectedPrefixes = [
   '/mapa',
   '/doar',
   '/rastreio',
+  '/configuracoes',
   '/perfil',
   '/notificacoes',
   '/pontos',
