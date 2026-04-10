@@ -1,5 +1,11 @@
 import bcrypt from 'bcrypt';
-import { DonationStatus, ItemCategory, PrismaClient, UserRole } from '@prisma/client';
+import {
+  DonationStatus,
+  ItemCategory,
+  PrismaClient,
+  PublicProfileState,
+  UserRole,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 const SALT_ROUNDS = 12;
@@ -10,44 +16,100 @@ const collectionPoints = [
     name: 'Espaco Amparo Social',
     email: 'amparo@vestgo.com',
     organizationName: 'Espaco Amparo Social',
+    phone: '(11) 3254-8801',
     address: 'Rua Augusta, 1200',
+    neighborhood: 'Consolacao',
+    zipCode: '01304-001',
     city: 'Sao Paulo',
     state: 'SP',
     latitude: -23.5614,
     longitude: -46.6556,
+    description:
+      'Ponto de coleta com equipe local preparada para receber roupas, calcados e kits de inverno.',
+    openingHours:
+      'Segunda a sexta, das 9h as 18h. Sabado, das 10h as 14h.',
+    publicNotes:
+      'Recebemos entregas em sacolas ou caixas pequenas. Ha apoio para descarga rapida na entrada.',
+    accessibilityDetails: 'Entrada em nivel da rua e corredor amplo para cadeiras de rodas.',
+    estimatedCapacity: 'Ate 120 sacolas por semana',
+    nonAcceptedItems: ['Pecas com mofo', 'Uniformes corporativos danificados'],
+    rules: ['Doe apenas itens limpos', 'Separe calcados em pares'],
+    publicProfileState: PublicProfileState.VERIFIED,
     acceptedCategories: [ItemCategory.CLOTHING, ItemCategory.SHOES, ItemCategory.ACCESSORIES],
   },
   {
     name: 'Eco Store Pinheiros',
     email: 'ecostorepinheiros@vestgo.com',
     organizationName: 'Eco Store Pinheiros',
+    phone: '(11) 98234-1100',
     address: 'Rua dos Pinheiros, 500',
+    neighborhood: 'Pinheiros',
+    zipCode: '05422-001',
     city: 'Sao Paulo',
     state: 'SP',
     latitude: -23.5659,
     longitude: -46.6821,
+    description:
+      'Loja parceira com coleta diaria para roupas e calcados em bom estado, com triagem inicial no balcao.',
+    openingHours:
+      'Segunda a sexta, das 10h as 19h. Sabado, das 10h as 16h.',
+    publicNotes:
+      'Ideal para entregas rapidas durante o horario comercial. Informe na recepcao que a doacao e do VestGO.',
+    accessibilityDetails: 'Acesso por rampa curta e atendimento no piso terreo.',
+    estimatedCapacity: 'Ate 90 sacolas por semana',
+    nonAcceptedItems: ['Pecas intimas usadas', 'Pecas molhadas'],
+    rules: ['Leve pecas separadas por tipo', 'Nao enviamos itens sem triagem minima'],
+    publicProfileState: PublicProfileState.ACTIVE,
     acceptedCategories: [ItemCategory.CLOTHING, ItemCategory.SHOES],
   },
   {
     name: 'ONG Caminho da Luz',
     email: 'caminhodaluz@vestgo.com',
     organizationName: 'ONG Caminho da Luz',
+    phone: '(11) 97311-2200',
     address: 'Av. Paulista, 900',
+    neighborhood: 'Bela Vista',
+    zipCode: '01310-100',
     city: 'Sao Paulo',
     state: 'SP',
     latitude: -23.5646,
     longitude: -46.6527,
+    description:
+      'Base de coleta de alta rotacao com apoio a campanhas sazonais e recepcao de lotes familiares.',
+    openingHours:
+      'Segunda a sexta, das 8h as 17h. Sabado, das 9h as 13h.',
+    publicNotes:
+      'Recebemos doacoes com foco em campanhas de inverno e acolhimento emergencial.',
+    accessibilityDetails: 'Elevador social e banheiro acessivel no piso principal.',
+    estimatedCapacity: 'Ate 150 sacolas por semana',
+    nonAcceptedItems: ['Itens rasgados', 'Cobertores umidos'],
+    rules: ['Identifique kits infantis', 'Embale cobertores separadamente'],
+    publicProfileState: PublicProfileState.VERIFIED,
     acceptedCategories: [ItemCategory.CLOTHING, ItemCategory.BAGS, ItemCategory.OTHER],
   },
   {
     name: 'Centro de Coleta Vila Madalena',
     email: 'vilamadalena@vestgo.com',
     organizationName: 'Instituto VestGO',
+    phone: '(11) 94555-8730',
     address: 'Rua Aspicuelta, 72',
+    neighborhood: 'Vila Madalena',
+    zipCode: '05433-010',
     city: 'Sao Paulo',
     state: 'SP',
     latitude: -23.5568,
     longitude: -46.6924,
+    description:
+      'Hub local com triagem leve e fluxo forte para campanhas por bairro e eventos comunitarios.',
+    openingHours:
+      'Segunda a sexta, das 9h as 18h. Domingo, das 10h as 13h em datas de campanha.',
+    publicNotes:
+      'Bom ponto para entregas de fim de semana em acao conjunta com a comunidade local.',
+    accessibilityDetails: 'Calcada larga, rampa lateral e vaga rapida para desembarque.',
+    estimatedCapacity: 'Ate 140 sacolas por semana',
+    nonAcceptedItems: ['Pecas molhadas', 'Malas quebradas'],
+    rules: ['Separe por adulto e infantil', 'Informe se houver itens volumosos'],
+    publicProfileState: PublicProfileState.ACTIVE,
     acceptedCategories: [
       ItemCategory.CLOTHING,
       ItemCategory.SHOES,
@@ -59,11 +121,25 @@ const collectionPoints = [
     name: 'Ponto Solidario Mooca',
     email: 'mooca@vestgo.com',
     organizationName: 'Associacao Mooca Solidaria',
+    phone: '(11) 98888-5300',
     address: 'Rua da Mooca, 1800',
+    neighborhood: 'Mooca',
+    zipCode: '03104-002',
     city: 'Sao Paulo',
     state: 'SP',
     latitude: -23.5441,
     longitude: -46.6021,
+    description:
+      'Ponto comunitario focado em arrecadacao de bairro, com encaminhamento rapido para a rede social parceira.',
+    openingHours:
+      'Segunda a sexta, das 9h as 17h30. Sabado, das 9h as 12h.',
+    publicNotes:
+      'Ha equipe local para apoiar idosos e doadores com pouco tempo de permanencia.',
+    accessibilityDetails: 'Entrada ampla e apoio para retirada de doacoes no carro em horario agendado.',
+    estimatedCapacity: 'Ate 80 sacolas por semana',
+    nonAcceptedItems: ['Pecas sujas', 'Itens sem par'],
+    rules: ['Leve as pecas fechadas em sacolas', 'Calcados devem ir amarrados em pares'],
+    publicProfileState: PublicProfileState.ACTIVE,
     acceptedCategories: [ItemCategory.CLOTHING, ItemCategory.OTHER],
   },
 ];
@@ -74,22 +150,48 @@ const ngoPartners = [
     email: 'ong@vestgo.com',
     password: 'ong1234',
     organizationName: 'Rede Apoio VestGO',
+    phone: '(11) 95555-1001',
     address: 'Rua Vergueiro, 1450',
     city: 'Sao Paulo',
     state: 'SP',
     latitude: -23.5864,
     longitude: -46.6321,
+    description:
+      'Rede social que recebe lotes dos pontos parceiros, faz triagem e direciona pecas para familias e acolhimentos.',
+    purpose:
+      'Ampliar o acesso a roupas em bom estado com distribuicao organizada e rastreavel.',
+    publicNotes:
+      'Atuacao principal nas regioes centro-sul e oeste, com campanhas sazonais de frio e reinsercao social.',
+    operationalNotes:
+      'Recebe consolidacao de lotes de parceiros urbanos e organiza saida por campanha e necessidade local.',
+    serviceRegions: ['Centro', 'Zona Oeste', 'Zona Sul'],
+    nonAcceptedItems: ['Pecas sem higiene minima', 'Itens com risco biologico'],
+    rules: ['Priorizamos lotes etiquetados', 'Aceitamos kits por faixa etaria'],
+    publicProfileState: PublicProfileState.VERIFIED,
   },
   {
     name: 'Instituto Aurora Social',
     email: 'aurora@vestgo.com',
     password: 'aurora1234',
     organizationName: 'Instituto Aurora Social',
+    phone: '(11) 97777-2210',
     address: 'Av. Paes de Barros, 820',
     city: 'Sao Paulo',
     state: 'SP',
     latitude: -23.5582,
     longitude: -46.5991,
+    description:
+      'ONG focada em triagem e distribuicao para familias da zona leste e redes de acolhimento comunitario.',
+    purpose:
+      'Conectar excedentes de roupas e acessorios a familias atendidas por redes locais com dignidade e constancia.',
+    publicNotes:
+      'Atende frentes locais e campanhas de bairro com foco em roupas casuais, infantis e kits emergenciais.',
+    operationalNotes:
+      'Recebe lotes dos pontos parceiros da zona leste e oeste, com distribuicao em ciclos semanais.',
+    serviceRegions: ['Zona Leste', 'Mooca', 'Tatuape', 'Vila Prudente'],
+    nonAcceptedItems: ['Pecas com avaria grave', 'Volumes sem identificacao minima'],
+    rules: ['Separe infantil de adulto', 'Identifique kits para campanha de inverno'],
+    publicProfileState: PublicProfileState.ACTIVE,
   },
 ];
 
@@ -113,12 +215,26 @@ async function upsertUser(params: {
   email: string;
   password: string;
   role: UserRole;
+  phone?: string;
   organizationName?: string;
+  description?: string;
+  purpose?: string;
   address?: string;
+  neighborhood?: string;
+  zipCode?: string;
   city?: string;
   state?: string;
   latitude?: number;
   longitude?: number;
+  openingHours?: string;
+  publicNotes?: string;
+  operationalNotes?: string;
+  accessibilityDetails?: string;
+  estimatedCapacity?: string;
+  nonAcceptedItems?: string[];
+  rules?: string[];
+  serviceRegions?: string[];
+  publicProfileState?: PublicProfileState;
   acceptedCategories?: ItemCategory[];
 }) {
   const passwordHash = await bcrypt.hash(params.password, SALT_ROUNDS);
@@ -129,12 +245,26 @@ async function upsertUser(params: {
       name: params.name,
       passwordHash,
       role: params.role,
+      phone: params.phone,
       organizationName: params.organizationName,
+      description: params.description,
+      purpose: params.purpose,
       address: params.address,
+      neighborhood: params.neighborhood,
+      zipCode: params.zipCode,
       city: params.city,
       state: params.state,
       latitude: params.latitude,
       longitude: params.longitude,
+      openingHours: params.openingHours,
+      publicNotes: params.publicNotes,
+      operationalNotes: params.operationalNotes,
+      accessibilityDetails: params.accessibilityDetails,
+      estimatedCapacity: params.estimatedCapacity,
+      nonAcceptedItems: params.nonAcceptedItems ?? [],
+      rules: params.rules ?? [],
+      serviceRegions: params.serviceRegions ?? [],
+      publicProfileState: params.publicProfileState ?? PublicProfileState.DRAFT,
       acceptedCategories: params.acceptedCategories ?? [],
     },
     create: {
@@ -142,12 +272,26 @@ async function upsertUser(params: {
       email: params.email,
       passwordHash,
       role: params.role,
+      phone: params.phone,
       organizationName: params.organizationName,
+      description: params.description,
+      purpose: params.purpose,
       address: params.address,
+      neighborhood: params.neighborhood,
+      zipCode: params.zipCode,
       city: params.city,
       state: params.state,
       latitude: params.latitude,
       longitude: params.longitude,
+      openingHours: params.openingHours,
+      publicNotes: params.publicNotes,
+      operationalNotes: params.operationalNotes,
+      accessibilityDetails: params.accessibilityDetails,
+      estimatedCapacity: params.estimatedCapacity,
+      nonAcceptedItems: params.nonAcceptedItems ?? [],
+      rules: params.rules ?? [],
+      serviceRegions: params.serviceRegions ?? [],
+      publicProfileState: params.publicProfileState ?? PublicProfileState.DRAFT,
       acceptedCategories: params.acceptedCategories ?? [],
     },
   });

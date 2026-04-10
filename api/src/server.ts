@@ -7,6 +7,8 @@ import authRoutes from './modules/auth/auth';
 import collectionPointRoutes from './modules/collection-points/collection-points';
 import donationRoutes from './modules/donations/donations';
 import healthRoutes from './modules/health';
+import profileRoutes from './modules/profiles/profiles';
+import adminProfileRoutes from './modules/admin/admin-profiles';
 import authPlugin from './plugins/auth';
 import prismaPlugin from './plugins/prisma';
 import redisPlugin from './plugins/redis';
@@ -63,6 +65,8 @@ app.register(healthRoutes, { prefix: '/health' });
 app.register(authRoutes, { prefix: '/auth' });
 app.register(collectionPointRoutes, { prefix: '/collection-points' });
 app.register(donationRoutes, { prefix: '/donations' });
+app.register(profileRoutes, { prefix: '/profiles' });
+app.register(adminProfileRoutes, { prefix: '/admin/profiles' });
 
 const start = async () => {
   try {

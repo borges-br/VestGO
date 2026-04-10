@@ -31,6 +31,13 @@ enum ItemCategory {
   OTHER
 }
 
+enum PublicProfileState {
+  DRAFT
+  PENDING
+  ACTIVE
+  VERIFIED
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String
@@ -38,21 +45,37 @@ model User {
   passwordHash  String
   role          UserRole  @default(DONOR)
   avatarUrl     String?
+  coverImageUrl String?
   phone         String?
   cpf           String?   @unique
 
-  organizationName   String?
-  cnpj               String? @unique
-  address            String?
-  city               String?
-  state              String?
-  latitude           Float?
-  longitude          Float?
-  acceptedCategories ItemCategory[]
+  organizationName     String?
+  cnpj                 String? @unique
+  description          String?
+  purpose              String?
+  address              String?
+  neighborhood         String?
+  zipCode              String?
+  city                 String?
+  state                String?
+  latitude             Float?
+  longitude            Float?
+  openingHours         String?
+  publicNotes          String?
+  operationalNotes     String?
+  accessibilityDetails String?
+  verificationNotes    String?
+  estimatedCapacity    String?
+  serviceRegions       String[]
+  rules                String[]
+  nonAcceptedItems     String[]
+  acceptedCategories   ItemCategory[]
+  publicProfileState   PublicProfileState @default(DRAFT)
+  verifiedAt           DateTime?
 
-  donations                      Donation[]               @relation("DonorDonations")
-  collectedAt                    Donation[]               @relation("CollectionPointDonations")
-  receivedAt                     Donation[]               @relation("NgoDonations")
+  donations                       Donation[]               @relation("DonorDonations")
+  collectedAt                     Donation[]               @relation("CollectionPointDonations")
+  receivedAt                      Donation[]               @relation("NgoDonations")
   outgoingOperationalPartnerships OperationalPartnership[] @relation("CollectionPointOperationalPartnerships")
   incomingOperationalPartnerships OperationalPartnership[] @relation("NgoOperationalPartnerships")
 

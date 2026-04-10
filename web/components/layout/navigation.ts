@@ -82,7 +82,7 @@ export function getUtilityNavItems(role: string) {
     return UTILITY_NAV_ITEMS;
   }
 
-  return [
+  const items: NavigationItem[] = [
     {
       href: '/operacoes',
       label: 'Operacoes',
@@ -91,6 +91,17 @@ export function getUtilityNavItems(role: string) {
     },
     ...UTILITY_NAV_ITEMS,
   ];
+
+  if (role === 'ADMIN') {
+    items.unshift({
+      href: '/admin/perfis',
+      label: 'Administracao',
+      icon: Shield,
+      exact: false, // matches child routes too
+    });
+  }
+
+  return items;
 }
 
 export const ROLE_LABELS: Record<string, string> = {
