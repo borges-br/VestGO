@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 
 import authRoutes from './modules/auth/auth';
 import collectionPointRoutes from './modules/collection-points/collection-points';
+import donationRoutes from './modules/donations/donations';
 import healthRoutes from './modules/health';
 import authPlugin from './plugins/auth';
 import prismaPlugin from './plugins/prisma';
@@ -61,6 +62,7 @@ app.register(authPlugin);
 app.register(healthRoutes, { prefix: '/health' });
 app.register(authRoutes, { prefix: '/auth' });
 app.register(collectionPointRoutes, { prefix: '/collection-points' });
+app.register(donationRoutes, { prefix: '/donations' });
 
 const start = async () => {
   try {

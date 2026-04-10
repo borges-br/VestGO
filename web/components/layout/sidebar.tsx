@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { LogOut, X } from 'lucide-react';
 import {
+  getUtilityNavItems,
   ROLE_LABELS,
-  UTILITY_NAV_ITEMS,
   isNavigationItemActive,
 } from '@/components/layout/navigation';
 
@@ -22,6 +22,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const userName = session?.user?.name ?? 'Usuario';
   const userRole = session?.user?.role ?? 'DONOR';
   const userEmail = session?.user?.email ?? '';
+  const utilityNavItems = getUtilityNavItems(userRole);
   const firstName = userName.split(' ')[0];
   const initials = userName
     .split(' ')
@@ -47,7 +48,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-                Menu secundário
+                Menu secundario
               </p>
               <h2 className="mt-1 text-lg font-bold text-primary-deeper">Conta e ajustes</h2>
             </div>
@@ -74,7 +75,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xl font-bold">Olá, {firstName}</p>
+                <p className="text-xl font-bold">Ola, {firstName}</p>
                 <p className="mt-0.5 text-sm font-semibold text-primary-muted">
                   {ROLE_LABELS[userRole] ?? userRole}
                 </p>
@@ -86,7 +87,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         <div className="flex-1 overflow-y-auto px-4 py-5">
           <div className="rounded-3xl bg-surface p-2">
-            {UTILITY_NAV_ITEMS.map((item) => {
+            {utilityNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavigationItemActive(pathname, item);
 
@@ -111,13 +112,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{item.label}</p>
                     <p className="mt-0.5 text-xs text-gray-400">
-                      {item.label === 'Perfil'
-                        ? 'Acesse seu histórico e dados principais'
-                        : item.label === 'Configurações'
-                          ? 'Preferências, notificações e ajustes'
-                          : item.label === 'Privacidade'
-                            ? 'Segurança da conta e dados pessoais'
-                            : 'Ajuda, FAQ e canais de suporte'}
+                      {item.label === 'Operacoes'
+                        ? 'Fila dedicada para pontos, ONGs e administracao'
+                        : item.label === 'Perfil'
+                          ? 'Acesse seu historico e dados principais'
+                          : item.label === 'Configuracoes'
+                            ? 'Preferencias, notificacoes e ajustes'
+                            : item.label === 'Privacidade'
+                              ? 'Seguranca da conta e dados pessoais'
+                              : 'Ajuda, FAQ e canais de suporte'}
                     </p>
                   </div>
                 </Link>
@@ -127,11 +130,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           <div className="mt-4 rounded-3xl border border-gray-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-              Navegação principal
+              Navegacao principal
             </p>
             <p className="mt-2 text-sm leading-relaxed text-gray-500">
-              Início, Explorar pontos, Nova doação e Rastreio agora ficam sempre visíveis no topo
-              ou na barra inferior. Este painel fica reservado para conta, privacidade e apoio.
+              Inicio, Explorar pontos, Nova doacao e Rastreio ficam sempre visiveis no topo ou na
+              barra inferior. Este painel agora tambem abre a entrada dedicada de operacoes para os
+              perfis responsaveis.
             </p>
           </div>
         </div>
@@ -144,7 +148,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <LogOut size={20} />
             <span className="text-sm font-semibold">Sair da conta</span>
           </button>
-          <p className="mt-3 text-center text-[11px] tracking-widest uppercase text-gray-300">
+          <p className="mt-3 text-center text-[11px] uppercase tracking-widest text-gray-300">
             VestGO v1.0.0
           </p>
         </div>

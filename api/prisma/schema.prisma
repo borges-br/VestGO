@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,8 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ───────────────────────────────────────────────────────────────────
-
 enum UserRole {
   DONOR
   COLLECTION_POINT
@@ -20,12 +15,12 @@ enum UserRole {
 }
 
 enum DonationStatus {
-  PENDING       // Cadastrada, aguardando entrega
-  AT_POINT      // Entregue no ponto de coleta
-  IN_TRANSIT    // Em trânsito para a ONG
-  DELIVERED     // Entregue na ONG
-  DISTRIBUTED   // Distribuída para as famílias
-  CANCELLED     // Cancelada
+  PENDING
+  AT_POINT
+  IN_TRANSIT
+  DELIVERED
+  DISTRIBUTED
+  CANCELLED
 }
 
 enum ItemCategory {
@@ -35,8 +30,6 @@ enum ItemCategory {
   BAGS
   OTHER
 }
-
-// ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
   id            String    @id @default(cuid())
@@ -48,63 +41,85 @@ model User {
   phone         String?
   cpf           String?   @unique
 
-  // Para pontos de coleta e ONGs
-  organizationName  String?
-  cnpj              String? @unique
-  address           String?
-  city              String?
-  state             String?
-  latitude          Float?
-  longitude         Float?
+  organizationName   String?
+  cnpj               String? @unique
+  address            String?
+  city               String?
+  state              String?
+  latitude           Float?
+  longitude          Float?
   acceptedCategories ItemCategory[]
 
-  donations     Donation[]  @relation("DonorDonations")
-  collectedAt   Donation[]  @relation("CollectionPointDonations")
-  receivedAt    Donation[]  @relation("NgoDonations")
+  donations                      Donation[]               @relation("DonorDonations")
+  collectedAt                    Donation[]               @relation("CollectionPointDonations")
+  receivedAt                     Donation[]               @relation("NgoDonations")
+  outgoingOperationalPartnerships OperationalPartnership[] @relation("CollectionPointOperationalPartnerships")
+  incomingOperationalPartnerships OperationalPartnership[] @relation("NgoOperationalPartnerships")
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("users")
 }
 
 model Donation {
-  id          String          @id @default(cuid())
-  code        String          @unique @default(cuid()) // código de rastreio público
-  status      DonationStatus  @default(PENDING)
+  id          String         @id @default(cuid())
+  code        String         @unique @default(cuid())
+  status      DonationStatus @default(PENDING)
 
-  // Quem doou
-  donor       User    @relation("DonorDonations", fields: [donorId], references: [id])
-  donorId     String
+  donor   User   @relation("DonorDonations", fields: [donorId], references: [id])
+  donorId String
 
-  // Ponto de coleta escolhido
-  collectionPoint     User?   @relation("CollectionPointDonations", fields: [collectionPointId], references: [id])
-  collectionPointId   String?
+  collectionPoint   User?   @relation("CollectionPointDonations", fields: [collectionPointId], references: [id])
+  collectionPointId String?
 
-  // ONG destino
-  ngo       User?   @relation("NgoDonations", fields: [ngoId], references: [id])
-  ngoId     String?
+  ngo   User?   @relation("NgoDonations", fields: [ngoId], references: [id])
+  ngoId String?
 
-  items       DonationItem[]
-  timeline    DonationEvent[]
+  operationalPartnership   OperationalPartnership? @relation("DonationOperationalPartnership", fields: [operationalPartnershipId], references: [id])
+  operationalPartnershipId String?
+
+  items    DonationItem[]
+  timeline DonationEvent[]
 
   notes       String?
-  scheduledAt DateTime?   // Data agendada para entrega no ponto
+  scheduledAt DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("donations")
 }
 
+model OperationalPartnership {
+  id                String @id @default(cuid())
+  collectionPoint   User   @relation("CollectionPointOperationalPartnerships", fields: [collectionPointId], references: [id], onDelete: Cascade)
+  collectionPointId String
+  ngo               User   @relation("NgoOperationalPartnerships", fields: [ngoId], references: [id], onDelete: Cascade)
+  ngoId             String
+  isActive          Boolean @default(true)
+  priority          Int     @default(0)
+  notes             String?
+
+  donations Donation[] @relation("DonationOperationalPartnership")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([collectionPointId, ngoId])
+  @@index([collectionPointId, isActive, priority])
+  @@index([ngoId, isActive, priority])
+  @@map("operational_partnerships")
+}
+
 model DonationItem {
-  id          String        @id @default(cuid())
-  donation    Donation      @relation(fields: [donationId], references: [id], onDelete: Cascade)
-  donationId  String
+  id         String   @id @default(cuid())
+  donation   Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  donationId String
 
   name        String
-  category    ItemCategory  @default(CLOTHING)
-  quantity    Int           @default(1)
+  category    ItemCategory @default(CLOTHING)
+  quantity    Int          @default(1)
   description String?
   imageUrl    String?
   weightKg    Float?
@@ -113,16 +128,16 @@ model DonationItem {
 }
 
 model DonationEvent {
-  id          String    @id @default(cuid())
-  donation    Donation  @relation(fields: [donationId], references: [id], onDelete: Cascade)
-  donationId  String
+  id         String   @id @default(cuid())
+  donation   Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  donationId String
 
   status      DonationStatus
   description String
-  createdBy   String?   // userId de quem registrou
+  createdBy   String?
   location    String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("donation_events")
 }

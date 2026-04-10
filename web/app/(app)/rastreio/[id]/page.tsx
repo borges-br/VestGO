@@ -1,260 +1,436 @@
-'use client';
 import {
-  CheckCircle, Clock, Package, Truck, XCircle,
-  ArrowLeft, MapPin, Info, Undo2,
+  ArrowLeft,
+  Award,
+  Info,
+  MapPin,
+  Package,
+  Sparkles,
+  Target,
 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  DONATION_STATUS_CONFIG,
+  DONATION_STATUS_ORDER,
+  formatDonationDateLabel,
+} from '@/components/donations/donation-status';
+import { auth } from '@/lib/auth';
+import { getDonation, getUserDonations, type DonationRecord } from '@/lib/api';
+import { buildImpactSnapshot } from '@/lib/gamification';
 
-type StatusKey = 'PENDING' | 'AT_POINT' | 'IN_TRANSIT' | 'DELIVERED' | 'DISTRIBUTED' | 'CANCELLED';
-
-const STATUS_ORDER: StatusKey[] = ['PENDING', 'AT_POINT', 'IN_TRANSIT', 'DELIVERED', 'DISTRIBUTED'];
-
-const STATUS_CONFIG: Record<StatusKey, {
-  label: string;
-  description: string;
-  color: string;
-  bg: string;
-  icon: typeof CheckCircle;
-}> = {
-  PENDING:     { label: 'Pendente',     description: 'Doação registrada. Aguardando entrega no ponto de coleta.', color: 'text-amber-600',  bg: 'bg-amber-50',      icon: Clock },
-  AT_POINT:    { label: 'No ponto',     description: 'Item recebido pelo ponto de coleta e aguardando triagem.',  color: 'text-blue-600',   bg: 'bg-blue-50',       icon: Package },
-  IN_TRANSIT:  { label: 'Em trânsito',  description: 'A doação está sendo transportada para a ONG parceira.',   color: 'text-indigo-600', bg: 'bg-indigo-50',     icon: Truck },
-  DELIVERED:   { label: 'Entregue',     description: 'Chegou à ONG! A distribuição será feita em breve.',       color: 'text-primary',    bg: 'bg-primary-light', icon: CheckCircle },
-  DISTRIBUTED: { label: 'Distribuído',  description: 'Doação distribuída para famílias em situação de vulnerabilidade. Obrigado!', color: 'text-primary', bg: 'bg-primary-light', icon: CheckCircle },
-  CANCELLED:   { label: 'Cancelado',    description: 'Esta doação foi cancelada.',                              color: 'text-red-500',    bg: 'bg-red-50',        icon: XCircle },
+const CATEGORY_LABELS: Record<string, string> = {
+  CLOTHING: 'Roupas',
+  SHOES: 'Calcados',
+  ACCESSORIES: 'Acessorios',
+  BAGS: 'Bolsas',
+  OTHER: 'Outros',
 };
 
-// Mock — será substituído por fetch GET /donations/:id (Milestone 3)
-const MOCK_DONATIONS: Record<string, {
-  id: string;
-  code: string;
-  status: StatusKey;
-  items: { name: string; category: string; quantity: string; condition: string }[];
-  collectionPoint: { name: string; address: string };
-  timeline: { status: StatusKey; timestamp: string; note?: string }[];
-  createdAt: string;
-}> = {
-  '1': {
-    id: '1',
-    code: 'VGO-001',
-    status: 'DELIVERED',
-    items: [{ name: 'Kit Inverno (3 Casacos)', category: 'Roupas adultas', quantity: '3 peças', condition: 'Em ótimo estado' }],
-    collectionPoint: { name: 'ONG Caminho da Luz', address: 'Av. Paulista, 900 — Bela Vista' },
-    timeline: [
-      { status: 'PENDING',    timestamp: '06 Abr, 10:32', note: 'Doação registrada pelo doador.' },
-      { status: 'AT_POINT',   timestamp: '06 Abr, 14:10', note: 'Recebido pelo voluntário João S.' },
-      { status: 'IN_TRANSIT', timestamp: '07 Abr, 09:00', note: 'Saiu para entrega com ONG Caminho da Luz.' },
-      { status: 'DELIVERED',  timestamp: '07 Abr, 16:45', note: 'Entregue e triagem realizada com sucesso.' },
-    ],
-    createdAt: '06 Abr 2026',
-  },
-  '2': {
-    id: '2',
-    code: 'VGO-002',
-    status: 'PENDING',
-    items: [{ name: 'Tênis Esportivo Tam 42', category: 'Calçados', quantity: '1 par', condition: 'Usado mas conservado' }],
-    collectionPoint: { name: 'Hub Central Pinheiros', address: 'Rua dos Pinheiros, 1234 — Pinheiros' },
-    timeline: [
-      { status: 'PENDING', timestamp: '07 Abr, 18:05', note: 'Doação registrada. Aguardando entrega.' },
-    ],
-    createdAt: '07 Abr 2026',
-  },
-};
+export default async function RastreioDetalhePage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { celebrate?: string };
+}) {
+  const session = await auth();
+  const accessToken = session?.user?.accessToken ?? '';
+  const role = session?.user?.role ?? 'DONOR';
 
-export default function RastreioDetalhePage({ params }: { params: { id: string } }) {
-  const { id } = params;
-  const donation = MOCK_DONATIONS[id];
+  if (!accessToken) {
+    return null;
+  }
+
+  let donation: DonationRecord | null = null;
+  let allDonations: DonationRecord[] = [];
+
+  try {
+    const [donationResponse, donationsResponse] = await Promise.all([
+      getDonation(params.id, accessToken),
+      getUserDonations(accessToken, { limit: 50 }),
+    ]);
+    donation = donationResponse;
+    allDonations = donationsResponse.data;
+  } catch {
+    donation = null;
+    allDonations = [];
+  }
 
   if (!donation) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-5 text-center">
-        <Package size={40} className="text-gray-200 mb-4" />
-        <p className="font-semibold text-gray-400">Doação não encontrada</p>
-        <Link href="/rastreio" className="mt-4 text-sm font-semibold text-primary hover:underline">
-          ← Voltar ao rastreio
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-5 text-center">
+        <Package size={40} className="mb-4 text-gray-200" />
+        <p className="font-semibold text-gray-400">Doacao nao encontrada</p>
+        <Link href={role !== 'DONOR' ? '/operacoes' : '/rastreio'} className="mt-4 text-sm font-semibold text-primary hover:underline">
+          {role !== 'DONOR' ? 'Voltar para operacoes' : 'Voltar ao rastreio'}
         </Link>
       </div>
     );
   }
 
-  const cfg = STATUS_CONFIG[donation.status];
-  const StatusIcon = cfg.icon;
-  const currentIdx = STATUS_ORDER.indexOf(donation.status);
+  const snapshot = buildImpactSnapshot(allDonations);
+  const statusConfig = DONATION_STATUS_CONFIG[donation.status];
+  const StatusIcon = statusConfig.icon;
+  const currentIdx = DONATION_STATUS_ORDER.indexOf(donation.status);
   const isCancelled = donation.status === 'CANCELLED';
+  const showCelebrate = searchParams?.celebrate === '1';
+  const isOperationalRole = role !== 'DONOR';
+  const backHref = isOperationalRole ? '/operacoes' : '/rastreio';
 
   return (
-    <div className="pb-2">
-      {/* ── Header ── */}
-      <section className="px-5 pt-6 pb-4">
-        <Link
-          href="/rastreio"
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 mb-4 hover:text-primary transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Voltar ao rastreio
-        </Link>
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-          Detalhes
-        </p>
-        <h1 className="text-2xl font-bold text-primary-deeper">{donation.code}</h1>
-        <p className="text-xs text-gray-400 mt-0.5">Registrada em {donation.createdAt}</p>
-      </section>
-
-      {/* ── Status atual ── */}
-      <section className="px-5 mb-5">
-        <div className={`rounded-3xl p-5 ${cfg.bg} flex items-start gap-4`}>
-          <div className={`w-14 h-14 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm`}>
-            <StatusIcon size={26} className={cfg.color} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className={`font-bold text-lg ${cfg.color}`}>{cfg.label}</p>
-            <p className="text-sm text-gray-500 mt-0.5 leading-snug">{cfg.description}</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Barra de progresso (apenas se não cancelado) ── */}
-      {!isCancelled && (
-        <section className="px-5 mb-5">
-          <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-3">
-            Progresso
+    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-shell space-y-4">
+        <section>
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 transition-colors hover:text-primary"
+          >
+            <ArrowLeft size={14} />
+            {isOperationalRole ? 'Voltar para operacoes' : 'Voltar ao rastreio'}
+          </Link>
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+            Detalhes
           </p>
-          <div className="bg-white rounded-2xl shadow-card p-4">
-            {STATUS_ORDER.map((s, i) => {
-              const stepCfg = STATUS_CONFIG[s];
-              const StepIcon = stepCfg.icon;
-              const done = i <= currentIdx;
-              const isCurrentStep = i === currentIdx;
-              const isLast = i === STATUS_ORDER.length - 1;
-              return (
-                <div key={s} className="flex gap-3">
-                  {/* Linha vertical + círculo */}
-                  <div className="flex flex-col items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-                      done
-                        ? isCurrentStep
-                          ? 'bg-primary ring-4 ring-primary/20'
-                          : 'bg-primary'
-                        : 'bg-gray-100'
-                    }`}>
-                      <StepIcon size={15} className={done ? 'text-white' : 'text-gray-300'} />
-                    </div>
-                    {!isLast && (
-                      <div className={`w-0.5 flex-1 my-1 ${i < currentIdx ? 'bg-primary' : 'bg-gray-100'}`} style={{ minHeight: 24 }} />
-                    )}
-                  </div>
-
-                  {/* Texto */}
-                  <div className={`pb-4 ${isLast ? '' : ''}`}>
-                    <p className={`text-sm font-bold ${done ? 'text-on-surface' : 'text-gray-300'}`}>
-                      {stepCfg.label}
-                    </p>
-                    {isCurrentStep && (
-                      <p className="text-xs text-gray-400 mt-0.5 leading-snug">{stepCfg.description}</p>
-                    )}
-                    {/* Timestamp do step na timeline */}
-                    {donation.timeline.find((t) => t.status === s) && (
-                      <p className="text-[10px] text-gray-300 mt-0.5">
-                        {donation.timeline.find((t) => t.status === s)?.timestamp}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <h1 className="mt-2 text-3xl font-bold text-primary-deeper sm:text-4xl">{donation.code}</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            Registrada em {formatDonationDateLabel(donation.createdAt)}
+          </p>
         </section>
-      )}
 
-      {/* ── Timeline de eventos ── */}
-      <section className="px-5 mb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-3">
-          Histórico de eventos
-        </p>
-        <div className="space-y-2">
-          {[...donation.timeline].reverse().map((event, i) => {
-            const evCfg = STATUS_CONFIG[event.status];
-            const EvIcon = evCfg.icon;
-            return (
-              <div key={i} className="bg-white rounded-2xl shadow-card p-4 flex items-start gap-3">
-                <div className={`w-8 h-8 ${evCfg.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                  <EvIcon size={15} className={evCfg.color} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-on-surface">{evCfg.label}</p>
-                  {event.note && <p className="text-xs text-gray-400 mt-0.5 leading-snug">{event.note}</p>}
-                  <p className="text-[10px] text-gray-300 mt-1">{event.timestamp}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* ── Ponto de coleta ── */}
-      <section className="px-5 mb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-3">
-          Ponto de coleta
-        </p>
-        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-          {/* Mini mapa placeholder */}
-          <div className="h-28 bg-gradient-to-br from-primary-light to-[#c8eae7] flex items-center justify-center relative">
-            <div className="absolute inset-0 opacity-20"
-              style={{
-                backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'40\' height=\'40\' viewBox=\'0 0 40 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'%23006a62\' fill-opacity=\'0.3\'%3E%3Cpath d=\'M0 0h40v1H0zm0 20h40v1H0zm20 0V0h1v40h-1z\'/%3E%3C/g%3E%3C/svg%3E")',
-              }}
-            />
-            <div className="bg-primary w-9 h-9 rounded-full flex items-center justify-center shadow-lg relative z-10">
-              <MapPin size={16} className="text-white" />
+        {showCelebrate && (
+          <section className="rounded-[2rem] bg-primary-light/45 p-6 shadow-card lg:p-7">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary shadow-sm">
+                <Sparkles size={14} />
+                Doacao confirmada
+              </span>
             </div>
-          </div>
-          <div className="p-4">
-            <p className="font-semibold text-sm text-on-surface">{donation.collectionPoint.name}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{donation.collectionPoint.address}</p>
-            <Link
-              href="/mapa"
-              className="mt-3 flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
-            >
-              <MapPin size={12} />
-              Ver no mapa
-            </Link>
-          </div>
-        </div>
-      </section>
 
-      {/* ── Itens doados ── */}
-      <section className="px-5 mb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-3">
-          Itens doados
-        </p>
-        <div className="space-y-2">
-          {donation.items.map((item, i) => (
-            <div key={i} className="bg-white rounded-2xl shadow-card p-4 flex items-start gap-3">
-              <div className="w-10 h-10 bg-primary-light rounded-xl flex items-center justify-center flex-shrink-0">
-                <Package size={18} className="text-primary" />
-              </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
               <div>
-                <p className="text-sm font-semibold text-on-surface">{item.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{item.category} • {item.quantity}</p>
-                <div className="flex items-center gap-1 mt-1.5">
-                  <Info size={11} className="text-gray-300" />
-                  <p className="text-[11px] text-gray-400">{item.condition}</p>
-                </div>
+                <h2 className="text-2xl font-bold text-primary-deeper">
+                  Sua doacao ja faz parte do fluxo real do VestGO.
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">
+                  O rastreio, o dashboard e o perfil agora refletem esta entrega a partir do mesmo
+                  dado persistido.
+                </p>
+              </div>
+
+              <div className="rounded-[1.75rem] bg-white p-5 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
+                  Pontos desta doacao
+                </p>
+                <p className="mt-2 text-3xl font-bold text-primary-deeper">
+                  +{donation.pointsAwarded} pts
+                </p>
+                <p className="mt-2 text-sm leading-7 text-gray-500">
+                  Seu progresso total agora esta em {snapshot.points} pontos solidarios.
+                </p>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
 
-      {/* ── Cancelar (apenas se PENDING) ── */}
-      {donation.status === 'PENDING' && (
-        <section className="px-5 mb-4">
-          <button className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-500 font-semibold py-4 rounded-2xl hover:bg-red-100 transition-colors text-sm active:scale-[0.97]">
-            <Undo2 size={16} />
-            Cancelar esta doação
-          </button>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+                  Meta do mes
+                </p>
+                <p className="mt-2 text-sm font-semibold text-primary-deeper">
+                  {snapshot.monthlyGoal.current}/{snapshot.monthlyGoal.target} entregas
+                </p>
+              </div>
+              <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+                  Proximo marco
+                </p>
+                <p className="mt-2 text-sm font-semibold text-primary-deeper">
+                  {snapshot.nextMilestone.label}
+                </p>
+              </div>
+              <Link
+                href="/perfil"
+                className="flex items-center justify-between rounded-[1.5rem] bg-primary-deeper p-4 text-white"
+              >
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-muted">
+                    Meu impacto
+                  </p>
+                  <p className="mt-2 text-sm font-semibold">Ver perfil completo</p>
+                </div>
+                <Award size={18} />
+              </Link>
+            </div>
+          </section>
+        )}
+
+        <section
+          className={`flex items-start gap-4 rounded-[2rem] p-5 shadow-card ${statusConfig.bg} lg:p-6`}
+        >
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm">
+            <StatusIcon size={26} className={statusConfig.color} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`text-lg font-bold ${statusConfig.color}`}>{statusConfig.label}</p>
+            <p className="mt-1 text-sm leading-7 text-gray-500">{statusConfig.description}</p>
+            {donation.latestEvent && (
+              <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-primary-deeper">
+                Ultima atualizacao: {formatDonationDateLabel(donation.latestEvent.createdAt)}
+              </p>
+            )}
+          </div>
         </section>
-      )}
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4">
+            {!isCancelled && (
+              <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                  Progresso
+                </p>
+                <div className="mt-5 space-y-4">
+                  {DONATION_STATUS_ORDER.map((status, index) => {
+                    const stepConfig = DONATION_STATUS_CONFIG[status];
+                    const StepIcon = stepConfig.icon;
+                    const done = index <= currentIdx;
+                    const isCurrentStep = index === currentIdx;
+                    const isLast = index === DONATION_STATUS_ORDER.length - 1;
+
+                    return (
+                      <div key={status} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div
+                            className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                              done
+                                ? isCurrentStep
+                                  ? 'bg-primary ring-4 ring-primary/20'
+                                  : 'bg-primary'
+                                : 'bg-gray-100'
+                            }`}
+                          >
+                            <StepIcon size={15} className={done ? 'text-white' : 'text-gray-300'} />
+                          </div>
+                          {!isLast && (
+                            <div
+                              className={`my-1 w-0.5 flex-1 ${
+                                index < currentIdx ? 'bg-primary' : 'bg-gray-100'
+                              }`}
+                              style={{ minHeight: 24 }}
+                            />
+                          )}
+                        </div>
+
+                        <div className="pb-4">
+                          <p
+                            className={`text-sm font-bold ${
+                              done ? 'text-on-surface' : 'text-gray-300'
+                            }`}
+                          >
+                            {stepConfig.label}
+                          </p>
+                          {isCurrentStep && (
+                            <p className="mt-0.5 text-xs leading-snug text-gray-400">
+                              {stepConfig.description}
+                            </p>
+                          )}
+                          {donation.timeline.find((event) => event.status === status) && (
+                            <p className="mt-0.5 text-[10px] text-gray-300">
+                              {formatDonationDateLabel(
+                                donation.timeline.find((event) => event.status === status)
+                                  ?.createdAt ?? donation.createdAt,
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                Historico de eventos
+              </p>
+              <div className="mt-5 space-y-3">
+                {[...donation.timeline].reverse().map((event) => {
+                  const eventConfig = DONATION_STATUS_CONFIG[event.status];
+                  const EventIcon = eventConfig.icon;
+
+                  return (
+                    <div
+                      key={event.id}
+                      className="flex items-start gap-3 rounded-[1.75rem] bg-white p-4 shadow-sm"
+                    >
+                      <div
+                        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl ${eventConfig.bg}`}
+                      >
+                        <EventIcon size={15} className={eventConfig.color} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-on-surface">
+                          {eventConfig.label}
+                        </p>
+                        <p className="mt-1 text-xs leading-6 text-gray-400">{event.description}</p>
+                        {event.location && (
+                          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
+                            {event.location}
+                          </p>
+                        )}
+                        <p className="mt-1 text-[10px] text-gray-300">
+                          {formatDonationDateLabel(event.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                Itens doados
+              </p>
+              <div className="mt-5 space-y-3">
+                {donation.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-start gap-3 rounded-[1.75rem] bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-light text-primary">
+                      <Package size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">{item.name}</p>
+                      <p className="mt-1 text-xs text-gray-400">
+                        {CATEGORY_LABELS[item.category] ?? item.category} - {item.quantity}{' '}
+                        unidade(s)
+                      </p>
+                      {item.description && (
+                        <div className="mt-2 flex items-center gap-1">
+                          <Info size={11} className="text-gray-300" />
+                          <p className="text-[11px] text-gray-400">{item.description}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="overflow-hidden rounded-[2rem] bg-white shadow-card">
+              <div className="flex h-28 items-center justify-center bg-gradient-to-br from-primary-light to-[#c8eae7]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg">
+                  <MapPin size={16} />
+                </div>
+              </div>
+
+              <div className="p-6">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                  Fluxo logistico
+                </p>
+
+                <div className="mt-3 space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+                      Ponto de coleta
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-on-surface">
+                      {donation.collectionPoint?.organizationName ??
+                        donation.collectionPoint?.name ??
+                        'Nao informado'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {donation.collectionPoint?.address ?? 'Endereco ainda nao informado'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.5rem] bg-surface p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+                      ONG vinculada
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-on-surface">
+                      {donation.ngo?.organizationName ??
+                        donation.ngo?.name ??
+                        'Parceiro ainda nao vinculado'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {donation.ngo?.address ??
+                        'Destino social sera exibido quando o fluxo for vinculado'}
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  href="/mapa"
+                  className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
+                >
+                  <MapPin size={12} />
+                  Ver no mapa
+                </Link>
+              </div>
+            </div>
+
+            {isOperationalRole ? (
+              <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                      Visao operacional
+                    </p>
+                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                      Etapa sob controle
+                    </h2>
+                  </div>
+                  <Target size={20} className="text-primary" />
+                </div>
+
+                <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
+                  <p className="text-sm font-semibold text-primary-deeper">
+                    {donation.allowedNextStatuses.length > 0
+                      ? 'Esta doacao possui proxima etapa disponivel.'
+                      : 'Aguardando o proximo ator do fluxo.'}
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                    {donation.latestEvent?.description ??
+                      'O historico desta doacao sera atualizado sempre que uma etapa mudar.'}
+                  </p>
+                  <Link
+                    href="/operacoes"
+                    className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary"
+                  >
+                    Voltar para o painel operacional
+                    <ArrowLeft size={14} />
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                      Progresso pessoal
+                    </p>
+                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                      {snapshot.nextMilestone.label}
+                    </h2>
+                  </div>
+                  <Target size={20} className="text-primary" />
+                </div>
+
+                <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
+                  <p className="text-sm font-semibold text-primary-deeper">Pontos solidarios</p>
+                  <p className="mt-2 text-3xl font-bold text-primary-deeper">{snapshot.points}</p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                    {snapshot.nextMilestone.note}
+                  </p>
+                </div>
+              </div>
+            )}
+          </aside>
+        </section>
+      </div>
     </div>
   );
 }

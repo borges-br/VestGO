@@ -1,26 +1,30 @@
 import Link from 'next/link';
 import {
   ArrowRight,
-  BadgeCheck,
   ChevronRight,
-  Clock3,
   HeartHandshake,
   Map,
   MapPin,
   Package,
   Plus,
   Sparkles,
-  Star,
-  Target,
   Truck,
 } from 'lucide-react';
+import {
+  BadgeCollectionCard,
+  ImpactProgressCard,
+  ImpactSummaryCard,
+  RankingPreviewCard,
+} from '@/components/gamification/impact-widgets';
 import { auth } from '@/lib/auth';
+import { getNearbyPoints, getUserDonations, type DonationRecord, type DonationStatus } from '@/lib/api';
+import { buildImpactSnapshot } from '@/lib/gamification';
 
 const quickActions = [
   {
     href: '/doar',
-    label: 'Nova doação',
-    description: 'Registrar peças',
+    label: 'Nova doacao',
+    description: 'Registrar pecas',
     icon: Plus,
     tone: 'bg-primary-deeper text-white',
   },
@@ -40,66 +44,72 @@ const quickActions = [
   },
   {
     href: '/perfil',
-    label: 'Meu histórico',
+    label: 'Meu impacto',
     description: 'Resumo pessoal',
     icon: HeartHandshake,
     tone: 'bg-amber-50 text-amber-600',
   },
 ];
 
-const recentDonations = [
-  {
-    id: 'VGO-104',
-    title: 'Kit inverno • 6 peças',
-    point: 'ONG Caminho da Luz',
-    status: 'Em trânsito',
-    tone: 'bg-indigo-50 text-indigo-600',
-  },
-  {
-    id: 'VGO-097',
-    title: 'Calçados e agasalhos',
-    point: 'Hub Solidário Pinheiros',
-    status: 'Entregue',
-    tone: 'bg-primary-light text-primary',
-  },
-  {
-    id: 'VGO-088',
-    title: 'Roupas infantis',
-    point: 'Centro Bela Vista',
-    status: 'Distribuída',
-    tone: 'bg-emerald-50 text-emerald-600',
-  },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  CLOTHING: 'Roupas',
+  SHOES: 'Calcados',
+  ACCESSORIES: 'Acessorios',
+  BAGS: 'Bolsas',
+  OTHER: 'Outros',
+};
 
-const nearbyPoints = [
-  {
-    name: 'Hub Solidário Pinheiros',
-    distance: '1,8 km',
-    note: 'Aberto hoje até 20h',
-    focus: 'Aceita roupas, calçados e cobertores',
-  },
-  {
-    name: 'ONG Caminho da Luz',
-    distance: '3,1 km',
-    note: 'Alta demanda de agasalhos',
-    focus: 'Triagem e distribuição recorrente',
-  },
-];
+const STATUS_META: Record<
+  DonationStatus,
+  { label: string; tone: string; stepIndex: number }
+> = {
+  PENDING: { label: 'Pendente', tone: 'bg-amber-50 text-amber-600', stepIndex: 0 },
+  AT_POINT: { label: 'No ponto', tone: 'bg-blue-50 text-blue-600', stepIndex: 1 },
+  IN_TRANSIT: { label: 'Em transito', tone: 'bg-indigo-50 text-indigo-600', stepIndex: 2 },
+  DELIVERED: { label: 'Entregue', tone: 'bg-primary-light text-primary', stepIndex: 3 },
+  DISTRIBUTED: { label: 'Distribuida', tone: 'bg-emerald-50 text-emerald-600', stepIndex: 3 },
+  CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-500', stepIndex: 0 },
+};
 
-const impactStats = [
-  { value: '12', label: 'famílias alcançadas' },
-  { value: '32kg', label: 'impacto acumulado' },
-  { value: '7', label: 'doações registradas' },
-];
+function formatDateLabel(input: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+  }).format(new Date(input));
+}
 
 export default async function InicioPage() {
   const session = await auth();
-  const firstName = session?.user?.name?.split(' ')[0] ?? 'você';
+  const firstName = session?.user?.name?.split(' ')[0] ?? 'voce';
+  const accessToken = session?.user?.accessToken ?? '';
+
+  let donations: DonationRecord[] = [];
+  let nearbyPoints: Awaited<ReturnType<typeof getNearbyPoints>>['data'] = [];
+
+  if (accessToken) {
+    try {
+      const [donationsResponse, pointsResponse] = await Promise.all([
+        getUserDonations(accessToken, { limit: 20 }),
+        getNearbyPoints({ lat: -23.5505, lng: -46.6333, radius: 15, limit: 2 }),
+      ]);
+      donations = donationsResponse.data;
+      nearbyPoints = pointsResponse.data;
+    } catch {
+      donations = [];
+      nearbyPoints = [];
+    }
+  }
+
+  const snapshot = buildImpactSnapshot(donations);
+  const latestDonation = donations[0] ?? null;
+  const recentDonations = donations.slice(0, 3);
+  const latestStatus = latestDonation ? STATUS_META[latestDonation.status] : null;
+  const progressSteps = ['Registrada', 'No ponto parceiro', 'Em transito', 'Entregue ao destino'];
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-shell space-y-4">
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
           <div className="overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
@@ -107,18 +117,16 @@ export default async function InicioPage() {
                 Central do doador
               </span>
               <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                atualização de hoje
+                dados reais ativos
               </span>
             </div>
 
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
               <div>
-                <p className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Olá, {firstName}.
-                </p>
+                <p className="text-3xl font-bold tracking-tight sm:text-4xl">Ola, {firstName}.</p>
                 <p className="mt-3 max-w-2xl text-base leading-8 text-primary-muted">
-                  Sua última doação já está em movimento. O próximo passo está claro: acompanhar o
-                  status ou registrar uma nova entrega quando estiver pronto.
+                  Seu dashboard agora reflete doacoes reais registradas, o estado atual da sua
+                  jornada e o progresso de impacto acumulado no VestGO.
                 </p>
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -127,7 +135,7 @@ export default async function InicioPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
                   >
                     <Plus size={16} />
-                    Registrar nova doação
+                    Registrar nova doacao
                   </Link>
                   <Link
                     href="/rastreio"
@@ -137,102 +145,95 @@ export default async function InicioPage() {
                     Ver meu rastreio
                   </Link>
                 </div>
+
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {[
+                    `${snapshot.points} pontos solidarios`,
+                    `${snapshot.streak.value} meses de participacao`,
+                    `${snapshot.monthlyGoal.current}/${snapshot.monthlyGoal.target} na meta do mes`,
+                  ].map((item) => (
+                    <span
+                      key={item}
+                      className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
               </div>
 
               <div className="rounded-[1.75rem] bg-white/10 p-5 backdrop-blur">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-muted">
-                  Última doação
+                  Ultima doacao
                 </p>
-                <p className="mt-3 text-xl font-semibold">Kit inverno • 6 peças</p>
-                <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-on-surface">
-                  <p className="text-sm font-semibold">Status atual: Em trânsito</p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    ONG Caminho da Luz • atualização há 2 horas
-                  </p>
-                </div>
 
-                <div className="mt-4 space-y-3">
-                  {[
-                    { label: 'Registrada', done: true },
-                    { label: 'No ponto parceiro', done: true },
-                    { label: 'Em trânsito', done: true },
-                    { label: 'Entregue à ONG', done: false },
-                  ].map((step, index, array) => (
-                    <div key={step.label} className="flex items-start gap-3">
-                      <div className="flex flex-col items-center">
-                        <div
-                          className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                            step.done ? 'bg-primary text-white' : 'bg-white/15 text-primary-muted'
-                          }`}
-                        >
-                          <Package size={14} />
-                        </div>
-                        {index < array.length - 1 && (
-                          <div className={`mt-1 h-5 w-px ${step.done ? 'bg-primary' : 'bg-white/20'}`} />
-                        )}
-                      </div>
-                      <p
-                        className={`pt-1 text-sm ${
-                          step.done ? 'font-semibold text-white' : 'text-primary-muted'
-                        }`}
-                      >
-                        {step.label}
+                {latestDonation ? (
+                  <>
+                    <p className="mt-3 text-xl font-semibold">{latestDonation.itemLabel}</p>
+                    <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-on-surface">
+                      <p className="text-sm font-semibold">Status atual: {latestStatus?.label}</p>
+                      <p className="mt-1 text-sm text-gray-400">
+                        {latestDonation.dropOffPoint?.organizationName ?? latestDonation.dropOffPoint?.name ?? 'Destino em definicao'} - ultima atualizacao em {formatDateLabel(latestDonation.updatedAt)}
                       </p>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted">
+                        Reconhecimento ativo
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-white">
+                        +{latestDonation.pointsAwarded} pontos nesta jornada
+                      </p>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {progressSteps.map((step, index, array) => {
+                        const done = index <= (latestStatus?.stepIndex ?? 0);
+                        return (
+                          <div key={step} className="flex items-start gap-3">
+                            <div className="flex flex-col items-center">
+                              <div
+                                className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                                  done ? 'bg-primary text-white' : 'bg-white/15 text-primary-muted'
+                                }`}
+                              >
+                                <Package size={14} />
+                              </div>
+                              {index < array.length - 1 && (
+                                <div className={`mt-1 h-5 w-px ${done ? 'bg-primary' : 'bg-white/20'}`} />
+                              )}
+                            </div>
+                            <p className={`pt-1 text-sm ${done ? 'font-semibold text-white' : 'text-primary-muted'}`}>
+                              {step}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 rounded-2xl bg-white/5 px-4 py-5">
+                    <p className="text-sm font-semibold text-white">Sua primeira doacao ainda nao foi registrada.</p>
+                    <p className="mt-2 text-sm leading-7 text-primary-muted">
+                      Assim que voce concluir o wizard, esta area passa a acompanhar o status real da entrega.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Meu impacto
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Resumo pessoal</h2>
-              </div>
-              <BadgeCheck className="text-primary" size={22} />
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-              {impactStats.map((item) => (
-                <div key={item.label} className="rounded-3xl bg-surface p-4">
-                  <p className="text-3xl font-bold text-primary-deeper">{item.value}</p>
-                  <p className="mt-1 text-sm text-gray-500">{item.label}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 rounded-3xl bg-primary-light/45 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-primary-deeper">Progresso solidário</p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Base visual pronta para metas e conquistas.
-                  </p>
-                </div>
-                <Target size={20} className="text-primary" />
-              </div>
-              <div className="mt-4 h-2 rounded-full bg-white">
-                <div className="h-full w-3/5 rounded-full bg-primary" />
-              </div>
-              <p className="mt-2 text-xs font-medium text-primary-deeper">
-                3 de 5 entregas para liberar o próximo marco visual
-              </p>
-            </div>
-          </div>
+          <ImpactSummaryCard snapshot={snapshot} />
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:grid-cols-[minmax(0,0.95fr)_minmax(0,0.8fr)_minmax(0,0.9fr)]">
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] xl:grid-cols-[minmax(0,0.95fr)_minmax(0,0.85fr)_minmax(0,0.95fr)]">
           <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Ações rápidas
+                  Acoes rapidas
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">O que você pode fazer agora</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">O que voce pode fazer agora</h2>
               </div>
               <ArrowRight size={18} className="text-primary" />
             </div>
@@ -260,7 +261,7 @@ export default async function InicioPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Pontos próximos
+                  Pontos proximos
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Onde doar</h2>
               </div>
@@ -268,132 +269,114 @@ export default async function InicioPage() {
             </div>
 
             <div className="mt-5 space-y-3">
-              {nearbyPoints.map((point) => (
-                <div key={point.name} className="rounded-3xl bg-surface p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-on-surface">{point.name}</p>
-                      <p className="mt-1 text-sm text-gray-400">{point.distance} • {point.note}</p>
-                      <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
-                        {point.focus}
-                      </p>
+              {nearbyPoints.length > 0 ? (
+                nearbyPoints.map((point) => (
+                  <div key={point.id} className="rounded-3xl bg-surface p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-on-surface">
+                          {point.organizationName ?? point.name}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-400">
+                          {point.distanceKm ? `${point.distanceKm} km - ` : ''}
+                          {point.address}
+                        </p>
+                        <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
+                          {point.acceptedCategories.slice(0, 3).map((item) => CATEGORY_LABELS[item] ?? item).join(' - ')}
+                        </p>
+                      </div>
+                      <Link href={`/mapa/${point.id}`} className="mt-1 text-primary">
+                        <ChevronRight size={16} />
+                      </Link>
                     </div>
-                    <Link href="/mapa" className="mt-1 text-primary">
-                      <ChevronRight size={16} />
-                    </Link>
                   </div>
+                ))
+              ) : (
+                <div className="rounded-3xl bg-surface p-4">
+                  <p className="text-sm font-semibold text-primary-deeper">Os pontos aparecem aqui quando o backend responder.</p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                    A estrutura ja esta pronta para listar parceiros reais da area de exploracao.
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
 
-            <Link
-              href="/mapa"
-              className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary"
-            >
+            <Link href="/mapa" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary">
               Explorar todos os pontos
               <ArrowRight size={15} />
             </Link>
           </div>
 
-          <div className="rounded-[2rem] bg-primary-light/45 p-6 shadow-card lg:p-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
-              Próximos passos
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
-              Um dashboard feito para decidir rápido.
-            </h2>
-
-            <div className="mt-5 space-y-3">
-              {[
-                'Registrar outra doação quando separar novas peças.',
-                'Acompanhar a entrega em andamento pelo rastreio.',
-                'Encontrar um ponto parceiro com melhor conveniência.',
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-3xl bg-white px-4 py-4 shadow-sm">
-                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-primary-light text-primary">
-                    <Star size={15} />
-                  </div>
-                  <p className="text-sm leading-7 text-gray-500">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ImpactProgressCard snapshot={snapshot} />
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
           <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Histórico resumido
+                  Historico resumido
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Suas últimas entregas</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Impacto recente</h2>
               </div>
               <Link href="/rastreio" className="text-sm font-semibold text-primary">
                 Ver tudo
               </Link>
             </div>
 
-            <div className="mt-5 space-y-3">
-              {recentDonations.map((donation) => (
-                <Link
-                  key={donation.id}
-                  href="/rastreio"
-                  className="flex items-center gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg"
-                >
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary">
-                    <Package size={19} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-on-surface">{donation.title}</p>
-                    <p className="mt-1 text-sm text-gray-400">{donation.point}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${donation.tone}`}>
-                      {donation.status}
-                    </span>
-                    <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-gray-300">
-                      {donation.id}
-                    </span>
-                  </div>
-                </Link>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {snapshot.stats.map((item) => (
+                <div key={item.label} className="rounded-[1.5rem] bg-surface p-4">
+                  <p className="text-3xl font-bold text-primary-deeper">{item.value}</p>
+                  <p className="mt-1 text-sm text-gray-500">{item.label}</p>
+                </div>
               ))}
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {recentDonations.length > 0 ? (
+                recentDonations.map((donation) => {
+                  const status = STATUS_META[donation.status];
+                  return (
+                    <Link
+                      key={donation.id}
+                      href={`/rastreio/${donation.id}`}
+                      className="flex items-center gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg"
+                    >
+                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary">
+                        <Package size={19} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-on-surface">{donation.itemLabel}</p>
+                        <p className="mt-1 text-sm text-gray-400">
+                          {donation.dropOffPoint?.organizationName ?? donation.dropOffPoint?.name ?? 'Destino em definicao'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${status.tone}`}>
+                          {status.label}
+                        </span>
+                        <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+                          +{donation.pointsAwarded} pts
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })
+              ) : (
+                <div className="rounded-[1.75rem] bg-surface p-5">
+                  <p className="text-sm font-semibold text-primary-deeper">Seu historico real comeca aqui.</p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                    Assim que a primeira doacao for criada pelo wizard, ela passa a aparecer neste bloco.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Janela futura
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Espaço preparado para evolução</h2>
-
-            <div className="mt-5 space-y-4">
-              <div className="rounded-3xl bg-surface p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-light text-primary">
-                    <Sparkles size={18} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface">Conquistas em breve</p>
-                    <p className="mt-1 text-sm text-gray-400">
-                      Área reservada para badges, metas e reconhecimento de recorrência.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-3xl bg-primary-deeper p-5 text-white">
-                <p className="text-sm font-semibold">Dica do dia</p>
-                <p className="mt-2 text-sm leading-7 text-primary-muted">
-                  Doações organizadas por tipo e volume ajudam a triagem a acontecer com mais
-                  rapidez e menos retrabalho.
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                  <Clock3 size={14} />
-                  leitura rápida
-                </div>
-              </div>
-            </div>
+          <div className="space-y-4">
+            <BadgeCollectionCard badges={snapshot.badges} compact />
+            <RankingPreviewCard snapshot={snapshot} />
           </div>
         </section>
       </div>
