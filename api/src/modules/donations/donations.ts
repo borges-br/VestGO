@@ -1,4 +1,10 @@
-import { DonationStatus, ItemCategory, Prisma, UserRole } from '@prisma/client';
+import {
+  DonationStatus,
+  ItemCategory,
+  Prisma,
+  PublicProfileState,
+  UserRole,
+} from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
@@ -469,6 +475,9 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         where: {
           id: body.collectionPointId,
           role: UserRole.COLLECTION_POINT,
+          publicProfileState: {
+            in: [PublicProfileState.ACTIVE, PublicProfileState.VERIFIED],
+          },
         },
         select: {
           id: true,

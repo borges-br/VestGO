@@ -19,7 +19,13 @@ import {
   ImpactProgressCard,
   RankingPreviewCard,
 } from '@/components/gamification/impact-widgets';
-import { getUserDonations, type DonationRecord } from '@/lib/api';
+import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
+import {
+  getMyProfile,
+  getUserDonations,
+  type DonationRecord,
+  type MyProfile,
+} from '@/lib/api';
 import { buildImpactSnapshot, donorImpactSnapshot } from '@/lib/gamification';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -41,31 +47,73 @@ export default function PerfilPage() {
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [loadingImpact, setLoadingImpact] = useState(true);
   const [impactError, setImpactError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadImpact() {
+    async function loadProfileContext() {
       if (!session?.user?.accessToken) {
         setLoadingImpact(false);
+        setLoadingProfile(false);
         return;
       }
 
-      setLoadingImpact(true);
-      setImpactError(null);
+      if (session.user.role === 'DONOR') {
+        setLoadingImpact(true);
+        setImpactError(null);
+
+        try {
+          const response = await getUserDonations(session.user.accessToken, { limit: 50 });
+          setDonations(response.data);
+        } catch {
+          setImpactError('Nao foi possivel carregar seu historico agora.');
+        } finally {
+          setLoadingImpact(false);
+          setLoadingProfile(false);
+        }
+
+        return;
+      }
+
+      setLoadingProfile(true);
+      setProfileError(null);
 
       try {
-        const response = await getUserDonations(session.user.accessToken, { limit: 50 });
-        setDonations(response.data);
+        const nextProfile = await getMyProfile(session.user.accessToken);
+        setProfile(nextProfile);
       } catch {
-        setImpactError('Nao foi possivel carregar seu historico agora.');
+        setProfileError('Nao foi possivel carregar o perfil operacional agora.');
       } finally {
+        setLoadingProfile(false);
         setLoadingImpact(false);
       }
     }
 
     if (status !== 'loading') {
-      loadImpact();
+      loadProfileContext();
     }
   }, [session?.user?.accessToken, status]);
+
+  if (status === 'loading') {
+    return (
+      <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-shell rounded-[2rem] bg-white p-6 shadow-card">
+          <p className="text-sm text-gray-500">Carregando perfil...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (session?.user?.role && session.user.role !== 'DONOR') {
+    return (
+      <OperationalProfileSummary
+        profile={profile}
+        loading={loadingProfile}
+        error={profileError}
+      />
+    );
+  }
 
   const snapshot = buildImpactSnapshot(donations);
   const userName = session?.user?.name ?? 'Usuario';

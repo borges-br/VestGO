@@ -126,7 +126,12 @@ function CadastroForm() {
         return;
       }
 
-      navigateTo(result?.url ?? callbackUrl);
+      const orgCallbackUrl = callbackUrl === '/inicio' ? '/operacoes' : callbackUrl;
+      const destination = isOrg
+        ? `/perfil/operacional?setup=1&callbackUrl=${encodeURIComponent(orgCallbackUrl)}`
+        : (result?.url ?? callbackUrl);
+
+      navigateTo(destination);
     } catch {
       setError('Nao foi possivel conectar ao servidor. Verifique sua conexao.');
     } finally {
@@ -301,6 +306,12 @@ function CadastroForm() {
             >
               {loading ? 'Criando conta...' : 'Criar minha conta'}
             </button>
+
+            {isOrg && (
+              <div className="rounded-xl bg-primary-light px-4 py-3 text-xs leading-relaxed text-primary-deeper">
+                Depois do cadastro, voce completa o perfil publico com endereco, horario, itens aceitos e demais informacoes uteis para os doadores.
+              </div>
+            )}
 
             <p className="text-center text-xs text-gray-400">
               Ao criar, voce aceita os{' '}

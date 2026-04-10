@@ -11,8 +11,8 @@ import {
   Search,
   SlidersHorizontal,
 } from 'lucide-react';
-import { getNearbyPoints, type CollectionPoint } from '@/lib/api';
 import { useSession } from 'next-auth/react';
+import { getNearbyPoints, type CollectionPoint } from '@/lib/api';
 
 const CollectionMap = dynamic(
   () => import('@/components/map/collection-map').then((module) => module.CollectionMap),
@@ -28,10 +28,15 @@ const CollectionMap = dynamic(
 
 const CATEGORY_LABELS: Record<string, string> = {
   CLOTHING: 'Roupas',
-  SHOES: 'Calçados',
-  ACCESSORIES: 'Acessórios',
+  SHOES: 'Calcados',
+  ACCESSORIES: 'Acessorios',
   BAGS: 'Bolsas',
   OTHER: 'Outros',
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  COLLECTION_POINT: 'Ponto',
+  NGO: 'ONG',
 };
 
 export function MapaPageContent() {
@@ -54,10 +59,10 @@ export function MapaPageContent() {
       setPoints(response.data);
 
       if (response.data.length === 0) {
-        setError('Nenhum ponto de coleta encontrado nessa área.');
+        setError('Nenhum parceiro publico encontrado nessa area.');
       }
     } catch {
-      setError('Erro ao buscar pontos. Verifique sua conexão.');
+      setError('Erro ao buscar pontos. Verifique sua conexao.');
     } finally {
       setLoading(false);
     }
@@ -65,7 +70,7 @@ export function MapaPageContent() {
 
   const handleLocate = useCallback(() => {
     if (!navigator.geolocation) {
-      setError('Geolocalização não disponível neste navegador.');
+      setError('Geolocalizacao nao disponivel neste navegador.');
       return;
     }
 
@@ -79,14 +84,14 @@ export function MapaPageContent() {
       },
       () => {
         setLoading(false);
-        setError('Permissão de localização negada. Tente buscar por CEP.');
+        setError('Permissao de localizacao negada. Tente explorar manualmente os pontos.');
       },
     );
   }, [fetchPoints]);
 
   useEffect(() => {
     fetchPoints(center[0], center[1]);
-  }, []);
+  }, [fetchPoints]);
 
   return (
     <div className={`flex flex-col bg-surface font-sans ${isLoggedIn ? '' : 'min-h-screen'}`}>
@@ -114,13 +119,13 @@ export function MapaPageContent() {
               />
               <input
                 type="text"
-                placeholder="Buscar cidade, bairro..."
+                placeholder="Buscar cidade, bairro ou parceiro..."
                 className="w-full rounded-2xl border border-gray-100 bg-white py-3 pl-9 pr-4 text-sm shadow-sm outline-none transition-colors focus:border-primary"
               />
             </div>
             <button
               onClick={handleLocate}
-              title="Usar minha localização"
+              title="Usar minha localizacao"
               className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl shadow-sm transition-colors ${
                 located
                   ? 'bg-primary text-white'
@@ -142,7 +147,7 @@ export function MapaPageContent() {
                 <p className="mt-1 text-sm text-gray-500">
                   {selected
                     ? `Selecionado: ${selected.organizationName ?? selected.name}`
-                    : 'Veja pontos próximos e selecione um parceiro no mapa.'}
+                    : 'Veja parceiros ativos, compare perfis e escolha onde doar.'}
                 </p>
               </div>
               <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary">
@@ -165,10 +170,10 @@ export function MapaPageContent() {
             <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {loading ? 'Buscando...' : 'Lista de pontos'}
+                  {loading ? 'Buscando...' : 'Lista de parceiros'}
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
-                  Área principal de descoberta do VestGO.
+                  Perfis publicos de pontos de coleta e ONGs em operacao.
                 </p>
               </div>
               <button className="flex items-center gap-1 text-xs text-gray-500">
@@ -199,15 +204,19 @@ export function MapaPageContent() {
                       <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary-light">
                         <MapPin size={16} className="text-primary" />
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-on-surface">
                               {point.organizationName ?? point.name}
                             </p>
-                            <p className="mt-0.5 truncate text-xs text-gray-400">
-                              {point.address}
-                              {point.city ? ` • ${point.city}` : ''}
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                              <span>{ROLE_LABELS[point.role] ?? 'Parceiro'}</span>
+                              {point.neighborhood && <span>{point.neighborhood}</span>}
+                              {point.city && <span>{point.city}</span>}
+                            </div>
+                            <p className="mt-2 line-clamp-2 text-xs leading-6 text-gray-500">
+                              {point.description ?? point.address ?? 'Perfil publico em construcao.'}
                             </p>
                           </div>
                           <div className="flex flex-shrink-0 flex-col items-end">
@@ -225,6 +234,7 @@ export function MapaPageContent() {
                             </Link>
                           </div>
                         </div>
+
                         {point.acceptedCategories?.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {point.acceptedCategories.slice(0, 3).map((category) => (
@@ -242,6 +252,12 @@ export function MapaPageContent() {
                             )}
                           </div>
                         )}
+
+                        {point.openingHours && point.role === 'COLLECTION_POINT' && (
+                          <p className="mt-2 text-[11px] leading-5 text-gray-400">
+                            {point.openingHours}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -251,7 +267,7 @@ export function MapaPageContent() {
                   <div className="py-10 text-center">
                     <MapPin size={32} className="mx-auto mb-3 text-gray-200" />
                     <p className="text-sm text-gray-400">
-                      Use sua localização para ver pontos próximos
+                      Use sua localizacao para ver parceiros publicos proximos.
                     </p>
                   </div>
                 )}
