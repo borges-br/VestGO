@@ -1,4 +1,5 @@
 import {
+  ClipboardList,
   HelpCircle,
   Home,
   Map,
@@ -22,8 +23,8 @@ export type NavigationItem = {
 export const PRIMARY_NAV_ITEMS: NavigationItem[] = [
   {
     href: '/inicio',
-    label: 'Início',
-    mobileLabel: 'Início',
+    label: 'Inicio',
+    mobileLabel: 'Inicio',
     icon: Home,
     exact: true,
   },
@@ -36,7 +37,7 @@ export const PRIMARY_NAV_ITEMS: NavigationItem[] = [
   },
   {
     href: '/doar',
-    label: 'Nova doação',
+    label: 'Nova doacao',
     mobileLabel: 'Doar',
     icon: Plus,
     exact: true,
@@ -60,7 +61,7 @@ export const UTILITY_NAV_ITEMS: NavigationItem[] = [
   },
   {
     href: '/configuracoes',
-    label: 'Configurações',
+    label: 'Configuracoes',
     icon: Settings,
     exact: true,
   },
@@ -75,6 +76,22 @@ export const UTILITY_NAV_ITEMS: NavigationItem[] = [
     icon: HelpCircle,
   },
 ];
+
+export function getUtilityNavItems(role: string) {
+  if (role === 'DONOR') {
+    return UTILITY_NAV_ITEMS;
+  }
+
+  return [
+    {
+      href: '/operacoes',
+      label: 'Operacoes',
+      icon: ClipboardList,
+      exact: true,
+    },
+    ...UTILITY_NAV_ITEMS,
+  ];
+}
 
 export const ROLE_LABELS: Record<string, string> = {
   DONOR: 'Doador',

@@ -1,151 +1,245 @@
-import {
-  CheckCircle, Clock, Truck, Package, XCircle, ChevronRight, Plus
-} from 'lucide-react';
+import { Package, Plus, Target } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import {
+  DONATION_STATUS_CONFIG,
+  formatDonationDateLabel,
+} from '@/components/donations/donation-status';
+import { auth } from '@/lib/auth';
+import { getUserDonations, type DonationRecord } from '@/lib/api';
+import { buildImpactSnapshot } from '@/lib/gamification';
 
-type StatusKey = 'PENDING' | 'AT_POINT' | 'IN_TRANSIT' | 'DELIVERED' | 'DISTRIBUTED' | 'CANCELLED';
+export default async function RastreioPage() {
+  const session = await auth();
+  const accessToken = session?.user?.accessToken ?? '';
+  const role = session?.user?.role ?? 'DONOR';
 
-const STATUS_CONFIG: Record<StatusKey, { label: string; color: string; bg: string; icon: typeof CheckCircle }> = {
-  PENDING:     { label: 'Pendente',     color: 'text-amber-600',  bg: 'bg-amber-50',   icon: Clock },
-  AT_POINT:    { label: 'No ponto',     color: 'text-blue-600',   bg: 'bg-blue-50',    icon: Package },
-  IN_TRANSIT:  { label: 'Em trânsito',  color: 'text-indigo-600', bg: 'bg-indigo-50',  icon: Truck },
-  DELIVERED:   { label: 'Entregue',     color: 'text-primary',    bg: 'bg-primary-light', icon: CheckCircle },
-  DISTRIBUTED: { label: 'Distribuído',  color: 'text-primary',    bg: 'bg-primary-light', icon: CheckCircle },
-  CANCELLED:   { label: 'Cancelado',    color: 'text-red-500',    bg: 'bg-red-50',     icon: XCircle },
-};
+  let donations: DonationRecord[] = [];
 
-// Placeholder até o endpoint GET /donations existir (Milestone 3)
-const mockDonations = [
-  {
-    id: '1',
-    code: 'VGO-001',
-    status: 'DELIVERED' as StatusKey,
-    items: [{ name: 'Kit Inverno (3 Casacos)', category: 'CLOTHING' }],
-    collectionPointName: 'ONG Caminho da Luz',
-    createdAt: '2026-04-06',
-  },
-  {
-    id: '2',
-    code: 'VGO-002',
-    status: 'PENDING' as StatusKey,
-    items: [{ name: 'Tênis Esportivo Tam 42', category: 'SHOES' }],
-    collectionPointName: 'Aguardando ponto de coleta',
-    createdAt: '2026-04-07',
-  },
-];
+  if (accessToken) {
+    try {
+      const response = await getUserDonations(accessToken, { limit: 50 });
+      donations = response.data;
+    } catch {
+      donations = [];
+    }
+  }
 
-export default function RastreioPage() {
+  const snapshot = buildImpactSnapshot(donations);
+  
+  if (role !== 'DONOR') {
+    redirect('/operacoes');
+  }
+
+  const summaryCards = [
+    { label: 'Total', value: String(donations.length), color: 'text-on-surface' },
+    {
+      label: 'Em andamento',
+      value: String(
+        donations.filter((donation) =>
+          ['PENDING', 'AT_POINT', 'IN_TRANSIT'].includes(donation.status),
+        ).length,
+      ),
+      color: 'text-blue-600',
+    },
+    {
+      label: 'Concluidas',
+      value: String(
+        donations.filter((donation) =>
+          ['DELIVERED', 'DISTRIBUTED'].includes(donation.status),
+        ).length,
+      ),
+      color: 'text-primary',
+    },
+    {
+      label: 'Pontos solidarios',
+      value: String(snapshot.points),
+      color: 'text-primary-deeper',
+    },
+  ];
+
   return (
-    <div className="pb-2">
-      {/* ── Header ── */}
-      <section className="px-5 pt-6 pb-4">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-          Rastreio
-        </p>
-        <h1 className="text-3xl font-bold text-primary-deeper">Minhas doações</h1>
-        <p className="text-sm text-gray-400 mt-1">Acompanhe o status de cada doação.</p>
-      </section>
+    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-shell space-y-4">
+        <section>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+            Rastreio
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-primary-deeper sm:text-4xl">
+            Minhas doacoes
+          </h1>
+          <p className="mt-2 text-sm text-gray-500 sm:text-base">
+            Acompanhe o status real de cada entrega e como isso movimenta seu impacto.
+          </p>
+        </section>
 
-      {/* ── Resumo rápido ── */}
-      <section className="px-5 mb-5">
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Total', value: mockDonations.length, color: 'text-on-surface' },
-            { label: 'Em andamento', value: mockDonations.filter(d => !['DELIVERED','DISTRIBUTED','CANCELLED'].includes(d.status)).length, color: 'text-blue-600' },
-            { label: 'Concluídas', value: mockDonations.filter(d => ['DELIVERED','DISTRIBUTED'].includes(d.status)).length, color: 'text-primary' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-2xl p-3 shadow-card text-center">
-              <p className={`text-2xl font-bold ${color}`}>{value}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{label}</p>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map(({ label, value, color }) => (
+            <div key={label} className="rounded-[1.75rem] bg-white p-4 shadow-card">
+              <p className={`text-3xl font-bold ${color}`}>{value}</p>
+              <p className="mt-1 text-sm text-gray-500">{label}</p>
             </div>
           ))}
-        </div>
-      </section>
+        </section>
 
-      {/* ── Lista de doações ── */}
-      <section className="px-5 mb-5">
-        {mockDonations.length === 0 ? (
-          <div className="text-center py-16">
-            <Package size={40} className="text-gray-200 mx-auto mb-4" />
-            <p className="text-base font-semibold text-gray-400">Nenhuma doação ainda</p>
-            <p className="text-sm text-gray-300 mt-1 mb-6">Comece sua primeira doação agora!</p>
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_360px]">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                  Jornada das doacoes
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                  Status de cada entrega
+                </h2>
+              </div>
+              <Link href="/doar" className="text-sm font-semibold text-primary">
+                Nova doacao
+              </Link>
+            </div>
+
+            {donations.length === 0 ? (
+              <div className="py-16 text-center">
+                <Package size={40} className="mx-auto mb-4 text-gray-200" />
+                <p className="text-base font-semibold text-gray-400">Nenhuma doacao ainda</p>
+                <p className="mb-6 mt-1 text-sm text-gray-300">
+                  Comece sua primeira doacao agora.
+                </p>
+                <Link
+                  href="/doar"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 font-semibold text-white"
+                >
+                  <Plus size={16} />
+                  Nova doacao
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {donations.map((donation) => {
+                  const statusConfig = DONATION_STATUS_CONFIG[donation.status];
+                  const StatusIcon = statusConfig.icon;
+
+                  return (
+                    <Link
+                      key={donation.id}
+                      href={`/rastreio/${donation.id}`}
+                      className="block rounded-[1.75rem] border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary">
+                          <Package size={20} />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-on-surface">
+                                {donation.itemLabel}
+                              </p>
+                              <p className="mt-1 truncate text-sm text-gray-400">
+                                {donation.dropOffPoint?.organizationName ??
+                                  donation.dropOffPoint?.name ??
+                                  'Destino em definicao'}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col items-start gap-2 sm:items-end">
+                              <span
+                                className={`rounded-full px-3 py-1 text-[11px] font-semibold ${statusConfig.bg} ${statusConfig.color}`}
+                              >
+                                {statusConfig.label}
+                              </span>
+                              <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+                                +{donation.pointsAwarded} pts
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-400">
+                            <span className="inline-flex items-center gap-2">
+                              <StatusIcon size={14} className={statusConfig.color} />
+                              {formatDonationDateLabel(donation.createdAt)}
+                            </span>
+                            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-gray-300">
+                              {donation.code}
+                            </span>
+                          </div>
+
+                          {donation.latestEvent && (
+                            <p className="mt-3 text-sm leading-6 text-gray-500">
+                              {donation.latestEvent.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                    Progresso ligado ao rastreio
+                  </p>
+                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                    Cada etapa conta
+                  </h2>
+                </div>
+                <Target size={20} className="text-primary" />
+              </div>
+
+              <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
+                <p className="text-sm font-semibold text-primary-deeper">
+                  {snapshot.nextMilestone.label}
+                </p>
+                <p className="mt-2 text-sm leading-7 text-gray-500">
+                  {snapshot.nextMilestone.note}
+                </p>
+                <div className="mt-4 h-2 rounded-full bg-white">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{
+                      width: `${
+                        snapshot.nextMilestone.target === 0
+                          ? 100
+                          : Math.min(
+                              (snapshot.nextMilestone.current / snapshot.nextMilestone.target) *
+                                100,
+                              100,
+                            )
+                      }%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
+                  {snapshot.nextMilestone.current}/{snapshot.nextMilestone.target} neste marco
+                </p>
+              </div>
+
+              <div className="mt-4 rounded-[1.75rem] bg-primary-light/45 p-5">
+                <p className="text-sm font-semibold text-primary-deeper">Meta do mes em andamento</p>
+                <p className="mt-2 text-sm leading-7 text-gray-500">
+                  {snapshot.monthlyGoal.current}/{snapshot.monthlyGoal.target} entregas
+                  registradas neste ciclo.
+                </p>
+              </div>
+            </div>
+
             <Link
               href="/doar"
-              className="inline-flex items-center gap-2 bg-primary text-white font-semibold px-6 py-3 rounded-2xl"
+              className="flex items-center justify-center gap-2 rounded-[2rem] bg-primary-deeper px-5 py-4 font-semibold text-white transition-colors hover:bg-primary-dark"
             >
-              <Plus size={16} />
-              Nova doação
+              <Plus size={18} />
+              Registrar nova doacao
             </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {mockDonations.map((donation) => {
-              const cfg = STATUS_CONFIG[donation.status];
-              const Icon = cfg.icon;
-              return (
-                <Link
-                  key={donation.id}
-                  href={`/rastreio/${donation.id}`}
-                  className="block bg-white rounded-2xl p-4 shadow-card hover:shadow-card-lg transition-all active:scale-[0.98]"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-primary-light rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Package size={20} className="text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm text-on-surface truncate">
-                            {donation.items[0].name}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-0.5 truncate">
-                            {donation.collectionPointName}
-                          </p>
-                        </div>
-                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 whitespace-nowrap ${cfg.bg} ${cfg.color}`}>
-                          {cfg.label}
-                        </span>
-                      </div>
-
-                      {/* Mini timeline */}
-                      <div className="flex items-center gap-1 mt-3">
-                        {(['PENDING', 'AT_POINT', 'IN_TRANSIT', 'DELIVERED'] as StatusKey[]).map((s, i) => {
-                          const statuses: StatusKey[] = ['PENDING', 'AT_POINT', 'IN_TRANSIT', 'DELIVERED', 'DISTRIBUTED'];
-                          const currentIdx = statuses.indexOf(donation.status);
-                          const stepIdx = statuses.indexOf(s);
-                          const done = stepIdx <= currentIdx;
-                          return (
-                            <div key={s} className="flex items-center flex-1">
-                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${done ? 'bg-primary' : 'bg-gray-200'}`} />
-                              {i < 3 && <div className={`flex-1 h-px ${done && stepIdx < currentIdx ? 'bg-primary' : 'bg-gray-200'}`} />}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="flex items-center justify-between mt-2">
-                        <p className="text-[10px] text-gray-400">Cod: {donation.code}</p>
-                        <p className="text-[10px] text-gray-400">{donation.createdAt}</p>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* ── Botão nova doação ── */}
-      <section className="px-5">
-        <Link
-          href="/doar"
-          className="flex items-center justify-center gap-2 w-full bg-primary-deeper text-white font-semibold py-4 rounded-2xl hover:bg-primary-dark transition-colors active:scale-[0.97]"
-        >
-          <Plus size={18} />
-          Registrar nova doação
-        </Link>
-      </section>
+          </aside>
+        </section>
+      </div>
     </div>
   );
 }

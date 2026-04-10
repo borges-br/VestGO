@@ -1,226 +1,766 @@
 'use client';
-import { useState } from 'react';
-import { MapPin, Camera, Check, ChevronRight, Info } from 'lucide-react';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import {
+  BadgeCheck,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Footprints,
+  Info,
+  Layers,
+  Loader2,
+  MapPin,
+  Package,
+  ShieldCheck,
+  Shirt,
+  Sparkles,
+} from 'lucide-react';
+import { PostDonationRewardCard } from '@/components/gamification/impact-widgets';
+import { Input } from '@/components/ui/input';
+import {
+  createDonation,
+  getNearbyPoints,
+  getUserDonations,
+  type CollectionPoint,
+  type DonationRecord,
+} from '@/lib/api';
+import { buildPostDonationReward, type PostDonationReward } from '@/lib/gamification';
+import { cn } from '@/lib/utils';
 
-type Category = 'Roupas adultas' | 'Roupas infantis' | 'Calçados' | 'Cobertores' | 'Outros';
-type Condition = 'otimo' | 'bom';
+type CategoryId = 'adult' | 'child' | 'shoes' | 'blankets' | 'other';
+type ConditionId = 'otimo' | 'bom';
 
-const categories: Category[] = ['Roupas adultas', 'Roupas infantis', 'Calçados', 'Cobertores', 'Outros'];
+const steps = [
+  { eyebrow: 'Etapa 1', short: 'Tipo', title: 'O que voce vai doar?', description: 'Escolha as categorias principais para iniciar o registro.' },
+  { eyebrow: 'Etapa 2', short: 'Detalhes', title: 'Detalhes das pecas', description: 'Informe so o necessario para dar contexto a entrega.' },
+  { eyebrow: 'Etapa 3', short: 'Ponto', title: 'Escolha o ponto de coleta', description: 'Selecione um parceiro real para receber a doacao.' },
+  { eyebrow: 'Etapa 4', short: 'Revisao', title: 'Revisao e confirmacao', description: 'Confira os dados principais antes de concluir.' },
+];
 
-export default function DoarPage() {
-  const [selectedCategories, setSelectedCategories] = useState<Category[]>(['Roupas adultas']);
-  const [condition, setCondition] = useState<Condition>('otimo');
-  const [quantity, setQuantity] = useState('');
-  const [volume, setVolume] = useState('1 sacola grande');
-  const [notes, setNotes] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
-  const [loading, setLoading] = useState(false);
+const categories = [
+  { id: 'adult' as CategoryId, label: 'Roupas adultas', hint: 'camisetas, calcas, casacos', icon: Shirt },
+  { id: 'child' as CategoryId, label: 'Roupas infantis', hint: 'pecas para criancas', icon: Sparkles },
+  { id: 'shoes' as CategoryId, label: 'Calcados', hint: 'tenis, sapatos e chinelos', icon: Footprints },
+  { id: 'blankets' as CategoryId, label: 'Cobertores', hint: 'mantas e agasalhos pesados', icon: Layers },
+  { id: 'other' as CategoryId, label: 'Outros itens', hint: 'acessorios e pecas diversas', icon: Package },
+];
 
-  const toggleCategory = (cat: Category) => {
-    setSelectedCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
-    );
-  };
+const conditions = [
+  { id: 'otimo' as ConditionId, label: 'Em otimo estado', description: 'Prontas para uso imediato.' },
+  { id: 'bom' as ConditionId, label: 'Usadas, mas conservadas', description: 'Com bom potencial de reaproveitamento.' },
+];
 
-  const handleSubmit = async () => {
-    if (!confirmed) return;
-    setLoading(true);
-    // TODO: chamar POST /donations quando o endpoint existir (Milestone 4)
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    // Por ora redireciona para rastreio
-    window.location.href = '/rastreio';
-  };
+const volumeOptions = ['1 sacola grande', '2 sacolas', '1 caixa', 'Mais de 1 caixa'];
+
+const categoryLabels: Record<string, string> = {
+  CLOTHING: 'Roupas',
+  SHOES: 'Calcados',
+  ACCESSORIES: 'Acessorios',
+  BAGS: 'Bolsas',
+  OTHER: 'Outros',
+};
+
+const categoryToApiCategory: Record<CategoryId, string> = {
+  adult: 'CLOTHING',
+  child: 'CLOTHING',
+  shoes: 'SHOES',
+  blankets: 'CLOTHING',
+  other: 'OTHER',
+};
+
+function getEstimatedQuantity(value: string) {
+  const match = value.match(/\d+/);
+  if (!match) return 0;
+  return Number.parseInt(match[0], 10);
+}
+
+function splitQuantity(total: number, parts: number) {
+  if (parts <= 0) return [];
+  const base = Math.max(1, Math.floor(total / parts));
+  const quantities = Array.from({ length: parts }, () => base);
+  let remainder = Math.max(total - base * parts, 0);
+  let index = 0;
+
+  while (remainder > 0) {
+    quantities[index] += 1;
+    remainder -= 1;
+    index = (index + 1) % parts;
+  }
+
+  return quantities;
+}
+
+function SummaryCard({
+  selectedCategories,
+  quantity,
+  volume,
+  condition,
+  notes,
+  selectedPoint,
+  compact = false,
+  reward,
+}: {
+  selectedCategories: CategoryId[];
+  quantity: string;
+  volume: string;
+  condition: ConditionId;
+  notes: string;
+  selectedPoint: CollectionPoint | null;
+  compact?: boolean;
+  reward: PostDonationReward;
+}) {
+  const labels = selectedCategories.length
+    ? categories.filter((item) => selectedCategories.includes(item.id)).map((item) => item.label)
+    : ['Nenhuma categoria'];
+  const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? 'Nao informado';
 
   return (
-    <div className="pb-2">
-      {/* ── Cabeçalho ── */}
-      <section className="px-5 pt-6 pb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-          Nova doação
-        </p>
-        <h1 className="text-2xl font-bold text-primary-deeper leading-tight">
-          Cadastrar nova doação
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">
-          Registre os itens que você pretende levar para facilitar a triagem na ONG.
-        </p>
-      </section>
-
-      {/* ── Ponto escolhido ── */}
-      <section className="px-5 mb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-2">
-          Ponto de coleta escolhido
-        </p>
-        <Link
-          href="/mapa"
-          className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-card"
-        >
-          <div className="w-10 h-10 bg-primary-light rounded-xl flex items-center justify-center flex-shrink-0">
-            <MapPin size={18} className="text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-on-surface">Hub Central Pinheiros</p>
-            <p className="text-xs text-gray-400 mt-0.5">Rua dos Pinheiros, 1234 • Aberto até 20:00</p>
-          </div>
-          <ChevronRight size={16} className="text-gray-300 flex-shrink-0" />
-        </Link>
-      </section>
-
-      {/* ── Categorias ── */}
-      <section className="px-5 mb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-3">
-          O que você está doando?
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {categories.map((cat) => {
-            const selected = selectedCategories.includes(cat);
-            return (
-              <button
-                key={cat}
-                onClick={() => toggleCategory(cat)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
-                  selected
-                    ? 'bg-primary-deeper text-white'
-                    : 'bg-white text-gray-600 border border-gray-200'
-                }`}
-              >
-                {cat}
-              </button>
-            );
-          })}
+    <div className={cn('rounded-[2rem] bg-white shadow-card', compact ? 'p-5' : 'p-6 lg:p-7')}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doacao</p>
+          <h2 className="mt-2 text-xl font-bold text-primary-deeper">O que ja foi definido</h2>
         </div>
-      </section>
+        <BadgeCheck size={20} className="text-primary" />
+      </div>
 
-      {/* ── Quantidade e Volume ── */}
-      <section className="px-5 mb-5">
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="block text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-2">
-              Qtd. estimada
-            </label>
-            <input
-              type="text"
-              placeholder="Ex: 10 itens"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-2">
-              Volume
-            </label>
-            <select
-              value={volume}
-              onChange={(e) => setVolume(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary appearance-none"
-            >
-              <option>1 sacola grande</option>
-              <option>2 sacolas</option>
-              <option>1 caixa</option>
-              <option>Mais de 1 caixa</option>
-            </select>
+      <div className="mt-5 space-y-4">
+        <div className="rounded-3xl bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Categorias</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {labels.map((label) => (
+              <span key={label} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+                {label}
+              </span>
+            ))}
           </div>
         </div>
-      </section>
 
-      {/* ── Condição ── */}
-      <section className="px-5 mb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-3">
-          Condição das peças
-        </p>
-        <div className="flex gap-3">
-          {([
-            { id: 'otimo', label: 'Em ótimo estado' },
-            { id: 'bom', label: 'Usado mas conservado' },
-          ] as { id: Condition; label: string }[]).map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setCondition(id)}
-              className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                condition === id
-                  ? 'bg-primary text-white'
-                  : 'bg-white text-gray-600 border border-gray-200'
-              }`}
-            >
-              {condition === id && <Check size={14} />}
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Observações ── */}
-      <section className="px-5 mb-5">
-        <label className="block text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-2">
-          Observações (opcional)
-        </label>
-        <textarea
-          rows={3}
-          placeholder="Ex: Contém agasalhos de lã pesados para o inverno."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary resize-none"
-        />
-      </section>
-
-      {/* ── Foto ── */}
-      <section className="px-5 mb-5">
-        <label className="block text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-2">
-          Fotos da doação (opcional)
-        </label>
-        <button className="w-full bg-white border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-primary transition-colors active:scale-[0.98]">
-          <Camera size={28} />
-          <span className="text-sm">Tirar foto ou anexar</span>
-        </button>
-      </section>
-
-      {/* ── Confirmação ── */}
-      <section className="px-5 mb-5">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <div
-            onClick={() => setConfirmed(!confirmed)}
-            className={`w-5 h-5 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
-              confirmed ? 'bg-primary border-primary' : 'border-gray-300 bg-white'
-            }`}
-          >
-            {confirmed && <Check size={11} className="text-white" strokeWidth={3} />}
+        <div className="rounded-3xl bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Detalhes</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-sm font-semibold text-on-surface">{quantity || 'Quantidade pendente'}</p>
+              <p className="mt-1 text-sm text-gray-400">{volume}</p>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-on-surface">{conditionLabel}</p>
+              <p className="mt-1 text-sm text-gray-400">{notes ? 'Com observacoes' : 'Sem observacoes'}</p>
+            </div>
           </div>
-          <span className="text-sm text-gray-600 leading-snug">
-            Confirmo que as roupas estão limpas, higienizadas e em bom estado para uso imediato.
-          </span>
-        </label>
-      </section>
-
-      {/* ── Dicas ── */}
-      <section className="px-5 mb-6">
-        <div className="bg-primary-deeper rounded-2xl p-5 text-white">
-          <div className="flex items-center gap-2 mb-3">
-            <Info size={15} className="text-primary-muted" />
-            <p className="font-bold text-sm">Dicas de Triagem</p>
-          </div>
-          <ul className="space-y-2 text-xs text-primary-muted leading-relaxed">
-            <li>• Separe por tipo (ex: infantil de um lado, adulto de outro) para agilizar o trabalho dos voluntários.</li>
-            <li>• Verifique se não há itens pessoais nos bolsos antes de embalar.</li>
-          </ul>
         </div>
-      </section>
 
-      {/* ── Botões ── */}
-      <section className="px-5 mb-2 space-y-3">
-        <button
-          onClick={handleSubmit}
-          disabled={!confirmed || loading}
-          className="w-full bg-primary-deeper text-white font-bold py-4 rounded-2xl hover:bg-primary-dark transition-all active:scale-[0.97] disabled:opacity-50"
-        >
-          {loading ? 'Registrando…' : 'Registrar doação'}
-        </button>
-        <button className="w-full bg-white border border-gray-200 text-gray-600 font-semibold py-4 rounded-2xl hover:bg-surface transition-colors">
-          Salvar para depois
-        </button>
-      </section>
+        <div className="rounded-3xl bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Ponto de coleta</p>
+          {selectedPoint ? (
+            <div className="mt-3">
+              <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
+              <p className="mt-1 text-sm text-gray-400">
+                {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
+                {selectedPoint.address}
+              </p>
+              <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
+                {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-gray-400">Escolha do ponto ainda pendente.</p>
+          )}
+        </div>
+
+        <div className="rounded-3xl bg-primary-light/45 p-4">
+          <p className="text-sm font-semibold text-primary-deeper">+{reward.points} pontos previstos</p>
+          <p className="mt-2 text-sm leading-7 text-gray-500">Esta entrega passa a contar no seu progresso real assim que for registrada.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DoarPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedCategories, setSelectedCategories] = useState<CategoryId[]>(['adult']);
+  const [quantity, setQuantity] = useState('');
+  const [volume, setVolume] = useState('1 sacola grande');
+  const [condition, setCondition] = useState<ConditionId>('otimo');
+  const [notes, setNotes] = useState('');
+  const [pointId, setPointId] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [points, setPoints] = useState<CollectionPoint[]>([]);
+  const [existingDonations, setExistingDonations] = useState<DonationRecord[]>([]);
+  const [pointsLoading, setPointsLoading] = useState(true);
+  const [pointsError, setPointsError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadContext() {
+      if (status === 'loading') return;
+
+      setPointsLoading(true);
+      setPointsError(null);
+
+      try {
+        const nearbyPromise = getNearbyPoints({ lat: -23.5505, lng: -46.6333, radius: 15, limit: 6 });
+        const donationsPromise = session?.user?.accessToken
+          ? getUserDonations(session.user.accessToken, { limit: 50 })
+          : Promise.resolve(null);
+
+        const [nearby, donationsResponse] = await Promise.all([nearbyPromise, donationsPromise]);
+        const collectionPointsOnly = nearby.data.filter((point) => point.role === 'COLLECTION_POINT');
+        setPoints(collectionPointsOnly);
+
+        if (collectionPointsOnly.length > 0 && !pointId) {
+          setPointId(collectionPointsOnly[0].id);
+        }
+
+        if (donationsResponse) {
+          setExistingDonations(donationsResponse.data);
+        }
+
+        if (collectionPointsOnly.length === 0) {
+          setPointsError('Nenhum ponto parceiro disponivel agora.');
+        }
+      } catch {
+        setPointsError('Nao foi possivel carregar os pontos de coleta no momento.');
+      } finally {
+        setPointsLoading(false);
+      }
+    }
+
+    loadContext();
+  }, [session?.user?.accessToken, status]);
+
+  const selectedPoint = points.find((item) => item.id === pointId) ?? null;
+  const step = steps[currentStep];
+  const progress = ((currentStep + 1) / steps.length) * 100;
+  const estimatedQuantity = getEstimatedQuantity(quantity);
+  const rewardPreview = buildPostDonationReward(existingDonations);
+  const canContinue =
+    currentStep === 0
+      ? selectedCategories.length > 0
+      : currentStep === 1
+        ? estimatedQuantity > 0
+        : currentStep === 2
+          ? Boolean(selectedPoint)
+          : confirmed;
+
+  function toggleCategory(categoryId: CategoryId) {
+    setSelectedCategories((current) =>
+      current.includes(categoryId)
+        ? current.filter((item) => item !== categoryId)
+        : [...current, categoryId],
+    );
+  }
+
+  function handleNext() {
+    if (!canContinue || currentStep === steps.length - 1) return;
+    setCurrentStep((value) => value + 1);
+  }
+
+  function handleBack() {
+    if (currentStep === 0) return;
+    setCurrentStep((value) => value - 1);
+  }
+
+  async function handleConfirm() {
+    if (!confirmed || !session?.user?.accessToken || !selectedPoint) return;
+
+    const quantities = splitQuantity(Math.max(estimatedQuantity, selectedCategories.length), selectedCategories.length);
+    const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? condition;
+    const payload = {
+      collectionPointId: selectedPoint.id,
+      notes: [`Volume aproximado: ${volume}`, `Condicao declarada: ${conditionLabel}`, notes ? `Observacoes: ${notes}` : null].filter(Boolean).join(' | '),
+      items: selectedCategories.map((categoryId, index) => {
+        const category = categories.find((item) => item.id === categoryId)!;
+        return {
+          name: category.label,
+          category: categoryToApiCategory[categoryId],
+          quantity: quantities[index] ?? 1,
+          description: category.hint,
+        };
+      }),
+    };
+
+    setLoading(true);
+    setSubmitError(null);
+
+    try {
+      const donation = await createDonation(payload, session.user.accessToken);
+      router.push(`/rastreio/${donation.id}?celebrate=1`);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Nao foi possivel registrar a doacao.');
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-shell space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doacao</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper sm:text-4xl">
+              Registrar doacao em etapas
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
+              Um fluxo guiado que agora cria doacoes reais no backend do VestGO.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary-light px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            <ShieldCheck size={14} />
+            fluxo conectado ao backend
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] bg-white p-5 shadow-card lg:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Fluxo guiado</p>
+              <p className="mt-1 text-sm text-gray-500">Etapa {currentStep + 1} de {steps.length}</p>
+            </div>
+            <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+              {step.short}
+            </span>
+          </div>
+
+          <div className="mt-4 h-2 rounded-full bg-surface">
+            <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-4">
+            {steps.map((item, index) => {
+              const isCurrent = index === currentStep;
+              const isPast = index < currentStep;
+
+              return (
+                <button
+                  key={item.title}
+                  type="button"
+                  onClick={() => index <= currentStep && setCurrentStep(index)}
+                  disabled={index > currentStep}
+                  className={cn(
+                    'flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
+                    isCurrent && 'bg-primary-deeper text-white',
+                    isPast && 'bg-primary-light text-primary-deeper',
+                    !isCurrent && !isPast && 'bg-surface text-gray-400',
+                    index > currentStep && 'cursor-not-allowed opacity-70',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold',
+                      isCurrent && 'bg-white/15 text-white',
+                      isPast && 'bg-white text-primary',
+                      !isCurrent && !isPast && 'bg-white text-gray-400',
+                    )}
+                  >
+                    {isPast ? <Check size={16} /> : index + 1}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{item.short}</p>
+                    <p className={cn('mt-0.5 text-xs', isCurrent ? 'text-white/75' : 'text-gray-400')}>
+                      {item.eyebrow}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_360px]">
+          <section className="rounded-[2rem] bg-white p-6 shadow-card lg:p-8">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{step.eyebrow}</p>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">{step.title}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">{step.description}</p>
+              </div>
+              <div className="hidden rounded-2xl bg-surface px-3 py-2 text-right lg:block">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">etapa atual</p>
+                <p className="mt-1 text-sm font-semibold text-primary-deeper">{step.short}</p>
+              </div>
+            </div>
+
+            {currentStep === 0 && (
+              <div className="space-y-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {categories.map((category) => {
+                    const Icon = category.icon;
+                    const isSelected = selectedCategories.includes(category.id);
+
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => toggleCategory(category.id)}
+                        className={cn(
+                          'rounded-[1.75rem] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-lg',
+                          isSelected ? 'border-primary bg-primary-light/40 shadow-card' : 'border-gray-100 bg-white',
+                        )}
+                      >
+                        <div className={cn('flex h-12 w-12 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500')}>
+                          <Icon size={20} />
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-on-surface">{category.label}</p>
+                        <p className="mt-2 text-sm leading-7 text-gray-400">{category.hint}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-[1.75rem] bg-primary-deeper p-5 text-white">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-primary">
+                      <Info size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Voce pode combinar categorias na mesma entrega.</p>
+                      <p className="mt-2 text-sm leading-7 text-primary-muted">
+                        Os itens serao salvos no backend com base nas escolhas feitas neste fluxo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 1 && (
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
+                <div className="space-y-4">
+                  <Input
+                    id="quantidade"
+                    label="Quantidade estimada"
+                    placeholder="Ex: 8 pecas ou 2 pares"
+                    value={quantity}
+                    onChange={(event) => setQuantity(event.target.value)}
+                  />
+                  <p className="px-1 text-xs text-gray-400">Use um numero aproximado para registrar a doacao real.</p>
+
+                  <div>
+                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">Observacoes</p>
+                    <textarea
+                      rows={5}
+                      placeholder="Opcional: tamanhos, pecas mais sensiveis ou contexto util."
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Volume</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {volumeOptions.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setVolume(option)}
+                          className={cn(
+                            'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                            volume === option ? 'bg-primary-deeper text-white' : 'bg-white text-gray-500 shadow-sm hover:text-primary-deeper',
+                          )}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Condicao das pecas</p>
+                    <div className="mt-3 space-y-3">
+                      {conditions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setCondition(item.id)}
+                          className={cn(
+                            'flex w-full items-start gap-3 rounded-[1.5rem] px-4 py-4 text-left transition-all',
+                            condition === item.id ? 'bg-primary-deeper text-white' : 'bg-white text-gray-600 shadow-sm hover:shadow-card',
+                          )}
+                        >
+                          <div className={cn('mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full', condition === item.id ? 'bg-white/15 text-white' : 'bg-primary-light text-primary')}>
+                            <Check size={15} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold">{item.label}</p>
+                            <p className={cn('mt-1 text-sm leading-7', condition === item.id ? 'text-white/75' : 'text-gray-400')}>
+                              {item.description}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 2 && (
+              <div className="space-y-5">
+                <div className="rounded-[1.75rem] bg-primary-light/45 p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-primary-deeper">Escolha um ponto parceiro real.</p>
+                      <p className="mt-2 text-sm leading-7 text-gray-500">
+                        Esta lista ja vem do backend e usa os parceiros cadastrados na base atual.
+                      </p>
+                    </div>
+                    <Link href="/mapa" className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                      Explorar no mapa
+                      <ChevronRight size={15} />
+                    </Link>
+                  </div>
+                </div>
+
+                {pointsLoading ? (
+                  <div className="flex items-center gap-3 rounded-[1.75rem] bg-surface p-5 text-sm text-gray-500">
+                    <Loader2 size={18} className="animate-spin text-primary" />
+                    Carregando pontos de coleta reais...
+                  </div>
+                ) : pointsError ? (
+                  <div className="rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
+                    {pointsError}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {points.map((point) => {
+                      const isSelected = point.id === pointId;
+
+                      return (
+                        <button
+                          key={point.id}
+                          type="button"
+                          onClick={() => setPointId(point.id)}
+                          className={cn(
+                            'w-full rounded-[1.75rem] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-lg',
+                            isSelected ? 'border-primary bg-primary-light/35 shadow-card' : 'border-gray-100 bg-white',
+                          )}
+                        >
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="flex gap-4">
+                              <div className={cn('flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500')}>
+                                <MapPin size={20} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-semibold text-on-surface">{point.organizationName ?? point.name}</p>
+                                  {point.distanceKm != null && (
+                                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+                                      {point.distanceKm} km
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-2 text-sm text-gray-400">{point.address}</p>
+                                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
+                                  {point.acceptedCategories.map((item) => categoryLabels[item] ?? item).join(' - ')}
+                                </p>
+                                <p className="mt-2 text-sm leading-7 text-gray-500">
+                                  {point.city} {point.state ? `- ${point.state}` : ''}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className={cn('inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em]', isSelected ? 'bg-primary-deeper text-white' : 'bg-surface text-gray-400')}>
+                              {isSelected ? 'Selecionado' : 'Disponivel'}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {currentStep === 3 && (
+              <div className="space-y-5">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tipo da doacao</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedCategories.map((categoryId) => {
+                        const label = categories.find((item) => item.id === categoryId)?.label ?? categoryId;
+                        return (
+                          <span key={categoryId} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+                            {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Detalhes</p>
+                    <p className="mt-3 text-sm font-semibold text-on-surface">{quantity || 'Quantidade pendente'}</p>
+                    <p className="mt-1 text-sm text-gray-400">{volume}</p>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Condicao: {conditions.find((item) => item.id === condition)?.label}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.75rem] bg-surface p-5 lg:col-span-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Ponto escolhido</p>
+                    {selectedPoint && (
+                      <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
+                          <p className="mt-1 text-sm text-gray-400">{selectedPoint.address}</p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+                          {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5 lg:col-span-2">
+                    <p className="text-sm font-semibold text-primary-deeper">Antes de confirmar</p>
+                    <div className="mt-4 space-y-3">
+                      {[
+                        'As pecas estao limpas e prontas para reaproveitamento.',
+                        'O ponto escolhido existe na base real e sera associado a esta doacao.',
+                        'Apos concluir, voce sera redirecionado ao rastreio da doacao criada.',
+                      ].map((item) => (
+                        <div key={item} className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-primary">
+                            <Check size={15} />
+                          </div>
+                          <p className="text-sm leading-7 text-gray-500">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <PostDonationRewardCard className="lg:col-span-2" reward={rewardPreview} />
+                </div>
+
+                <label className="flex cursor-pointer items-start gap-3 rounded-[1.75rem] border border-gray-100 bg-white px-4 py-4 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmed((value) => !value)}
+                    className={cn('mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors', confirmed ? 'border-primary bg-primary text-white' : 'border-gray-300 bg-white text-transparent')}
+                  >
+                    <Check size={12} />
+                  </button>
+                  <span className="text-sm leading-7 text-gray-500">
+                    Confirmo que as pecas estao limpas, em bom estado e prontas para seguir para o ponto selecionado.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {submitError && (
+              <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {submitError}
+              </div>
+            )}
+
+            <div className="mt-8 border-t border-gray-100 pt-5">
+              <div className="xl:hidden">
+                <SummaryCard
+                  selectedCategories={selectedCategories}
+                  quantity={quantity}
+                  volume={volume}
+                  condition={condition}
+                  notes={notes}
+                  selectedPoint={selectedPoint}
+                  compact
+                  reward={rewardPreview}
+                />
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  disabled={currentStep === 0 || loading}
+                  className={cn(
+                    'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
+                    currentStep === 0 || loading
+                      ? 'cursor-not-allowed bg-surface text-gray-300'
+                      : 'border border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:text-primary',
+                  )}
+                >
+                  <ChevronLeft size={16} />
+                  Voltar
+                </button>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  {currentStep < steps.length - 1 ? (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      disabled={!canContinue || loading}
+                      className={cn(
+                        'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
+                        canContinue && !loading ? 'bg-primary-deeper text-white hover:bg-primary-dark' : 'cursor-not-allowed bg-surface text-gray-300',
+                      )}
+                    >
+                      Continuar
+                      <ChevronRight size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleConfirm}
+                      disabled={!canContinue || loading || !session?.user?.accessToken}
+                      className={cn(
+                        'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
+                        canContinue && !loading && session?.user?.accessToken
+                          ? 'bg-primary-deeper text-white hover:bg-primary-dark'
+                          : 'cursor-not-allowed bg-surface text-gray-300',
+                      )}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Criando doacao...
+                        </>
+                      ) : (
+                        <>
+                          Confirmar doacao
+                          <ChevronRight size={16} />
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
+                <Clock3 size={14} />
+                Voce pode voltar etapas anteriores sem perder o contexto preenchido.
+              </div>
+            </div>
+          </section>
+
+          <aside className="hidden xl:block">
+            <div className="sticky top-[calc(var(--topbar-height)+1rem)]">
+              <SummaryCard
+                selectedCategories={selectedCategories}
+                quantity={quantity}
+                volume={volume}
+                condition={condition}
+                notes={notes}
+                selectedPoint={selectedPoint}
+                reward={rewardPreview}
+              />
+            </div>
+          </aside>
+        </div>
+      </div>
     </div>
   );
 }

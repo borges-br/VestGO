@@ -2,15 +2,25 @@
 
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import {
   Bell,
   ChevronRight,
   Edit3,
   HelpCircle,
   LogOut,
-  Package,
   Shield,
+  Sparkles,
+  Trophy,
 } from 'lucide-react';
+import {
+  BadgeCollectionCard,
+  ImpactHistoryCard,
+  ImpactProgressCard,
+  RankingPreviewCard,
+} from '@/components/gamification/impact-widgets';
+import { getUserDonations, type DonationRecord } from '@/lib/api';
+import { buildImpactSnapshot, donorImpactSnapshot } from '@/lib/gamification';
 
 const ROLE_LABELS: Record<string, string> = {
   DONOR: 'Doador',
@@ -20,16 +30,44 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const menuItems = [
-  { icon: Edit3, label: 'Editar perfil', href: '/perfil' },
-  { icon: Package, label: 'Minhas doacoes', href: '/rastreio' },
+  { icon: Edit3, label: 'Configuracoes da conta', href: '/configuracoes' },
+  { icon: Shield, label: 'Privacidade e seguranca', href: '/perfil/privacidade' },
   { icon: Bell, label: 'Notificacoes', href: '/notificacoes' },
-  { icon: Shield, label: 'Privacidade e seguranca', href: '/perfil' },
   { icon: HelpCircle, label: 'Suporte / FAQ', href: '/suporte' },
 ];
 
 export default function PerfilPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const [donations, setDonations] = useState<DonationRecord[]>([]);
+  const [loadingImpact, setLoadingImpact] = useState(true);
+  const [impactError, setImpactError] = useState<string | null>(null);
 
+  useEffect(() => {
+    async function loadImpact() {
+      if (!session?.user?.accessToken) {
+        setLoadingImpact(false);
+        return;
+      }
+
+      setLoadingImpact(true);
+      setImpactError(null);
+
+      try {
+        const response = await getUserDonations(session.user.accessToken, { limit: 50 });
+        setDonations(response.data);
+      } catch {
+        setImpactError('Nao foi possivel carregar seu historico agora.');
+      } finally {
+        setLoadingImpact(false);
+      }
+    }
+
+    if (status !== 'loading') {
+      loadImpact();
+    }
+  }, [session?.user?.accessToken, status]);
+
+  const snapshot = buildImpactSnapshot(donations);
   const userName = session?.user?.name ?? 'Usuario';
   const userEmail = session?.user?.email ?? '';
   const userRole = session?.user?.role ?? 'DONOR';
@@ -40,82 +78,122 @@ export default function PerfilPage() {
     .join('');
 
   return (
-    <div className="pb-2">
-      <section className="px-5 pt-6 pb-5">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-4">
-          Meu Perfil
-        </p>
-
-        <div className="bg-primary-deeper rounded-3xl p-6 text-white mb-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0">
-              {session?.user?.image ? (
-                <img
-                  src={session.user.image}
-                  alt={userName}
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-              ) : (
-                <span className="text-2xl font-bold text-white">{initials}</span>
-              )}
+    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-shell space-y-4">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
+          <div className="rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
+                <Sparkles size={14} />
+                Meu impacto
+              </span>
+              <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
+                baseado em doacoes reais
+              </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold truncate">{userName}</h1>
-              <p className="text-xs text-primary-muted mt-0.5 truncate">{userEmail}</p>
-              <div className="flex items-center gap-1.5 mt-2">
-                <span className="text-xs font-semibold text-primary-muted">
-                  {ROLE_LABELS[userRole] ?? userRole}
-                </span>
+
+            <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-primary text-white shadow-sm">
+                {session?.user?.image ? (
+                  <img
+                    src={session.user.image}
+                    alt={userName}
+                    className="h-full w-full rounded-[1.75rem] object-cover"
+                  />
+                ) : (
+                  <span className="text-3xl font-bold">{initials}</span>
+                )}
               </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-3xl font-bold tracking-tight sm:text-4xl">{userName}</p>
+                <p className="mt-2 truncate text-sm text-primary-muted">{userEmail}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted">
+                    {ROLE_LABELS[userRole] ?? userRole}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted">
+                    {snapshot.points} pontos solidarios
+                  </span>
+                  <span className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted">
+                    {snapshot.streak.value} meses de participacao
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+              <p className="text-sm font-semibold text-white">{snapshot.levelTitle}</p>
+              <p className="mt-2 text-sm leading-7 text-primary-muted">
+                Seu perfil agora e alimentado pelo mesmo historico persistido usado no wizard, no rastreio e no dashboard.
+              </p>
+            </div>
+
+            {impactError && (
+              <div className="mt-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                {impactError}
+              </div>
+            )}
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {(loadingImpact ? donorImpactSnapshot : snapshot).stats.map((item) => (
+                <div key={item.label} className="rounded-[1.5rem] bg-white/10 p-4 backdrop-blur">
+                  <p className="text-3xl font-bold">{item.value}</p>
+                  <p className="mt-1 text-sm text-primary-muted">{item.label}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="flex gap-4 mt-5 pt-4 border-t border-white/10">
-            <div className="flex-1 text-center">
-              <p className="text-2xl font-bold">0</p>
-              <p className="text-xs text-primary-muted mt-0.5">Doacoes</p>
-            </div>
-            <div className="w-px bg-white/10" />
-            <div className="flex-1 text-center">
-              <p className="text-2xl font-bold">0kg</p>
-              <p className="text-xs text-primary-muted mt-0.5">Impacto</p>
-            </div>
-            <div className="w-px bg-white/10" />
-            <div className="flex-1 text-center">
-              <p className="text-2xl font-bold">0</p>
-              <p className="text-xs text-primary-muted mt-0.5">Familias</p>
+          <ImpactProgressCard snapshot={loadingImpact ? donorImpactSnapshot : snapshot} />
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <BadgeCollectionCard badges={loadingImpact ? donorImpactSnapshot.badges : snapshot.badges} />
+
+          <div className="space-y-4">
+            <RankingPreviewCard snapshot={loadingImpact ? donorImpactSnapshot : snapshot} />
+
+            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                    Conta e suporte
+                  </p>
+                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Ajustes da sua conta</h2>
+                </div>
+                <Trophy size={20} className="text-primary" />
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-[1.75rem] border border-gray-100 bg-white">
+                {menuItems.map(({ icon: Icon, label, href }) => (
+                  <Link
+                    key={href + label}
+                    href={href}
+                    className="flex items-center gap-3 border-b border-gray-100 px-5 py-4 transition-colors last:border-b-0 hover:bg-surface"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-gray-500">
+                      <Icon size={16} />
+                    </div>
+                    <span className="flex-1 text-sm text-on-surface">{label}</span>
+                    <ChevronRight size={15} className="text-gray-300" />
+                  </Link>
+                ))}
+              </div>
+
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="mt-5 flex w-full items-center justify-center gap-3 rounded-2xl bg-red-50 py-4 font-semibold text-red-500 transition-colors hover:bg-red-100"
+              >
+                <LogOut size={18} />
+                Sair da conta
+              </button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="px-5 mb-5">
-        <div className="bg-white rounded-2xl shadow-card divide-y divide-gray-100 overflow-hidden">
-          {menuItems.map(({ icon: Icon, label, href }) => (
-            <Link
-              key={href + label}
-              href={href}
-              className="flex items-center gap-3 px-5 py-4 hover:bg-surface transition-colors"
-            >
-              <div className="w-8 h-8 bg-surface rounded-lg flex items-center justify-center flex-shrink-0">
-                <Icon size={16} className="text-gray-500" />
-              </div>
-              <span className="flex-1 text-sm text-on-surface">{label}</span>
-              <ChevronRight size={15} className="text-gray-300" />
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="px-5 mb-8">
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center justify-center gap-3 bg-red-50 text-red-500 font-semibold py-4 rounded-2xl hover:bg-red-100 transition-colors"
-        >
-          <LogOut size={18} />
-          Sair da conta
-        </button>
-      </section>
+        <ImpactHistoryCard snapshot={loadingImpact ? donorImpactSnapshot : snapshot} />
+      </div>
     </div>
   );
 }
