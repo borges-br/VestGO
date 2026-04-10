@@ -167,10 +167,7 @@ export function getOperationalProfileState(
   if (role === UserRole.COLLECTION_POINT || role === UserRole.NGO) {
     if (!complete) return PublicProfileState.DRAFT;
 
-    if (
-      currentState === PublicProfileState.ACTIVE ||
-      currentState === PublicProfileState.VERIFIED
-    ) {
+    if (currentState === PublicProfileState.ACTIVE) {
       return currentState;
     }
 
