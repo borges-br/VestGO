@@ -1,8 +1,16 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
-import { Bell, Menu, CheckCheck, ChevronRight } from 'lucide-react';
+
+import { useEffect, useRef, useState } from 'react';
+import { Bell, ChevronRight, Settings2 } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import type { AppNotification } from '@/hooks/use-notifications';
+import {
+  PRIMARY_NAV_ITEMS,
+  ROLE_LABELS,
+  isNavigationItemActive,
+} from '@/components/layout/navigation';
 
 interface TopBarProps {
   onMenuOpen: () => void;
@@ -23,111 +31,181 @@ function timeAgo(date: Date): string {
 }
 
 export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: TopBarProps) {
+  const pathname = usePathname();
+  const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fecha ao clicar fora
+  const userName = session?.user?.name ?? 'VestGO';
+  const userRole = session?.user?.role ?? 'DONOR';
+  const firstName = userName.split(' ')[0];
+  const initials = userName
+    .split(' ')
+    .map((name) => name[0])
+    .slice(0, 2)
+    .join('');
+
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
     }
-    if (dropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [dropdownOpen]);
 
+  useEffect(() => {
+    setDropdownOpen(false);
+  }, [pathname]);
+
   return (
-    <header className="flex items-center justify-between px-5 py-4 bg-white border-b border-gray-100 relative z-30">
-      <button
-        onClick={onMenuOpen}
-        aria-label="Abrir menu"
-        className="p-2 -ml-2 rounded-xl hover:bg-surface transition-colors"
-      >
-        <Menu size={22} className="text-on-surface" />
-      </button>
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl">
+      <div className="mx-auto flex h-topbar max-w-shell items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-[1.1]">
+          <Link href="/inicio" className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-deeper text-sm font-bold text-white shadow-sm">
+              VG
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold tracking-tight text-primary-deeper">
+                VestGO
+              </p>
+              <p className="hidden text-[11px] uppercase tracking-[0.28em] text-gray-400 lg:block">
+                Doações rastreáveis
+              </p>
+            </div>
+          </Link>
+        </div>
 
-      <span className="text-lg font-bold text-primary-deeper tracking-tight">VestGO</span>
+        <nav className="hidden flex-1 items-center justify-center md:flex">
+          <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white/85 p-1 shadow-sm">
+            {PRIMARY_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = isNavigationItemActive(pathname, item);
 
-      {/* Bell com dropdown */}
-      <div ref={dropdownRef} className="relative">
-        <button
-          onClick={() => setDropdownOpen((v) => !v)}
-          aria-label="Notificações"
-          aria-expanded={dropdownOpen}
-          className="p-2 -mr-2 rounded-xl hover:bg-surface transition-colors relative"
-        >
-          <Bell size={22} className="text-on-surface" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-[9px] font-bold text-white leading-none">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            </span>
-          )}
-        </button>
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors lg:px-5 ${
+                    isActive
+                      ? 'bg-primary-deeper text-white'
+                      : 'text-gray-500 hover:bg-surface hover:text-primary-deeper'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
 
-        {/* Dropdown de prévia */}
-        {dropdownOpen && (
-          <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-gray-100 overflow-hidden">
-            {/* Header do dropdown */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <p className="text-sm font-bold text-on-surface">Notificações</p>
+        <div className="flex flex-1 items-center justify-end gap-2 lg:flex-[1.1]">
+          <div ref={dropdownRef} className="relative">
+            <button
+              onClick={() => setDropdownOpen((value) => !value)}
+              aria-label="Abrir notificações"
+              aria-expanded={dropdownOpen}
+              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary"
+            >
+              <Bell size={18} />
               {unreadCount > 0 && (
-                <span className="text-[11px] font-semibold text-primary bg-primary-light px-2 py-0.5 rounded-full">
-                  {unreadCount} novas
+                <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold leading-none text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
-            </div>
+            </button>
 
-            {/* Prévia das notificações */}
-            <div className="divide-y divide-gray-50">
-              {notifPreview.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">Nenhuma notificação</p>
-              ) : (
-                notifPreview.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => {
-                      onNotifRead(n.id);
-                      setDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-4 py-3 hover:bg-surface transition-colors ${
-                      !n.read ? 'bg-primary-light/30' : ''
-                    }`}
+            {dropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-[19rem] overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-panel">
+                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                  <p className="text-sm font-bold text-on-surface">Notificações</p>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-semibold text-primary">
+                      {unreadCount} novas
+                    </span>
+                  )}
+                </div>
+
+                <div className="divide-y divide-gray-50">
+                  {notifPreview.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-gray-400">Nenhuma notificação</p>
+                  ) : (
+                    notifPreview.map((notification) => (
+                      <button
+                        key={notification.id}
+                        onClick={() => {
+                          onNotifRead(notification.id);
+                          setDropdownOpen(false);
+                        }}
+                        className={`w-full px-4 py-3 text-left transition-colors hover:bg-surface ${
+                          !notification.read ? 'bg-primary-light/30' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {!notification.read && (
+                            <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
+                          )}
+                          <div className={`min-w-0 flex-1 ${notification.read ? 'pl-3.5' : ''}`}>
+                            <p className="truncate text-xs font-semibold leading-snug text-on-surface">
+                              {notification.title}
+                            </p>
+                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-gray-400">
+                              {notification.body}
+                            </p>
+                            <p className="mt-1 text-[10px] text-gray-300">
+                              {timeAgo(notification.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <div className="border-t border-gray-100">
+                  <Link
+                    href="/notificacoes"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary-light"
                   >
-                    <div className="flex items-start gap-2">
-                      {!n.read && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0 mt-1.5" />
-                      )}
-                      <div className={`flex-1 min-w-0 ${n.read ? 'pl-3.5' : ''}`}>
-                        <p className="text-xs font-semibold text-on-surface leading-snug truncate">
-                          {n.title}
-                        </p>
-                        <p className="text-[11px] text-gray-400 mt-0.5 leading-snug line-clamp-2">
-                          {n.body}
-                        </p>
-                        <p className="text-[10px] text-gray-300 mt-1">{timeAgo(n.createdAt)}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-
-            {/* Rodapé — "Ver tudo" */}
-            <div className="border-t border-gray-100">
-              <Link
-                href="/notificacoes"
-                onClick={() => setDropdownOpen(false)}
-                className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary hover:bg-primary-light transition-colors"
-              >
-                Ver todas as notificações
-                <ChevronRight size={13} />
-              </Link>
-            </div>
+                    Ver todas as notificações
+                    <ChevronRight size={13} />
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          <button
+            onClick={onMenuOpen}
+            aria-label="Abrir menu de conta e configurações"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary"
+          >
+            <Settings2 size={18} />
+          </button>
+
+          <Link
+            href="/perfil"
+            className="hidden items-center gap-3 rounded-2xl border border-gray-200 bg-white py-1.5 pl-2 pr-3 shadow-sm transition-colors hover:border-primary/30 sm:flex"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-light text-sm font-semibold text-primary">
+              {initials}
+            </div>
+            <div className="hidden leading-tight lg:block">
+              <p className="text-sm font-semibold text-on-surface">{firstName}</p>
+              <p className="text-[11px] text-gray-400">
+                {ROLE_LABELS[userRole] ?? userRole}
+              </p>
+            </div>
+          </Link>
+        </div>
       </div>
     </header>
   );

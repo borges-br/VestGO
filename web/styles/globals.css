@@ -5,6 +5,12 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: light;
+    --topbar-height: 4.5rem;
+    --mobile-nav-height: 5.25rem;
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;
@@ -12,12 +18,22 @@
   }
 
   html {
+    scroll-behavior: smooth;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
     @apply bg-surface text-on-surface font-sans antialiased;
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --topbar-height: 5rem;
+      --mobile-nav-height: 0rem;
+    }
   }
 }
 

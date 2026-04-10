@@ -17,7 +17,7 @@ export default async function RootLayout({
 
   return (
     <html lang="pt-BR">
-      <body className="bg-[#f9f9f9]">
+      <body className="min-h-screen bg-surface text-on-surface">
         <SessionProvider session={session}>
           {children}
         </SessionProvider>
