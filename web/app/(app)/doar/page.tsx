@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
   BadgeCheck,
@@ -24,6 +24,7 @@ import { PostDonationRewardCard } from '@/components/gamification/impact-widgets
 import { Input } from '@/components/ui/input';
 import {
   createDonation,
+  getCollectionPoint,
   getNearbyPoints,
   getUserDonations,
   type CollectionPoint,
@@ -72,6 +73,119 @@ const categoryToApiCategory: Record<CategoryId, string> = {
   blankets: 'CLOTHING',
   other: 'OTHER',
 };
+
+const DONATION_WIZARD_STORAGE_KEY = 'vestgo:donation-wizard-draft';
+const DEFAULT_DISCOVERY_CENTER = { lat: -23.5505, lng: -46.6333 };
+
+type DonationWizardDraft = {
+  currentStep: number;
+  selectedCategories: CategoryId[];
+  quantity: string;
+  volume: string;
+  condition: ConditionId;
+  notes: string;
+  pointId: string;
+  confirmed: boolean;
+};
+
+function isCategoryId(value: string): value is CategoryId {
+  return categories.some((item) => item.id === value);
+}
+
+function isConditionId(value: string): value is ConditionId {
+  return conditions.some((item) => item.id === value);
+}
+
+function mergeCollectionPoints(primary: CollectionPoint[], secondary: CollectionPoint[]) {
+  const map = new Map<string, CollectionPoint>();
+
+  [...primary, ...secondary].forEach((point) => {
+    map.set(point.id, point);
+  });
+
+  return Array.from(map.values());
+}
+
+function readWizardDraft(): DonationWizardDraft {
+  if (typeof window === 'undefined') {
+    return {
+      currentStep: 0,
+      selectedCategories: ['adult'],
+      quantity: '',
+      volume: '1 sacola grande',
+      condition: 'otimo',
+      notes: '',
+      pointId: '',
+      confirmed: false,
+    };
+  }
+
+  const rawDraft = window.sessionStorage.getItem(DONATION_WIZARD_STORAGE_KEY);
+
+  if (!rawDraft) {
+    return {
+      currentStep: 0,
+      selectedCategories: ['adult'],
+      quantity: '',
+      volume: '1 sacola grande',
+      condition: 'otimo',
+      notes: '',
+      pointId: '',
+      confirmed: false,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(rawDraft) as Partial<DonationWizardDraft>;
+
+    return {
+      currentStep:
+        typeof parsed.currentStep === 'number'
+          ? Math.min(Math.max(parsed.currentStep, 0), steps.length - 1)
+          : 0,
+      selectedCategories:
+        parsed.selectedCategories?.filter((value): value is CategoryId => isCategoryId(value)) ??
+        ['adult'],
+      quantity: typeof parsed.quantity === 'string' ? parsed.quantity : '',
+      volume:
+        typeof parsed.volume === 'string' && volumeOptions.includes(parsed.volume)
+          ? parsed.volume
+          : '1 sacola grande',
+      condition:
+        typeof parsed.condition === 'string' && isConditionId(parsed.condition)
+          ? parsed.condition
+          : 'otimo',
+      notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+      pointId: typeof parsed.pointId === 'string' ? parsed.pointId : '',
+      confirmed: parsed.confirmed === true,
+    };
+  } catch {
+    return {
+      currentStep: 0,
+      selectedCategories: ['adult'],
+      quantity: '',
+      volume: '1 sacola grande',
+      condition: 'otimo',
+      notes: '',
+      pointId: '',
+      confirmed: false,
+    };
+  }
+}
+
+function getCurrentPosition() {
+  if (typeof window === 'undefined' || !window.navigator.geolocation) {
+    return Promise.resolve(DEFAULT_DISCOVERY_CENTER);
+  }
+
+  return new Promise<{ lat: number; lng: number }>((resolve) => {
+    window.navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
+      () => resolve(DEFAULT_DISCOVERY_CENTER),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 },
+    );
+  });
+}
 
 function getEstimatedQuantity(value: string) {
   const match = value.match(/\d+/);
@@ -184,6 +298,8 @@ function SummaryCard({
 
 export default function DoarPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const userRole = session?.user?.role ?? 'DONOR';
   const isDonor = userRole === 'DONOR';
@@ -201,6 +317,8 @@ export default function DoarPage() {
   const [pointsLoading, setPointsLoading] = useState(true);
   const [pointsError, setPointsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const [selectionFeedback, setSelectionFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'authenticated' && !isDonor) {
@@ -209,14 +327,107 @@ export default function DoarPage() {
   }, [isDonor, router, status]);
 
   useEffect(() => {
+    const draft = readWizardDraft();
+    setCurrentStep(draft.currentStep);
+    setSelectedCategories(draft.selectedCategories.length > 0 ? draft.selectedCategories : ['adult']);
+    setQuantity(draft.quantity);
+    setVolume(draft.volume);
+    setCondition(draft.condition);
+    setNotes(draft.notes);
+    setPointId(draft.pointId);
+    setConfirmed(draft.confirmed);
+    setDraftReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+
+    const selectedPointId = searchParams.get('selectedPointId');
+    const selectionApplied = searchParams.get('selectionApplied') === '1';
+    const stepParam = searchParams.get('step');
+
+    if (!selectedPointId && !selectionApplied && !stepParam) {
+      return;
+    }
+
+    if (selectedPointId) {
+      setPointId(selectedPointId);
+      setConfirmed(false);
+    }
+
+    if (selectionApplied) {
+      setSelectionFeedback('Ponto aplicado com sucesso. Voce ja pode continuar a doacao.');
+    }
+
+    const parsedStep = Number.parseInt(stepParam ?? '2', 10);
+    if (Number.isFinite(parsedStep)) {
+      setCurrentStep(Math.min(Math.max(parsedStep, 0), steps.length - 1));
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('selectedPointId');
+    nextParams.delete('selectionApplied');
+    nextParams.delete('step');
+    const nextUrl = nextParams.toString() ? `${pathname}?${nextParams}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  }, [draftReady, pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!draftReady || !isDonor || typeof window === 'undefined') return;
+
+    window.sessionStorage.setItem(
+      DONATION_WIZARD_STORAGE_KEY,
+      JSON.stringify({
+        currentStep,
+        selectedCategories,
+        quantity,
+        volume,
+        condition,
+        notes,
+        pointId,
+        confirmed,
+      } satisfies DonationWizardDraft),
+    );
+  }, [condition, confirmed, currentStep, draftReady, isDonor, notes, pointId, quantity, selectedCategories, volume]);
+
+  useEffect(() => {
+    if (!draftReady || !pointId || points.some((item) => item.id === pointId)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSelectedPoint() {
+      try {
+        const point = await getCollectionPoint(pointId);
+
+        if (cancelled || point.role !== 'COLLECTION_POINT') return;
+
+        setPoints((current) => mergeCollectionPoints([point], current));
+      } catch {
+        if (!cancelled) {
+          setSelectionFeedback('O ponto escolhido anteriormente nao esta mais disponivel. Escolha outro para seguir.');
+        }
+      }
+    }
+
+    loadSelectedPoint();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftReady, pointId, points]);
+
+  useEffect(() => {
     async function loadContext() {
-      if (status === 'loading' || !isDonor) return;
+      if (status === 'loading' || !isDonor || !draftReady) return;
 
       setPointsLoading(true);
       setPointsError(null);
 
       try {
-        const nearbyPromise = getNearbyPoints({ lat: -23.5505, lng: -46.6333, radius: 15, limit: 6 });
+        const location = await getCurrentPosition();
+        const nearbyPromise = getNearbyPoints({ lat: location.lat, lng: location.lng, radius: 15, limit: 6 });
         const donationsPromise = session?.user?.accessToken
           ? getUserDonations(session.user.accessToken, { limit: 50 })
           : Promise.resolve(null);
@@ -225,8 +436,8 @@ export default function DoarPage() {
         const collectionPointsOnly = nearby.data.filter((point) => point.role === 'COLLECTION_POINT');
         setPoints(collectionPointsOnly);
 
-        if (collectionPointsOnly.length > 0 && !pointId) {
-          setPointId(collectionPointsOnly[0].id);
+        if (collectionPointsOnly.length > 0) {
+          setPointId((current) => current || collectionPointsOnly[0].id);
         }
 
         if (donationsResponse) {
@@ -244,13 +455,13 @@ export default function DoarPage() {
     }
 
     loadContext();
-  }, [isDonor, session?.user?.accessToken, status]);
+  }, [draftReady, isDonor, session?.user?.accessToken, status]);
 
-  if (status === 'loading') {
+  if (status === 'loading' || !draftReady) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4 py-10">
         <div className="rounded-[1.75rem] bg-white px-5 py-4 text-sm text-gray-500 shadow-card">
-          Carregando permissao de acesso...
+          {status === 'loading' ? 'Carregando permissao de acesso...' : 'Recuperando seu rascunho da doacao...'}
         </div>
       </div>
     );
@@ -293,6 +504,19 @@ export default function DoarPage() {
   const progress = ((currentStep + 1) / steps.length) * 100;
   const estimatedQuantity = getEstimatedQuantity(quantity);
   const rewardPreview = buildPostDonationReward(existingDonations);
+  const mapSelectionHref = useMemo(() => {
+    const params = new URLSearchParams({
+      mode: 'select-point',
+      returnTo: '/doar',
+      step: '2',
+    });
+
+    if (pointId) {
+      params.set('selectedPointId', pointId);
+    }
+
+    return `/mapa?${params.toString()}`;
+  }, [pointId]);
   const canContinue =
     currentStep === 0
       ? selectedCategories.length > 0
@@ -344,6 +568,9 @@ export default function DoarPage() {
 
     try {
       const donation = await createDonation(payload, session.user.accessToken);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(DONATION_WIZARD_STORAGE_KEY);
+      }
       router.push(`/rastreio/${donation.id}?celebrate=1`);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Nao foi possivel registrar a doacao.');
@@ -567,12 +794,18 @@ export default function DoarPage() {
                         Esta lista ja vem do backend e usa os parceiros cadastrados na base atual.
                       </p>
                     </div>
-                    <Link href="/mapa" className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                    <Link href={mapSelectionHref} className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
                       Explorar no mapa
                       <ChevronRight size={15} />
                     </Link>
                   </div>
                 </div>
+
+                {selectionFeedback && (
+                  <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {selectionFeedback}
+                  </div>
+                )}
 
                 {pointsLoading ? (
                   <div className="flex items-center gap-3 rounded-[1.75rem] bg-surface p-5 text-sm text-gray-500">

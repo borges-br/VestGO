@@ -40,8 +40,19 @@ VestGO/
 - `/doar`: wizard real, mas so para `DONOR`
 - `/operacoes`: fila operacional atual
 - `/perfil/operacional`: onboarding/edicao de perfis operacionais
-- `/mapa`: descoberta publica com busca real
+- `/mapa`: descoberta publica com busca real e modo opcional de selecao para o wizard
 - `/pontos`: redireciona para `/mapa`
+
+### Wizard de doacao
+
+O wizard em `web/app/(app)/doar/page.tsx` continua client-side, mas agora possui um contrato explicito com o mapa:
+
+- o rascunho da doacao e preservado em `sessionStorage`
+- a etapa 3 pode abrir `/mapa` em modo de selecao
+- ao confirmar um ponto no mapa, o retorno para `/doar` aplica `selectedPointId`
+- se o ponto escolhido nao estiver na lista curta carregada pelo wizard, o frontend hidrata esse ponto via `GET /collection-points/:id`
+
+Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o ponto realmente escolhido no mapa.
 
 ## Backend
 
@@ -143,6 +154,22 @@ Se o provider estiver indisponivel, o backend responde erro temporario de servic
 - `web/components/map/mapa-page-content.tsx`
 - `web/lib/api.ts`
 
+### Comportamento do mapa
+
+O mapa usa dois modos no frontend:
+
+- modo exploracao: lista parceiros publicos e detalhes gerais
+- modo selecao: restringe a lista a `COLLECTION_POINT` para o fluxo de doacao
+
+Comportamentos implementados:
+
+- tentativa automatica de `navigator.geolocation` ao abrir o mapa
+- fallback previsivel para um centro padrao quando a localizacao nao esta disponivel
+- busca textual sincronizada com os resultados proximos
+- selecao visual de ponto na lista e no marcador
+- confirmacao explicita antes de retornar ao wizard
+- correcoes de `setView` e `invalidateSize()` no Leaflet para evitar cortes e areas brancas em resize/layout responsivo
+
 ## Dados e persistencia
 
 ### Banco
@@ -165,6 +192,9 @@ Resolvido:
 - latitude/longitude manual no perfil operacional
 - busca apenas visual no mapa
 - superficie mockada de `/pontos`
+- quebra do retorno do mapa para o wizard de doacao
+- recentralizacao inconsistente do Leaflet apos geolocalizacao
+- scroll vertical excessivo e cortes visuais no layout do mapa
 
 ## Bootstrap admin temporario
 

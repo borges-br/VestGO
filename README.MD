@@ -6,7 +6,7 @@ Projeto publicado em [mosfet.com.br](https://mosfet.com.br) e mantido neste repo
 
 ## Estado atual
 
-O projeto ja esta funcional e nesta etapa consolida a Fase 10A:
+O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A e o ajuste de UX do fluxo de escolha do ponto:
 
 - permissoes corretas por papel no frontend e no backend
 - fluxo de doacao restrito a perfis `DONOR`
@@ -17,6 +17,10 @@ O projeto ja esta funcional e nesta etapa consolida a Fase 10A:
 - mapa e busca usando dados reais
 - `/pontos` alinhado com a descoberta real do produto
 - bootstrap admin temporario controlado por ambiente
+- wizard de doacao com retorno real do mapa para a escolha do ponto
+- geolocalizacao automatica ao abrir o mapa
+- layout responsivo do mapa com area controlada e lista sincronizada
+- selecao visual de ponto com confirmacao explicita antes de voltar ao wizard
 
 ## Stack
 
@@ -104,6 +108,22 @@ A descoberta publica agora usa dados reais do backend:
 - a busca do mapa consulta o backend com `search`
 - apenas perfis operacionais `ACTIVE` ou `VERIFIED` com coordenadas validas entram no mapa
 - `/pontos` foi alinhado para redirecionar para `/mapa`
+
+## Wizard de doacao e mapa
+
+O fluxo de doacao agora tem integracao direta com o mapa:
+
+1. o doador abre `/mapa` a partir da etapa de escolha do ponto
+2. o mapa entra em modo de selecao
+3. o usuario escolhe e confirma um ponto de coleta
+4. a aplicacao retorna para `/doar` na etapa 3
+5. o ponto escolhido permanece aplicado no wizard
+
+Detalhes importantes:
+
+- o rascunho do wizard e preservado em `sessionStorage`
+- o retorno do mapa usa query params apenas para concluir a selecao, sem depender de estado global pesado
+- o mapa tenta geolocalizacao automaticamente e usa fallback coerente quando nao ha permissao
 
 ## Estrutura principal
 
