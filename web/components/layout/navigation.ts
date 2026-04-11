@@ -20,7 +20,7 @@ export type NavigationItem = {
   exact?: boolean;
 };
 
-export const PRIMARY_NAV_ITEMS: NavigationItem[] = [
+const DONOR_PRIMARY_NAV_ITEMS: NavigationItem[] = [
   {
     href: '/inicio',
     label: 'Inicio',
@@ -50,7 +50,35 @@ export const PRIMARY_NAV_ITEMS: NavigationItem[] = [
   },
 ];
 
-export const MOBILE_NAV_ITEMS = PRIMARY_NAV_ITEMS;
+const OPERATIONAL_PRIMARY_NAV_ITEMS: NavigationItem[] = [
+  {
+    href: '/inicio',
+    label: 'Inicio',
+    mobileLabel: 'Inicio',
+    icon: Home,
+    exact: true,
+  },
+  {
+    href: '/mapa',
+    label: 'Explorar pontos',
+    mobileLabel: 'Explorar',
+    icon: Map,
+    matchers: ['/mapa', '/pontos'],
+  },
+  {
+    href: '/operacoes',
+    label: 'Operacoes',
+    mobileLabel: 'Fila',
+    icon: ClipboardList,
+    exact: true,
+  },
+  {
+    href: '/rastreio',
+    label: 'Rastreio',
+    mobileLabel: 'Rastreio',
+    icon: Truck,
+  },
+];
 
 export const UTILITY_NAV_ITEMS: NavigationItem[] = [
   {
@@ -110,6 +138,18 @@ export const ROLE_LABELS: Record<string, string> = {
   NGO: 'ONG Parceira',
   ADMIN: 'Administrador',
 };
+
+export function getPrimaryNavItems(role: string) {
+  if (role === 'COLLECTION_POINT' || role === 'NGO' || role === 'ADMIN') {
+    return OPERATIONAL_PRIMARY_NAV_ITEMS;
+  }
+
+  return DONOR_PRIMARY_NAV_ITEMS;
+}
+
+export function getMobileNavItems(role: string) {
+  return getPrimaryNavItems(role);
+}
 
 export function isNavigationItemActive(pathname: string, item: NavigationItem) {
   const matchers = item.matchers ?? [item.href];

@@ -2,21 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  MOBILE_NAV_ITEMS,
-  isNavigationItemActive,
-} from '@/components/layout/navigation';
+import { useSession } from 'next-auth/react';
+import { getMobileNavItems, isNavigationItemActive } from '@/components/layout/navigation';
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const navItems = getMobileNavItems(session?.user?.role ?? 'DONOR');
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/70 bg-white/95 backdrop-blur-xl md:hidden">
       <div className="mx-auto flex h-mobilebar max-w-[40rem] items-center justify-between px-2 pb-[max(env(safe-area-inset-bottom),0px)]">
-        {MOBILE_NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = isNavigationItemActive(pathname, item);
-          const isPrimaryAction = item.href === '/doar';
+          const isPrimaryAction = item.href === '/doar' || item.href === '/operacoes';
 
           return (
             <Link

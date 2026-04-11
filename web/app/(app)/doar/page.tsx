@@ -185,6 +185,8 @@ function SummaryCard({
 export default function DoarPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const userRole = session?.user?.role ?? 'DONOR';
+  const isDonor = userRole === 'DONOR';
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<CategoryId[]>(['adult']);
   const [quantity, setQuantity] = useState('');
@@ -201,8 +203,14 @@ export default function DoarPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (status === 'authenticated' && !isDonor) {
+      router.replace('/inicio');
+    }
+  }, [isDonor, router, status]);
+
+  useEffect(() => {
     async function loadContext() {
-      if (status === 'loading') return;
+      if (status === 'loading' || !isDonor) return;
 
       setPointsLoading(true);
       setPointsError(null);
@@ -236,7 +244,49 @@ export default function DoarPage() {
     }
 
     loadContext();
-  }, [session?.user?.accessToken, status]);
+  }, [isDonor, session?.user?.accessToken, status]);
+
+  if (status === 'loading') {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-10">
+        <div className="rounded-[1.75rem] bg-white px-5 py-4 text-sm text-gray-500 shadow-card">
+          Carregando permissao de acesso...
+        </div>
+      </div>
+    );
+  }
+
+  if (!isDonor) {
+    return (
+      <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-shell">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-8">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+              Fluxo exclusivo para doadores
+            </p>
+            <h1 className="mt-3 text-3xl font-bold text-primary-deeper">Seu perfil nao cria doacoes</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-500">
+              Perfis de ponto de coleta, ONG e administracao acompanham ou operam doacoes, mas nao podem iniciar uma nova entrega como doadores.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href="/inicio"
+                className="inline-flex items-center justify-center rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+              >
+                Ir para meu painel
+              </Link>
+              <Link
+                href="/operacoes"
+                className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
+              >
+                Abrir operacoes
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const selectedPoint = points.find((item) => item.id === pointId) ?? null;
   const step = steps[currentStep];

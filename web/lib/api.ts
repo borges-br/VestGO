@@ -47,7 +47,8 @@ export type NearbyResponse = {
     count: number;
     nextCursor: string | null;
     radiusKm: number;
-    center: { lat: number; lng: number };
+    center: { lat: number; lng: number } | null;
+    search: string | null;
   };
 };
 
@@ -232,8 +233,6 @@ export type UpdateMyProfileInput = {
   zipCode?: string;
   city?: string;
   state?: string;
-  latitude?: number;
-  longitude?: number;
   openingHours?: string;
   publicNotes?: string;
   operationalNotes?: string;
@@ -282,19 +281,38 @@ async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T>
 }
 
 export async function getNearbyPoints(params: {
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   radius?: number;
   category?: string;
   limit?: number;
+  search?: string;
 }): Promise<NearbyResponse> {
-  const qs = new URLSearchParams({
-    lat: String(params.lat),
-    lng: String(params.lng),
-    ...(params.radius && { radius: String(params.radius) }),
-    ...(params.category && { category: params.category }),
-    ...(params.limit && { limit: String(params.limit) }),
-  });
+  const qs = new URLSearchParams();
+
+  if (typeof params.lat === 'number') {
+    qs.set('lat', String(params.lat));
+  }
+
+  if (typeof params.lng === 'number') {
+    qs.set('lng', String(params.lng));
+  }
+
+  if (params.radius) {
+    qs.set('radius', String(params.radius));
+  }
+
+  if (params.category) {
+    qs.set('category', params.category);
+  }
+
+  if (params.limit) {
+    qs.set('limit', String(params.limit));
+  }
+
+  if (params.search) {
+    qs.set('search', params.search);
+  }
 
   return apiFetch<NearbyResponse>(`/collection-points?${qs}`);
 }

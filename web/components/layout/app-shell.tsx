@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/topbar';
@@ -8,8 +9,10 @@ import { useNotifications } from '@/hooks/use-notifications';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { unreadCount, preview, markAsRead } = useNotifications();
+  const showBareLayout = !session?.user && pathname === '/mapa';
 
   useEffect(() => {
     if (sidebarOpen) {
@@ -25,6 +28,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
+
+  if (showBareLayout) {
+    return <div className="min-h-screen bg-surface">{children}</div>;
+  }
 
   return (
     <div className="min-h-screen bg-surface">

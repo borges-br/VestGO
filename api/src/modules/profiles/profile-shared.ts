@@ -17,18 +17,6 @@ const optionalUrl = z
   .or(z.literal(''))
   .transform((value) => (value && value.length > 0 ? value : undefined));
 
-const optionalNumber = (min: number, max: number) =>
-  z.preprocess(
-    (value) => {
-      if (value === '' || value === null || typeof value === 'undefined') {
-        return undefined;
-      }
-
-      return value;
-    },
-    z.coerce.number().min(min).max(max).optional(),
-  );
-
 const optionalStringArray = (maxItems: number, maxItemLength: number) =>
   z
     .array(z.string().trim().min(2).max(maxItemLength))
@@ -48,8 +36,6 @@ export const profileWriteSchema = z.object({
   zipCode: optionalText(20),
   city: optionalText(120),
   state: optionalText(80),
-  latitude: optionalNumber(-90, 90),
-  longitude: optionalNumber(-180, 180),
   openingHours: optionalText(800),
   publicNotes: optionalText(1000),
   operationalNotes: optionalText(1000),
@@ -96,9 +82,10 @@ type CompletionPayload = Pick<
   | 'phone'
   | 'acceptedCategories'
   | 'serviceRegions'
-  | 'latitude'
-  | 'longitude'
->;
+> & {
+  latitude?: number;
+  longitude?: number;
+};
 
 export function getOperationalProfileChecklist(
   role: UserRole,
@@ -133,6 +120,7 @@ export function getOperationalProfileChecklist(
       { key: 'organizationName', label: 'Nome da ONG', complete: hasValue(payload.organizationName) },
       { key: 'description', label: 'Descricao institucional', complete: hasValue(payload.description) },
       { key: 'purpose', label: 'Proposito', complete: hasValue(payload.purpose) },
+      { key: 'address', label: 'Endereco base', complete: hasValue(payload.address) },
       { key: 'city', label: 'Cidade base', complete: hasValue(payload.city) },
       { key: 'state', label: 'Estado', complete: hasValue(payload.state) },
       { key: 'phone', label: 'Telefone', complete: hasValue(payload.phone) },
@@ -145,6 +133,11 @@ export function getOperationalProfileChecklist(
         key: 'serviceRegions',
         label: 'Regioes atendidas',
         complete: Array.isArray(payload.serviceRegions) && payload.serviceRegions.length > 0,
+      },
+      {
+        key: 'coordinates',
+        label: 'Localizacao no mapa',
+        complete: typeof payload.latitude === 'number' && typeof payload.longitude === 'number',
       },
     ];
   }

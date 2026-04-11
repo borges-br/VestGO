@@ -1,217 +1,171 @@
-# VestGO — Estrutura do Projeto
+# VestGO Architecture
 
-## Stack definida
+## Visao geral
 
-| Camada    | Tecnologia                 | Justificativa                                                                            |
-| --------- | -------------------------- | ---------------------------------------------------------------------------------------- |
-| Frontend  | Next.js 14 (App Router)    | SSR/SSG para SEO da landing pública, Server Components, rotas API para proxy fino        |
-| Backend   | Fastify + Prisma ORM       | Performance altíssima (~30k req/s), schema type-safe via Prisma, plugins nativos de auth |
-| Banco     | PostgreSQL 16 + PostGIS    | Queries geoespaciais para "pontos de coleta próximos" (`ST_DWithin`), confiabilidade     |
-| Cache     | Redis 7                    | Refresh tokens, rate limiting, cache de queries geoespaciais                             |
-| Storage   | MinIO                      | S3-compatível, self-hosted, para fotos de doações e documentos das ONGs                  |
-| Proxy     | Nginx Proxy Manager        | Já em uso, SSL automático, integra pela rede `rvproxy_npm_backend_network`               |
-| CI/CD     | GitHub Actions + Portainer | Push → build image → push ghcr.io → webhook Portainer → redeploy automático              |
-| Linguagem | TypeScript (full-stack)    | Tipagem compartilhada entre API e Web via pacote `@vestgo/types`                         |
+VestGO e uma aplicacao full-stack com frontend em Next.js e backend em Fastify/Prisma. A arquitetura atual prioriza evolucao incremental: regras de negocio no backend, App Router no frontend e descoberta publica baseada em perfis operacionais reais.
 
----
+## Monorepo
 
-## Estrutura de pastas
-
-```
-vestgo/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml          # CI/CD pipeline completo
-│
-├── web/                        # Next.js 14 — Frontend
-│   ├── app/
-│   │   ├── (public)/           # Rotas sem autenticação
-│   │   │   ├── page.tsx        # Landing page
-│   │   │   ├── login/
-│   │   │   ├── cadastro/
-│   │   │   └── mapa/           # Mapa público de pontos
-│   │   ├── (app)/              # Rotas autenticadas
-│   │   │   ├── layout.tsx      # Layout com bottom navigation
-│   │   │   ├── inicio/         # Dashboard do doador
-│   │   │   ├── doar/           # Fluxo de nova doação
-│   │   │   ├── rastreio/       # Rastreio de doações
-│   │   │   ├── mapa/           # Mapa interativo (auth)
-│   │   │   └── perfil/         # Perfil do usuário
-│   │   └── api/                # Proxy routes (Next.js → Fastify)
-│   ├── components/
-│   │   ├── ui/                 # Design system components
-│   │   │   ├── button.tsx
-│   │   │   ├── card.tsx
-│   │   │   ├── input.tsx
-│   │   │   ├── chip.tsx
-│   │   │   └── timeline.tsx
-│   │   ├── forms/
-│   │   └── layout/
-│   │       ├── bottom-nav.tsx
-│   │       └── top-bar.tsx
-│   ├── lib/
-│   │   ├── api.ts              # Cliente HTTP tipado
-│   │   └── auth.ts             # Configuração NextAuth
-│   ├── hooks/
-│   │   ├── use-geolocation.ts
-│   │   └── use-donations.ts
-│   ├── tailwind.config.ts      # Cores exatas do DESIGN.md
-│   └── Dockerfile
-│
-├── api/                        # Fastify — Backend
-│   ├── src/
-│   │   ├── modules/
-│   │   │   ├── auth/           # JWT, refresh token, logout
-│   │   │   ├── users/          # CRUD de usuários e perfis
-│   │   │   ├── donations/      # CRUD + status flow
-│   │   │   ├── collection-points/  # Busca geoespacial
-│   │   │   ├── ngos/           # Gerenciamento de ONGs
-│   │   │   ├── timeline/       # Rastreio e eventos
-│   │   │   └── notifications/  # Push notifications
-│   │   ├── plugins/
-│   │   │   ├── prisma.ts       # Plugin Prisma para Fastify
-│   │   │   ├── redis.ts        # Plugin Redis
-│   │   │   ├── auth.ts         # JWT plugin
-│   │   │   └── minio.ts        # Plugin MinIO
-│   │   ├── shared/
-│   │   │   ├── errors.ts       # Error classes padronizadas
-│   │   │   ├── pagination.ts   # Paginação cursor-based
-│   │   │   └── geo.ts          # Helpers PostGIS
-│   │   └── server.ts           # Entry point
-│   ├── prisma/
-│   │   ├── schema.prisma       # Schema completo (ver arquivo separado)
-│   │   ├── migrations/         # Gerado pelo Prisma Migrate
-│   │   └── seed.ts             # Seed de dados de desenvolvimento
-│   └── Dockerfile
-│
-├── packages/                   # Pacotes compartilhados (monorepo opcional)
-│   └── types/                  # Tipos TypeScript compartilhados
-│       └── src/
-│           ├── donation.ts
-│           ├── user.ts
-│           └── collection-point.ts
-│
-├── infra/
-│   └── postgres/
-│       └── init.sql            # Ativa extensões PostGIS e uuid-ossp
-│
-├── docker-compose.yml          # Stack de produção
-├── docker-compose.dev.yml      # Override para desenvolvimento local
-├── .env.example                # Template de variáveis de ambiente
-└── README.md
+```text
+VestGO/
+|-- api/                     # Fastify + Prisma
+|-- web/                     # Next.js 14 App Router
+|-- infra/                   # artefatos de infra
+|-- docker-compose.yml
+|-- docker-compose.dev.yml
+|-- docker-compose.prod.yml
+|-- README.MD
+`-- ARCHITECTURE.md
 ```
 
----
+## Frontend
 
-## Milestones de implementação
+### Organizacao de rotas
 
-### Milestone 1 — Infra & Auth (Semana 1-2)
+- `web/app/(public)`: landing, login, cadastro e detalhes publicos
+- `web/app/(app)`: rotas autenticadas e areas internas
+- `web/middleware.ts`: protege rotas internas e deixa a descoberta publica acessivel
 
-- [ ] Configurar monorepo com npm workspaces
-- [ ] Dockerfiles para Web e API (multi-stage build)
-- [ ] `docker-compose.dev.yml` para desenvolvimento local
-- [x] Rotas de auth no Fastify: `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
-- [x] Middleware JWT no Fastify (`plugins/auth.ts` com `fastify.authenticate`)
-- [x] Tela de login e cadastro (Next.js — `app/(public)/login/page.tsx`)
-- [x] Configurar NextAuth com credentials provider (`lib/auth.ts`)
+### Shell e navegacao
 
-### Milestone 2 — Landing & Mapa público (Semana 2-3)
+- `AppShell` envolve a experiencia autenticada
+- `/mapa` pode ser usado publicamente; nesse caso o shell autenticado e suprimido
+- a navegacao principal e role-aware:
+  - `DONOR`: `/inicio`, `/mapa`, `/doar`, `/rastreio`
+  - `COLLECTION_POINT` / `NGO` / `ADMIN`: `/inicio`, `/mapa`, `/operacoes`, `/rastreio`
 
-- [x] Landing page completa (`app/(public)/page.tsx`)
-- [x] Endpoint `GET /collection-points?lat=&lng=&radius=` com Haversine SQL
-- [x] Endpoint `GET /collection-points/:id` com detalhe completo
-- [x] Mapa público com Leaflet + lista de pontos (`app/(public)/mapa/page.tsx`)
-- [x] Página de detalhe do ponto de coleta (`app/(public)/mapa/[id]/page.tsx`)
-- [x] Seed de dados com 5 pontos de coleta em São Paulo
-- [x] `lib/api.ts` — cliente HTTP tipado para o backend
+### Paginas relevantes
 
-### Milestone 3 — Dashboard do doador (Semana 3-4)
+- `/inicio`: branch minima por papel
+- `/doar`: wizard real, mas so para `DONOR`
+- `/operacoes`: fila operacional atual
+- `/perfil/operacional`: onboarding/edicao de perfis operacionais
+- `/mapa`: descoberta publica com busca real
+- `/pontos`: redireciona para `/mapa`
 
-- [ ] Dashboard autenticado (já existe screenshot)
-- [ ] `GET /donations` paginado por cursor
-- [ ] `GET /donations/:id` com timeline
-- [ ] Bottom navigation component
+## Backend
 
-### Milestone 4 — Fluxo de doação (Semana 4-5)
+### Modulos principais
 
-- [ ] `POST /donations` com upload de fotos para MinIO
-- [ ] `PATCH /donations/:id/status` (lógica de estado machine)
-- [ ] Tela de nova doação (formulário multi-step)
-- [ ] Tela de rastreio com timeline visual
+- `auth`: login, cadastro, refresh e logout
+- `profiles`: leitura e edicao do proprio perfil
+- `donations`: criacao, listagem, detalhe, timeline e mudanca de status
+- `collection-points`: descoberta publica e detalhe de ponto/ONG
+- `admin-profiles`: governanca minima de perfis operacionais
 
-### Milestone 5 — Painel ONG / Coleta (Semana 6+)
+### Endpoints importantes
 
-- [ ] Autenticação por role (ONG, ponto de coleta)
-- [ ] Endpoints de triagem
-- [ ] Relatórios de impacto
-- [ ] Notificações push (Web Push API)
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /donations`
+- `GET /donations`
+- `GET /donations/:id`
+- `PATCH /donations/:id/status`
+- `GET /profiles/me`
+- `PATCH /profiles/me`
+- `GET /collection-points`
+- `GET /collection-points/:id`
+- `GET /admin/profiles`
+- `PATCH /admin/profiles/:id/status`
 
----
+## Modelo de papéis
 
-## Rotas da API implementadas
+Papéis atuais no schema Prisma:
 
-### Auth — `/auth`
+- `DONOR`
+- `COLLECTION_POINT`
+- `NGO`
+- `ADMIN`
 
-| Método | Rota | Autenticação | Descrição |
-| ------ | ---- | ------------ | --------- |
-| POST | `/auth/register` | Pública | Cria usuário com `bcrypt` hash + retorna JWT par |
-| POST | `/auth/login` | Pública | Verifica senha, gera access + refresh token (Redis) |
-| POST | `/auth/refresh` | Pública | Valida refresh no Redis, rotaciona tokens |
-| POST | `/auth/logout` | JWT Bearer | Revoga refresh token do Redis |
+### Regras ativas
 
-### Health — `/health`
+- `POST /donations` aceita apenas `DONOR`
+- `COLLECTION_POINT` faz a etapa inicial da operacao
+- `NGO` conclui etapas posteriores
+- `ADMIN` acompanha e modera
+- o cadastro publico so aceita `DONOR`, `COLLECTION_POINT` e `NGO`
 
-| Método | Rota | Descrição |
-| ------ | ---- | --------- |
-| GET | `/health` | Status do servidor + timestamp |
+## Perfil operacional
 
-### Próximos módulos planejados
+Os perfis operacionais usam um checklist para derivar o estado publico:
 
-| Prefix | Módulo | Status |
-| ------ | ------ | ------ |
-| `/donations` | CRUD + state machine de status | 🔜 Milestone 4 |
-| `/collection-points` | Busca geoespacial Haversine | ✅ Milestone 2 |
-| `/users` | CRUD de perfil | 🔜 Milestone 3 |
+- `DRAFT`
+- `PENDING`
+- `ACTIVE`
+- `VERIFIED`
 
-### Collection Points — `/collection-points`
+Arquivos centrais:
 
-| Método | Rota | Autenticação | Descrição |
-| ------ | ---- | ------------ | --------- |
-| GET | `/collection-points?lat=&lng=&radius=&limit=` | Pública | Busca pontos próximos (Haversine, paginação por cursor) |
-| GET | `/collection-points/:id` | Pública | Detalhe de um ponto |
+- `api/src/modules/profiles/profile-shared.ts`
+- `api/src/modules/profiles/profiles.ts`
+- `web/components/profile/operational-profile-form.tsx`
 
-## Configuração do Portainer para deploy via GitHub
+## Geocoding
 
-### Criar a stack no Portainer
+### Implementacao atual
 
-1. Acesse **Portainer > Stacks > Add stack**
-2. Escolha **Repository** como fonte
-3. Preencha:
-   - Repository URL: `https://github.com/SEU_USUARIO/vestgo`
-   - Branch: `main`
-   - Compose file path: `docker-compose.yml`
-   - Auth: habilite e use um GitHub PAT com `read:packages`
-4. Adicione as variáveis de ambiente do `.env`
-5. Habilite **Auto update > Webhook**
-6. Copie a URL do webhook e salve em `PORTAINER_WEBHOOK_URL` nos secrets do GitHub
+- arquivo central: `api/src/shared/geocoding.ts`
+- provider padrao: Nominatim (`https://nominatim.openstreetmap.org/search`)
+- entrada: endereco textual do perfil operacional
+- saida: `latitude` e `longitude` persistidas no usuario
 
-### Fluxo completo após setup
+### Fluxo
 
-```
-git push origin main
-  └─ GitHub Actions: lint → build → push ghcr.io → POST webhook
-       └─ Portainer: pull nova imagem → docker compose up -d
-            └─ Containers reiniciam com zero downtime
-```
+1. usuario salva o perfil operacional
+2. backend valida se o endereco esta completo o suficiente
+3. backend chama o provider de geocoding
+4. coordenadas resolvidas sao persistidas
+5. checklist e estado publico passam a refletir a capacidade de descoberta no mapa
 
----
+Se o endereco estiver completo, mas nao puder ser geolocalizado, o backend responde erro de validacao em vez de persistir coordenadas inconsistentes.
 
-## Nginx Proxy Manager — Configuração dos hosts
+## Descoberta publica
 
-| Domínio               | Forward para           | Porta |
-| --------------------- | ---------------------- | ----- |
-| app.mosfet.com.br     | vestgo-web             | 3000  |
-| api.mosfet.com.br     | vestgo-api             | 3001  |
-| storage.mosfet.com.br | vestgo-minio (console) | 9001  |
+### Fonte unica
 
-Todos na rede `rvproxy_npm_backend_network`.
+`GET /collection-points` e a fonte real para mapa e busca.
+
+### Regras da consulta
+
+- inclui `COLLECTION_POINT` e `NGO`
+- inclui apenas perfis `ACTIVE` ou `VERIFIED`
+- exige `latitude` e `longitude` persistidas
+- aceita filtro por `category`
+- aceita `search` por nome, organizacao, endereco, bairro, cidade e estado
+- aceita busca por proximidade com `lat`, `lng` e `radius`
+
+### Consumo no frontend
+
+- `web/components/map/mapa-page-content.tsx`
+- `web/lib/api.ts`
+
+## Dados e persistencia
+
+### Banco
+
+- PostgreSQL via Prisma
+- schema central em `api/prisma/schema.prisma`
+
+### Infra de apoio
+
+- Redis para refresh token e suporte de autenticacao
+- MinIO para storage
+- Docker Compose para stack local e deploy
+
+## Estado desta arquitetura apos a Fase 10A
+
+Resolvido:
+
+- vazamento do fluxo de doacao para perfis operacionais
+- criacao publica de `ADMIN`
+- latitude/longitude manual no perfil operacional
+- busca apenas visual no mapa
+- superficie mockada de `/pontos`
+
+Preparado para a Fase 10B:
+
+- solicitacao de retirada
+- proximidade operacional ponto -> ONG
+- dashboards dedicados por papel operacional
+- rastreio com semantica operacional especifica

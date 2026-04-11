@@ -33,7 +33,7 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
     type: "new_point",
     title: "Novo ponto próximo a você",
     body: "Centro de Coleta Leste abriu a 1,2 km de você. Aceita roupas e calçados.",
-    href: "/pontos",
+    href: "/mapa",
     read: false,
     createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000), // 5h atrás
   },
