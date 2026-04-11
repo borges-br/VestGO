@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { getCollectionPoint, getNearbyPoints, type CollectionPoint } from '@/lib/api';
+import { useAddressSuggestions } from '@/hooks/use-address-suggestions';
+import { formatAddressSummary } from '@/lib/address';
 
 const CollectionMap = dynamic(
   () => import('@/components/map/collection-map').then((module) => module.CollectionMap),
@@ -40,7 +42,7 @@ const ROLE_LABELS: Record<string, string> = {
   NGO: 'ONG',
 };
 
-const DEFAULT_CENTER: [number, number] = [-23.5505, -46.6333];
+const DEFAULT_CENTER: [number, number] = [-23.50153, -47.45256];
 
 function isDonationSelectablePoint(point: CollectionPoint | null | undefined) {
   return point?.role === 'COLLECTION_POINT' && point.donationEligibility?.canDonateHere === true;
@@ -98,18 +100,22 @@ export function MapaPageContent() {
   const [isLocating, setIsLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const autoLocateAttemptedRef = useRef(false);
   const locationRequestActiveRef = useRef(false);
   const lastFetchRequestIdRef = useRef(0);
   const selectedPointIdRef = useRef<string | null>(selectedPointId);
   const selectedPointPreviewRef = useRef<CollectionPoint | null>(selectedPointPreview);
+  const searchBlurTimeoutRef = useRef<number | null>(null);
+  const skipNextPartnerSearchSyncRef = useRef(false);
 
   selectedPointIdRef.current = selectedPointId;
   selectedPointPreviewRef.current = selectedPointPreview;
 
-  const normalizedSearch = useMemo(() => search.trim(), [search]);
+  const normalizedSearchInput = useMemo(() => searchInput.trim(), [searchInput]);
   const selectedPoint = useMemo(() => {
     if (!selectedPointId) {
       return null;
@@ -120,6 +126,21 @@ export function MapaPageContent() {
       (selectedPointPreview?.id === selectedPointId ? selectedPointPreview : null)
     );
   }, [points, selectedPointId, selectedPointPreview]);
+
+  const {
+    suggestions: addressSuggestions,
+    loading: addressSuggestionsLoading,
+    error: addressSuggestionsError,
+    hasQuery: hasAddressSuggestionQuery,
+    clearSuggestions,
+  } = useAddressSuggestions({
+    query: searchInput,
+    lat: center[0],
+    lng: center[1],
+    scope: 'public',
+    enabled: searchFocused,
+    limit: 6,
+  });
 
   const fetchPoints = useCallback(
     async (lat: number, lng: number, radius = 10, nextSearch?: string) => {
@@ -192,7 +213,9 @@ export function MapaPageContent() {
 
     if (!window.navigator.geolocation) {
       setHasResolvedInitialCenter(true);
-      setLocationNotice('Geolocalizacao indisponivel neste navegador. Mostrando uma area padrao.');
+      setLocationNotice(
+        'Geolocalizacao indisponivel neste navegador. Mostrando Sorocaba como area base.',
+      );
       return;
     }
 
@@ -214,7 +237,7 @@ export function MapaPageContent() {
         setIsLocating(false);
         setLocationNotice(
           source === 'auto'
-            ? 'Nao foi possivel usar sua localizacao agora. Mostrando uma area padrao para voce explorar.'
+            ? 'Nao foi possivel usar sua localizacao agora. Mostrando Sorocaba como area base para voce explorar.'
             : 'Permissao de localizacao negada. Continue explorando pelo mapa ou pela busca.',
         );
         locationRequestActiveRef.current = false;
@@ -226,6 +249,21 @@ export function MapaPageContent() {
   const handleLocate = useCallback(() => {
     requestLocation('manual');
   }, [requestLocation]);
+
+  const handleSearchFocus = useCallback(() => {
+    if (searchBlurTimeoutRef.current) {
+      window.clearTimeout(searchBlurTimeoutRef.current);
+      searchBlurTimeoutRef.current = null;
+    }
+
+    setSearchFocused(true);
+  }, []);
+
+  const handleSearchBlur = useCallback(() => {
+    searchBlurTimeoutRef.current = window.setTimeout(() => {
+      setSearchFocused(false);
+    }, 160);
+  }, []);
 
   const handleSelectPoint = useCallback((point: CollectionPoint) => {
     if (isSelectionMode && !isDonationSelectablePoint(point)) {
@@ -252,6 +290,29 @@ export function MapaPageContent() {
     router.push(buildReturnUrl(returnTo, selectedPointId));
   }, [returnTo, router, selectedPoint, selectedPointId]);
 
+  const handleSelectAddressSuggestion = useCallback(
+    (suggestion: {
+      label: string;
+      latitude: number;
+      longitude: number;
+      city: string | null;
+      state: string | null;
+    }) => {
+      skipNextPartnerSearchSyncRef.current = true;
+      setSearchInput(suggestion.label);
+      setPartnerSearch('');
+      setCenter([suggestion.latitude, suggestion.longitude]);
+      setLocationNotice(
+        `Mapa recentralizado para ${suggestion.city ?? suggestion.label}${
+          suggestion.state ? ` - ${suggestion.state}` : ''
+        }. A busca textual de parceiros continua disponivel.`,
+      );
+      setSearchFocused(false);
+      clearSuggestions();
+    },
+    [clearSuggestions],
+  );
+
   useEffect(() => {
     if (!initialSelectedPointId) return;
     setSelectedPointId(initialSelectedPointId);
@@ -267,14 +328,27 @@ export function MapaPageContent() {
   }, [requestLocation]);
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (skipNextPartnerSearchSyncRef.current) {
+        skipNextPartnerSearchSyncRef.current = false;
+        return;
+      }
+
+      setPartnerSearch(normalizedSearchInput);
+    }, normalizedSearchInput ? 250 : 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [normalizedSearchInput]);
+
+  useEffect(() => {
     if (!hasResolvedInitialCenter) return;
 
     const timeout = window.setTimeout(() => {
-      void fetchPoints(center[0], center[1], 10, normalizedSearch || undefined);
-    }, normalizedSearch ? 300 : 0);
+      void fetchPoints(center[0], center[1], 10, partnerSearch || undefined);
+    }, partnerSearch ? 300 : 0);
 
     return () => window.clearTimeout(timeout);
-  }, [center, fetchPoints, hasResolvedInitialCenter, normalizedSearch]);
+  }, [center, fetchPoints, hasResolvedInitialCenter, partnerSearch]);
 
   const hasSelectedPointLoaded = useMemo(
     () =>
@@ -340,9 +414,18 @@ export function MapaPageContent() {
     setSelectedPointId(null);
     setLocationNotice(
       point.donationEligibility?.message ??
-        'Este ponto ainda nao pode finalizar doacoes no fluxo doador.',
+      'Este ponto ainda nao pode finalizar doacoes no fluxo doador.',
     );
   }, [isSelectionMode, points, selectedPointId]);
+
+  useEffect(
+    () => () => {
+      if (searchBlurTimeoutRef.current) {
+        window.clearTimeout(searchBlurTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   return (
     <div className={`flex flex-col bg-surface font-sans ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
@@ -370,11 +453,71 @@ export function MapaPageContent() {
               />
               <input
                 type="text"
-                placeholder="Buscar cidade, bairro ou parceiro..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar parceiros ou ir para um endereco..."
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onFocus={handleSearchFocus}
+                onBlur={handleSearchBlur}
                 className="w-full rounded-2xl border border-gray-100 bg-white py-3 pl-9 pr-4 text-sm shadow-sm outline-none transition-colors focus:border-primary"
               />
+
+              {searchFocused && (hasAddressSuggestionQuery || addressSuggestionsLoading) && (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg">
+                  <div className="border-b border-gray-100 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                      Ir para um lugar
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Escolha uma sugestao para recentralizar o mapa sem substituir a busca textual de parceiros.
+                    </p>
+                  </div>
+
+                  {addressSuggestionsLoading && (
+                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
+                      <Loader2 size={15} className="animate-spin text-primary" />
+                      Buscando lugares e enderecos...
+                    </div>
+                  )}
+
+                  {!addressSuggestionsLoading && addressSuggestionsError && (
+                    <div className="px-4 py-3 text-sm text-amber-700">
+                      {addressSuggestionsError}
+                    </div>
+                  )}
+
+                  {!addressSuggestionsLoading &&
+                    !addressSuggestionsError &&
+                    addressSuggestions.length > 0 && (
+                      <div className="max-h-72 overflow-y-auto py-2">
+                        {addressSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => handleSelectAddressSuggestion(suggestion)}
+                            className="w-full px-4 py-3 text-left transition-colors hover:bg-surface"
+                          >
+                            <p className="text-sm font-semibold text-on-surface">
+                              {suggestion.label}
+                            </p>
+                            <p className="mt-1 text-xs leading-6 text-gray-400">
+                              {suggestion.displayName}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                  {!addressSuggestionsLoading &&
+                    !addressSuggestionsError &&
+                    hasAddressSuggestionQuery &&
+                    addressSuggestions.length === 0 && (
+                      <div className="px-4 py-3 text-sm text-gray-500">
+                        Nenhum lugar sugerido para esse termo. A busca de parceiros continua ativa normalmente.
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -389,6 +532,9 @@ export function MapaPageContent() {
               {isLocating ? <Loader2 size={18} className="animate-spin" /> : <Navigation size={18} />}
             </button>
           </div>
+          <p className="mt-2 text-xs text-gray-400">
+            Digite para filtrar parceiros cadastrados. Se quiser recentralizar o mapa, escolha uma sugestao de endereco ou lugar.
+          </p>
 
           {isSelectionMode && (
             <div className="mt-4 rounded-[1.75rem] bg-white p-4 shadow-card">
@@ -450,8 +596,8 @@ export function MapaPageContent() {
                   <p className="mt-1 text-sm text-gray-500">
                     {selectedPoint
                       ? `Selecionado: ${selectedPoint.organizationName ?? selectedPoint.name}`
-                      : normalizedSearch
-                        ? `Resultados para "${normalizedSearch}".`
+                      : partnerSearch
+                        ? `Resultados para "${partnerSearch}".`
                         : located
                           ? 'Veja pontos e parceiros proximos da sua localizacao.'
                           : 'Veja parceiros ativos, compare perfis e escolha onde doar.'}
@@ -544,7 +690,9 @@ export function MapaPageContent() {
                                   {point.city && <span>{point.city}</span>}
                                 </div>
                                 <p className="mt-2 line-clamp-2 text-xs leading-6 text-gray-500">
-                                  {point.description ?? point.address ?? 'Perfil publico em construcao.'}
+                                  {point.description ??
+                                    formatAddressSummary(point) ??
+                                    'Perfil publico em construcao.'}
                                 </p>
                                 {point.donationEligibility && (
                                   <div

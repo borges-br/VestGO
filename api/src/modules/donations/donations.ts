@@ -15,6 +15,12 @@ import {
   NotFoundError,
   toErrorResponse,
 } from '../../shared/errors';
+import {
+  createNotifications,
+  getDonationPointsValue,
+  getNewlyUnlockedBadges,
+  loadDonorGamificationDonations,
+} from '../../shared/notifications';
 
 const createDonationSchema = z.object({
   collectionPointId: z.string().min(1),
@@ -59,6 +65,8 @@ const pointSelect = {
   name: true,
   organizationName: true,
   address: true,
+  addressNumber: true,
+  addressComplement: true,
   city: true,
   state: true,
   role: true,
@@ -254,6 +262,8 @@ function mapPoint(point: DonationRecord['collectionPoint'] | DonationRecord['ngo
     name: point.name,
     organizationName: point.organizationName,
     address: point.address,
+    addressNumber: point.addressNumber,
+    addressComplement: point.addressComplement,
     city: point.city,
     state: point.state,
     role: point.role,
@@ -321,6 +331,49 @@ function mapDonation(donation: DonationRecord, viewer?: Viewer) {
     latestEvent: latestEvent ? mapTimelineEvent(latestEvent) : null,
     timeline: donation.timeline.map(mapTimelineEvent),
   };
+}
+
+function buildDonationStatusNotificationContent(params: {
+  status: DonationStatus;
+  donationCode: string;
+  collectionPointName: string | null;
+  ngoName: string | null;
+}) {
+  const collectionPointName = params.collectionPointName ?? 'o ponto parceiro';
+  const ngoName = params.ngoName ?? 'a ONG parceira';
+
+  switch (params.status) {
+    case DonationStatus.AT_POINT:
+      return {
+        title: 'Sua doacao chegou ao ponto',
+        body: `A doacao ${params.donationCode} foi recebida em ${collectionPointName}.`,
+      };
+    case DonationStatus.IN_TRANSIT:
+      return {
+        title: 'Sua doacao saiu para a ONG',
+        body: `A doacao ${params.donationCode} saiu de ${collectionPointName} e esta a caminho de ${ngoName}.`,
+      };
+    case DonationStatus.DELIVERED:
+      return {
+        title: 'Sua doacao chegou a ONG',
+        body: `A doacao ${params.donationCode} foi entregue para triagem em ${ngoName}.`,
+      };
+    case DonationStatus.DISTRIBUTED:
+      return {
+        title: 'Sua doacao foi distribuida',
+        body: `A doacao ${params.donationCode} concluiu a jornada e ja foi distribuida para atendimento social.`,
+      };
+    case DonationStatus.CANCELLED:
+      return {
+        title: 'Sua doacao foi cancelada',
+        body: `A doacao ${params.donationCode} foi cancelada e nao seguira para operacao logistica.`,
+      };
+    default:
+      return {
+        title: 'Status da doacao atualizado',
+        body: `A doacao ${params.donationCode} recebeu uma nova atualizacao na jornada.`,
+      };
+  }
 }
 
 async function getAccessibleDonation(fastify: FastifyInstance, id: string, user: Viewer) {
@@ -532,6 +585,57 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         select: donationSelect,
       });
 
+      const donorDonationsAfter = await loadDonorGamificationDonations(
+        fastify,
+        request.user.id,
+      );
+      const donorDonationsBefore = donorDonationsAfter.filter(
+        (donation) => donation.id !== createdDonation.id,
+      );
+      const newlyUnlockedBadges = getNewlyUnlockedBadges(
+        donorDonationsBefore,
+        donorDonationsAfter,
+      );
+      const creationPoints = getDonationPointsValue(createdDonation.status);
+
+      await createNotifications(fastify, [
+        {
+          userId: collectionPoint.id,
+          type: 'DONATION_CREATED_FOR_POINT' as const,
+          title: 'Nova doacao recebida no ponto',
+          body: `A doacao ${createdDonation.code} foi registrada e ja aguarda recebimento em ${collectionPoint.organizationName ?? collectionPoint.name}.`,
+          href: `/operacoes`,
+          payload: {
+            donationId: createdDonation.id,
+            donationCode: createdDonation.code,
+            collectionPointId: collectionPoint.id,
+          },
+        },
+        {
+          userId: request.user.id,
+          type: 'DONATION_POINTS' as const,
+          title: 'Pontuacao atualizada',
+          body: `Sua nova doacao ${createdDonation.code} adicionou +${creationPoints} pontos ao seu impacto atual.`,
+          href: `/rastreio/${createdDonation.id}`,
+          payload: {
+            donationId: createdDonation.id,
+            donationCode: createdDonation.code,
+            points: creationPoints,
+            status: createdDonation.status,
+          },
+        },
+        ...newlyUnlockedBadges.map((badge) => ({
+          userId: request.user.id,
+          type: 'BADGE_EARNED' as const,
+          title: `Badge conquistada: ${badge.label}`,
+          body: badge.description,
+          href: '/inicio',
+          payload: {
+            badgeId: badge.id,
+          },
+        })),
+      ]);
+
       return reply.code(201).send(mapDonation(createdDonation, request.user));
     } catch (err) {
       if (err instanceof AppError) {
@@ -719,6 +823,78 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         },
         select: donationSelect,
       });
+
+      const donorDonationsAfter = await loadDonorGamificationDonations(
+        fastify,
+        donation.donorId,
+      );
+      const donorDonationsBefore = donorDonationsAfter.map((record) =>
+        record.id === updatedDonation.id ? { ...record, status: donation.status } : record,
+      );
+      const newlyUnlockedBadges = getNewlyUnlockedBadges(
+        donorDonationsBefore,
+        donorDonationsAfter,
+      );
+      const previousPoints = getDonationPointsValue(donation.status);
+      const nextPoints = getDonationPointsValue(updatedDonation.status);
+      const pointsDelta = nextPoints - previousPoints;
+      const statusNotification = buildDonationStatusNotificationContent({
+        status: updatedDonation.status,
+        donationCode: updatedDonation.code,
+        collectionPointName:
+          updatedDonation.collectionPoint?.organizationName ??
+          updatedDonation.collectionPoint?.name ??
+          null,
+        ngoName:
+          updatedDonation.ngo?.organizationName ?? updatedDonation.ngo?.name ?? null,
+      });
+
+      await createNotifications(fastify, [
+        ...(updatedDonation.status === DonationStatus.CANCELLED && request.user.id === donation.donorId
+          ? []
+          : [
+              {
+                userId: donation.donorId,
+                type: 'DONATION_STATUS' as const,
+                title: statusNotification.title,
+                body: statusNotification.body,
+                href: `/rastreio/${updatedDonation.id}`,
+                payload: {
+                  donationId: updatedDonation.id,
+                  donationCode: updatedDonation.code,
+                  status: updatedDonation.status,
+                },
+              },
+            ]),
+        ...(pointsDelta > 0
+          ? [
+              {
+                userId: donation.donorId,
+                type: 'DONATION_POINTS' as const,
+                title: 'Pontuacao atualizada',
+                body: `A jornada ${updatedDonation.code} acrescentou +${pointsDelta} pontos ao seu impacto.`,
+                href: `/rastreio/${updatedDonation.id}`,
+                payload: {
+                  donationId: updatedDonation.id,
+                  donationCode: updatedDonation.code,
+                  pointsDelta,
+                  pointsTotal: nextPoints,
+                  status: updatedDonation.status,
+                },
+              },
+            ]
+          : []),
+        ...newlyUnlockedBadges.map((badge) => ({
+          userId: donation.donorId,
+          type: 'BADGE_EARNED' as const,
+          title: `Badge conquistada: ${badge.label}`,
+          body: badge.description,
+          href: '/inicio',
+          payload: {
+            badgeId: badge.id,
+          },
+        })),
+      ]);
 
       return reply.send(mapDonation(updatedDonation, request.user));
     } catch (err) {

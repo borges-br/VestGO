@@ -44,6 +44,15 @@ enum OperationalPartnershipStatus {
   REJECTED
 }
 
+enum NotificationType {
+  DONATION_STATUS
+  DONATION_POINTS
+  BADGE_EARNED
+  DONATION_CREATED_FOR_POINT
+  PARTNERSHIP_REQUEST_RECEIVED
+  PARTNERSHIP_STATUS_CHANGED
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String
@@ -60,6 +69,8 @@ model User {
   description          String?
   purpose              String?
   address              String?
+  addressNumber        String?
+  addressComplement    String?
   neighborhood         String?
   zipCode              String?
   city                 String?
@@ -84,6 +95,7 @@ model User {
   receivedAt                      Donation[]               @relation("NgoDonations")
   outgoingOperationalPartnerships OperationalPartnership[] @relation("CollectionPointOperationalPartnerships")
   incomingOperationalPartnerships OperationalPartnership[] @relation("NgoOperationalPartnerships")
+  notifications                   Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -170,4 +182,23 @@ model DonationEvent {
   createdAt DateTime @default(now())
 
   @@map("donation_events")
+}
+
+model Notification {
+  id      String           @id @default(cuid())
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  type    NotificationType
+  title   String
+  body    String
+  href    String?
+  payload Json?
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
 }

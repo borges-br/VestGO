@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CollectionPoint } from '@/lib/api';
+import { formatAddressSummary } from '@/lib/address';
 
 interface CollectionMapProps {
   points: CollectionPoint[];
@@ -74,7 +75,7 @@ function hasViewChanged(
 
 export function CollectionMap({
   points,
-  center = [-23.5505, -46.6333],
+  center = [-23.50153, -47.45256],
   zoom = 13,
   onPointClick,
   selectedId,
@@ -197,7 +198,8 @@ export function CollectionMap({
           className: '',
           ...buildMarkerIcon(point, point.id === selectedId, point.id === selectedId ? 38 : 32),
         });
-        const popupDescription = point.description ?? point.address ?? 'Perfil publico ativo.';
+        const popupDescription =
+          point.description ?? formatAddressSummary(point) ?? 'Perfil publico ativo.';
         const popupRole = point.role === 'NGO' ? 'ONG parceira' : 'Ponto de coleta';
         const popupEligibility = point.donationEligibility
           ? `<div style="margin-top:8px;padding:8px 10px;border-radius:12px;background:${

@@ -30,6 +30,7 @@ import {
   type CollectionPoint,
   type DonationRecord,
 } from '@/lib/api';
+import { formatAddressSummary } from '@/lib/address';
 import { buildPostDonationReward, type PostDonationReward } from '@/lib/gamification';
 import { cn } from '@/lib/utils';
 
@@ -75,7 +76,7 @@ const categoryToApiCategory: Record<CategoryId, string> = {
 };
 
 const DONATION_WIZARD_STORAGE_KEY = 'vestgo:donation-wizard-draft';
-const DEFAULT_DISCOVERY_CENTER = { lat: -23.5505, lng: -46.6333 };
+const DEFAULT_DISCOVERY_CENTER = { lat: -23.50153, lng: -47.45256 };
 
 type DonationWizardDraft = {
   currentStep: number;
@@ -291,10 +292,10 @@ function SummaryCard({
           {selectedPoint ? (
             <div className="mt-3">
               <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
-              <p className="mt-1 text-sm text-gray-400">
-                {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
-                {selectedPoint.address}
-              </p>
+                <p className="mt-1 text-sm text-gray-400">
+                  {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
+                  {formatAddressSummary(selectedPoint) ?? 'Endereco nao informado'}
+                </p>
               <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                 {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
               </p>
@@ -930,7 +931,9 @@ export default function DoarPage() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="mt-2 text-sm text-gray-400">{point.address}</p>
+                                <p className="mt-2 text-sm text-gray-400">
+                                  {formatAddressSummary(point) ?? 'Endereco nao informado'}
+                                </p>
                                 <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                                   {point.acceptedCategories.map((item) => categoryLabels[item] ?? item).join(' - ')}
                                 </p>
@@ -1008,7 +1011,9 @@ export default function DoarPage() {
                       <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
-                          <p className="mt-1 text-sm text-gray-400">{selectedPoint.address}</p>
+                            <p className="mt-1 text-sm text-gray-400">
+                              {formatAddressSummary(selectedPoint) ?? 'Endereco nao informado'}
+                            </p>
                           {selectedPoint.donationEligibility && (
                             <p className="mt-2 text-sm text-gray-500">
                               {selectedPoint.donationEligibility.label}: {selectedPoint.donationEligibility.message}

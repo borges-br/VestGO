@@ -33,6 +33,8 @@ const editableProfileSelect = {
   description: true,
   purpose: true,
   address: true,
+  addressNumber: true,
+  addressComplement: true,
   neighborhood: true,
   zipCode: true,
   city: true,
@@ -116,6 +118,8 @@ function mapEditableProfile(user: EditableProfileRecord) {
     description: user.description ?? undefined,
     purpose: user.purpose ?? undefined,
     address: user.address ?? undefined,
+    addressNumber: user.addressNumber ?? undefined,
+    addressComplement: user.addressComplement ?? undefined,
     city: user.city ?? undefined,
     state: user.state ?? undefined,
     zipCode: user.zipCode ?? undefined,
@@ -140,6 +144,8 @@ function mapEditableProfile(user: EditableProfileRecord) {
     description: user.description,
     purpose: user.purpose,
     address: user.address,
+    addressNumber: user.addressNumber,
+    addressComplement: user.addressComplement,
     neighborhood: user.neighborhood,
     zipCode: user.zipCode,
     city: user.city,
@@ -207,6 +213,8 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           role: true,
           publicProfileState: true,
           address: true,
+          addressNumber: true,
+          addressComplement: true,
           neighborhood: true,
           zipCode: true,
           city: true,
@@ -233,6 +241,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
 
       const addressChanged =
         normalizeAddressField(existingUser.address) !== normalizeAddressField(body.address) ||
+        normalizeAddressField(existingUser.addressNumber) !==
+          normalizeAddressField(body.addressNumber) ||
+        normalizeAddressField(existingUser.addressComplement) !==
+          normalizeAddressField(body.addressComplement) ||
         normalizeAddressField(existingUser.neighborhood) !==
           normalizeAddressField(body.neighborhood) ||
         normalizeAddressField(existingUser.zipCode) !== normalizeAddressField(body.zipCode) ||
@@ -303,6 +315,8 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           description: body.description,
           purpose: body.purpose,
           address: body.address,
+          addressNumber: body.addressNumber,
+          addressComplement: body.addressComplement,
           neighborhood: body.neighborhood,
           zipCode: body.zipCode,
           city: body.city,

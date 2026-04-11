@@ -22,6 +22,7 @@ import {
   type MyProfile,
   type PartnershipRecord,
 } from '@/lib/api';
+import { formatAddressSummary } from '@/lib/address';
 
 const PROFILE_STATE_LABELS = {
   DRAFT: 'Rascunho',
@@ -452,11 +453,11 @@ export function OperationalProfileSummary({
                         <div key={partnership.id} className="rounded-[1.5rem] bg-surface px-4 py-4">
                           <p className="text-sm font-semibold text-primary-deeper">
                             {partnership.collectionPoint.organizationName ?? partnership.collectionPoint.name}
-                          </p>
-                          <p className="mt-2 text-sm leading-7 text-gray-500">
-                            {partnership.collectionPoint.address ??
-                              'Endereco publico ainda nao informado.'}
-                          </p>
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-gray-500">
+                              {formatAddressSummary(partnership.collectionPoint) ??
+                                'Endereco publico ainda nao informado.'}
+                            </p>
                           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                             <button
                               type="button"
@@ -517,13 +518,11 @@ export function OperationalProfileSummary({
               <div className="rounded-[1.5rem] bg-surface px-4 py-4">
                 <p className="text-sm font-semibold text-primary-deeper">Contato e localizacao</p>
                 <div className="mt-3 space-y-2 text-sm text-gray-500">
-                  <div className="flex items-start gap-2">
-                    <MapPin size={15} className="mt-1 text-primary" />
-                    <span>
-                      {profile.address ?? 'Endereco ainda nao informado'}
-                      {profile.city ? ` - ${profile.city}` : ''}
-                      {profile.state ? ` - ${profile.state}` : ''}
-                    </span>
+                    <div className="flex items-start gap-2">
+                      <MapPin size={15} className="mt-1 text-primary" />
+                      <span>
+                        {formatAddressSummary(profile) ?? 'Endereco ainda nao informado'}
+                      </span>
                   </div>
                   <div className="flex items-start gap-2">
                     <Phone size={15} className="mt-1 text-primary" />

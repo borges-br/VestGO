@@ -32,6 +32,7 @@ import {
   type DonationStatus,
   type MyProfile,
 } from '@/lib/api';
+import { formatAddressSummary } from '@/lib/address';
 import { buildImpactSnapshot } from '@/lib/gamification';
 
 const quickActions = [
@@ -407,7 +408,7 @@ function OperationalHome({
                         </p>
                         <p className="mt-1 text-sm text-gray-400">
                           {point.distanceKm ? `${point.distanceKm} km - ` : ''}
-                          {point.address}
+                          {formatAddressSummary(point) ?? 'Endereco nao informado'}
                         </p>
                         <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                           {point.acceptedCategories
@@ -514,10 +515,10 @@ export default async function InicioPage() {
 
   if (accessToken) {
     try {
-      const [donationsResponse, pointsResponse] = await Promise.all([
-        getUserDonations(accessToken, { limit: 20 }),
-        getNearbyPoints({ lat: -23.5505, lng: -46.6333, radius: 15, limit: 2 }),
-      ]);
+        const [donationsResponse, pointsResponse] = await Promise.all([
+          getUserDonations(accessToken, { limit: 20 }),
+          getNearbyPoints({ lat: -23.50153, lng: -47.45256, radius: 15, limit: 2 }),
+        ]);
       donations = donationsResponse.data;
       nearbyPoints = pointsResponse.data;
     } catch {
@@ -705,7 +706,7 @@ export default async function InicioPage() {
                         </p>
                         <p className="mt-1 text-sm text-gray-400">
                           {point.distanceKm ? `${point.distanceKm} km - ` : ''}
-                          {point.address}
+                          {formatAddressSummary(point) ?? 'Endereco nao informado'}
                         </p>
                         <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                           {point.acceptedCategories.slice(0, 3).map((item) => CATEGORY_LABELS[item] ?? item).join(' - ')}

@@ -32,6 +32,8 @@ export const profileWriteSchema = z.object({
   description: optionalText(1200),
   purpose: optionalText(1200),
   address: optionalText(180),
+  addressNumber: optionalText(40),
+  addressComplement: optionalText(120),
   neighborhood: optionalText(120),
   zipCode: optionalText(20),
   city: optionalText(120),
@@ -74,6 +76,8 @@ type CompletionPayload = Pick<
   | 'description'
   | 'purpose'
   | 'address'
+  | 'addressNumber'
+  | 'addressComplement'
   | 'city'
   | 'state'
   | 'zipCode'

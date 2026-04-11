@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getCollectionPoint } from '@/lib/api';
+import { formatAddressSummary } from '@/lib/address';
 
 const CATEGORY_LABELS: Record<string, string> = {
   CLOTHING: 'Roupas e vestuario',
@@ -117,10 +118,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   <div className="flex items-start gap-3">
                     <MapPin size={16} className="mt-1 text-primary" />
                     <span>
-                      {point.address ?? 'Endereco nao informado'}
-                      {point.neighborhood ? ` - ${point.neighborhood}` : ''}
-                      {point.city ? ` - ${point.city}` : ''}
-                      {point.state ? ` - ${point.state}` : ''}
+                      {formatAddressSummary(point) ?? 'Endereco nao informado'}
                     </span>
                   </div>
 

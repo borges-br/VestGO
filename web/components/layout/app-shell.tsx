@@ -5,13 +5,43 @@ import { useSession } from 'next-auth/react';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/topbar';
-import { useNotifications } from '@/hooks/use-notifications';
+import {
+  NotificationsProvider,
+  useNotifications,
+} from '@/hooks/use-notifications';
+
+function AppShellChrome({
+  children,
+  sidebarOpen,
+  setSidebarOpen,
+}: {
+  children: React.ReactNode;
+  sidebarOpen: boolean;
+  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const { unreadCount, preview, markAsRead } = useNotifications();
+
+  return (
+    <div className="min-h-screen bg-surface">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <TopBar
+        onMenuOpen={() => setSidebarOpen(true)}
+        unreadCount={unreadCount}
+        notifPreview={preview}
+        onNotifRead={markAsRead}
+      />
+      <main className="mx-auto w-full max-w-shell pb-[calc(var(--mobile-nav-height)+0.75rem)] pt-[calc(var(--topbar-height)+0.75rem)] md:pb-8">
+        <div className="min-h-[calc(100vh-var(--topbar-height)-1rem)]">{children}</div>
+      </main>
+      <BottomNav />
+    </div>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { unreadCount, preview, markAsRead } = useNotifications();
   const showBareLayout = !session?.user && pathname === '/mapa';
 
   useEffect(() => {
@@ -34,20 +64,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <TopBar
-        onMenuOpen={() => setSidebarOpen(true)}
-        unreadCount={unreadCount}
-        notifPreview={preview}
-        onNotifRead={markAsRead}
-      />
-      <main className="mx-auto w-full max-w-shell pb-[calc(var(--mobile-nav-height)+0.75rem)] pt-[calc(var(--topbar-height)+0.75rem)] md:pb-8">
-        <div className="min-h-[calc(100vh-var(--topbar-height)-1rem)]">
-          {children}
-        </div>
-      </main>
-      <BottomNav />
-    </div>
+    <NotificationsProvider accessToken={session?.user?.accessToken}>
+      <AppShellChrome
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      >
+        {children}
+      </AppShellChrome>
+    </NotificationsProvider>
   );
 }
