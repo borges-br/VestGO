@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -70,7 +70,10 @@ export function MapaPageContent() {
   const initialSelectedPointId = searchParams.get('selectedPointId');
 
   const [points, setPoints] = useState<CollectionPoint[]>([]);
-  const [selected, setSelected] = useState<CollectionPoint | null>(null);
+  const [selectedPointId, setSelectedPointId] = useState<string | null>(
+    initialSelectedPointId,
+  );
+  const [selectedPointPreview, setSelectedPointPreview] = useState<CollectionPoint | null>(null);
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [loading, setLoading] = useState(false);
   const [located, setLocated] = useState(false);
@@ -80,10 +83,31 @@ export function MapaPageContent() {
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
+  const autoLocateAttemptedRef = useRef(false);
+  const locationRequestActiveRef = useRef(false);
+  const lastFetchRequestIdRef = useRef(0);
+  const selectedPointIdRef = useRef<string | null>(selectedPointId);
+  const selectedPointPreviewRef = useRef<CollectionPoint | null>(selectedPointPreview);
+
+  selectedPointIdRef.current = selectedPointId;
+  selectedPointPreviewRef.current = selectedPointPreview;
+
   const normalizedSearch = useMemo(() => search.trim(), [search]);
+  const selectedPoint = useMemo(() => {
+    if (!selectedPointId) {
+      return null;
+    }
+
+    return (
+      points.find((point) => point.id === selectedPointId) ??
+      (selectedPointPreview?.id === selectedPointId ? selectedPointPreview : null)
+    );
+  }, [points, selectedPointId, selectedPointPreview]);
 
   const fetchPoints = useCallback(
     async (lat: number, lng: number, radius = 10, nextSearch?: string) => {
+      const requestId = lastFetchRequestIdRef.current + 1;
+      lastFetchRequestIdRef.current = requestId;
       setLoading(true);
       setError(null);
 
@@ -96,21 +120,30 @@ export function MapaPageContent() {
           search: nextSearch,
         });
 
+        if (requestId !== lastFetchRequestIdRef.current) {
+          return;
+        }
+
         const availablePoints = isSelectionMode
           ? response.data.filter((point) => point.role === 'COLLECTION_POINT')
           : response.data;
 
         setPoints((current) => {
-          if (!selected) {
-            return availablePoints;
+          const activeSelectedId = selectedPointIdRef.current;
+          const pinnedPoint =
+            current.find((point) => point.id === activeSelectedId) ??
+            selectedPointPreviewRef.current;
+
+          if (
+            activeSelectedId &&
+            pinnedPoint &&
+            !availablePoints.some((point) => point.id === activeSelectedId)
+          ) {
+            return mergeCollectionPoints(availablePoints, [pinnedPoint]);
           }
 
-          return mergeCollectionPoints(availablePoints, [selected]);
+          return availablePoints;
         });
-
-        setSelected((current) =>
-          current ? availablePoints.find((point) => point.id === current.id) ?? current : null,
-        );
 
         if (availablePoints.length === 0) {
           setError(
@@ -122,21 +155,30 @@ export function MapaPageContent() {
           );
         }
       } catch {
-        setError('Erro ao buscar pontos. Verifique sua conexao.');
+        if (requestId === lastFetchRequestIdRef.current) {
+          setError('Erro ao buscar pontos. Verifique sua conexao.');
+        }
       } finally {
-        setLoading(false);
+        if (requestId === lastFetchRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
-    [isSelectionMode, selected],
+    [isSelectionMode],
   );
 
   const requestLocation = useCallback((source: 'auto' | 'manual') => {
+    if (locationRequestActiveRef.current) {
+      return;
+    }
+
     if (!window.navigator.geolocation) {
       setHasResolvedInitialCenter(true);
       setLocationNotice('Geolocalizacao indisponivel neste navegador. Mostrando uma area padrao.');
       return;
     }
 
+    locationRequestActiveRef.current = true;
     setIsLocating(true);
 
     window.navigator.geolocation.getCurrentPosition(
@@ -146,6 +188,7 @@ export function MapaPageContent() {
         setLocationNotice('Mostrando parceiros proximos da sua localizacao atual.');
         setHasResolvedInitialCenter(true);
         setIsLocating(false);
+        locationRequestActiveRef.current = false;
       },
       () => {
         setLocated(false);
@@ -156,6 +199,7 @@ export function MapaPageContent() {
             ? 'Nao foi possivel usar sua localizacao agora. Mostrando uma area padrao para voce explorar.'
             : 'Permissao de localizacao negada. Continue explorando pelo mapa ou pela busca.',
         );
+        locationRequestActiveRef.current = false;
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 },
     );
@@ -166,51 +210,72 @@ export function MapaPageContent() {
   }, [requestLocation]);
 
   const handleSelectPoint = useCallback((point: CollectionPoint) => {
-    setSelected(point);
-    setCenter([point.latitude, point.longitude]);
+    setSelectedPointId(point.id);
+    setSelectedPointPreview(point);
+    setCenter((current) => {
+      if (current[0] === point.latitude && current[1] === point.longitude) {
+        return current;
+      }
+
+      return [point.latitude, point.longitude];
+    });
   }, []);
 
   const handleConfirmSelection = useCallback(() => {
-    if (!selected) return;
-    router.push(buildReturnUrl(returnTo, selected.id));
-  }, [returnTo, router, selected]);
+    if (!selectedPointId) return;
+    router.push(buildReturnUrl(returnTo, selectedPointId));
+  }, [returnTo, router, selectedPointId]);
 
   useEffect(() => {
-    if (hasResolvedInitialCenter) return;
+    if (!initialSelectedPointId) return;
+    setSelectedPointId(initialSelectedPointId);
+  }, [initialSelectedPointId]);
+
+  useEffect(() => {
+    if (autoLocateAttemptedRef.current) {
+      return;
+    }
+
+    autoLocateAttemptedRef.current = true;
     requestLocation('auto');
-  }, [hasResolvedInitialCenter, requestLocation]);
+  }, [requestLocation]);
 
   useEffect(() => {
     if (!hasResolvedInitialCenter) return;
 
     const timeout = window.setTimeout(() => {
-      fetchPoints(center[0], center[1], 10, normalizedSearch || undefined);
-    }, normalizedSearch ? 250 : 0);
+      void fetchPoints(center[0], center[1], 10, normalizedSearch || undefined);
+    }, normalizedSearch ? 300 : 0);
 
     return () => window.clearTimeout(timeout);
   }, [center, fetchPoints, hasResolvedInitialCenter, normalizedSearch]);
 
-  useEffect(() => {
-    if (!initialSelectedPointId) return;
-    const selectedPointId = initialSelectedPointId;
+  const hasSelectedPointLoaded = useMemo(
+    () =>
+      Boolean(
+        selectedPointId &&
+          (points.some((point) => point.id === selectedPointId) ||
+            selectedPointPreview?.id === selectedPointId),
+      ),
+    [points, selectedPointId, selectedPointPreview],
+  );
 
-    const existingPoint = points.find((point) => point.id === selectedPointId);
-    if (existingPoint) {
-      setSelected((current) => current ?? existingPoint);
+  useEffect(() => {
+    if (!selectedPointId || hasSelectedPointLoaded) {
       return;
     }
 
+    const pointIdToLoad = selectedPointId;
     let cancelled = false;
 
     async function loadSelectedPoint() {
       try {
-        const point = await getCollectionPoint(selectedPointId);
+        const point = await getCollectionPoint(pointIdToLoad);
 
         if (cancelled) return;
         if (isSelectionMode && point.role !== 'COLLECTION_POINT') return;
 
-        setSelected(point);
-        setPoints((current) => mergeCollectionPoints(current, [point]));
+        setSelectedPointPreview(point);
       } catch {
         if (!cancelled) {
           setLocationNotice('O ponto anteriormente selecionado nao esta mais disponivel nesta busca.');
@@ -218,12 +283,12 @@ export function MapaPageContent() {
       }
     }
 
-    loadSelectedPoint();
+    void loadSelectedPoint();
 
     return () => {
       cancelled = true;
     };
-  }, [initialSelectedPointId, isSelectionMode, points]);
+  }, [hasSelectedPointLoaded, isSelectionMode, selectedPointId]);
 
   return (
     <div className={`flex flex-col bg-surface font-sans ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
@@ -241,7 +306,7 @@ export function MapaPageContent() {
         </header>
       )}
 
-      <div className={`mx-auto flex w-full flex-1 min-h-0 flex-col ${isLoggedIn ? '' : 'max-w-shell'}`}>
+      <div className={`mx-auto flex min-h-0 w-full flex-1 flex-col ${isLoggedIn ? '' : 'max-w-shell'}`}>
         <div className="flex-shrink-0 px-4 pb-4 pt-4 sm:px-5 lg:px-6">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -282,8 +347,8 @@ export function MapaPageContent() {
                     Escolha um ponto de coleta, confirme a selecao e volte direto para a etapa 3 do wizard.
                   </p>
                   <p className="mt-2 text-sm font-semibold text-primary-deeper">
-                    {selected
-                      ? `Ponto atual: ${selected.organizationName ?? selected.name}`
+                    {selectedPoint
+                      ? `Ponto atual: ${selectedPoint.organizationName ?? selectedPoint.name}`
                       : 'Nenhum ponto confirmado ainda.'}
                   </p>
                 </div>
@@ -299,9 +364,9 @@ export function MapaPageContent() {
                   <button
                     type="button"
                     onClick={handleConfirmSelection}
-                    disabled={!selected}
+                    disabled={!selectedPointId}
                     className={`inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
-                      selected
+                      selectedPointId
                         ? 'bg-primary-deeper text-white hover:bg-primary-dark'
                         : 'cursor-not-allowed bg-surface text-gray-300'
                     }`}
@@ -320,8 +385,8 @@ export function MapaPageContent() {
           )}
         </div>
 
-        <div className="flex flex-1 min-h-0 flex-col gap-4 px-4 pb-4 sm:px-5 lg:px-6 lg:pb-6">
-          <div className="flex flex-1 min-h-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)]">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 sm:px-5 lg:px-6 lg:pb-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)]">
             <section className="order-2 flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white p-3 shadow-card lg:order-1 lg:h-full">
               <div className="mb-3 flex items-center justify-between gap-3 px-1">
                 <div>
@@ -329,8 +394,8 @@ export function MapaPageContent() {
                     Explorar pontos
                   </p>
                   <p className="mt-1 text-sm text-gray-500">
-                    {selected
-                      ? `Selecionado: ${selected.organizationName ?? selected.name}`
+                    {selectedPoint
+                      ? `Selecionado: ${selectedPoint.organizationName ?? selectedPoint.name}`
                       : normalizedSearch
                         ? `Resultados para "${normalizedSearch}".`
                         : located
@@ -344,13 +409,22 @@ export function MapaPageContent() {
               </div>
 
               <div className="h-[19rem] min-h-[19rem] overflow-hidden rounded-[1.75rem] sm:h-[24rem] sm:min-h-[24rem] lg:min-h-0 lg:flex-1">
-                <CollectionMap
-                  points={points}
-                  center={center}
-                  zoom={selected ? 14 : 13}
-                  onPointClick={handleSelectPoint}
-                  selectedId={selected?.id}
-                />
+                {hasResolvedInitialCenter ? (
+                  <CollectionMap
+                    points={points}
+                    center={center}
+                    zoom={selectedPoint ? 14 : 13}
+                    onPointClick={handleSelectPoint}
+                    selectedId={selectedPointId}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-[1.75rem] bg-primary-light/40 text-sm text-gray-500">
+                    <div className="flex items-center gap-3">
+                      <Loader2 size={18} className="animate-spin text-primary" />
+                      Preparando mapa...
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -383,7 +457,7 @@ export function MapaPageContent() {
 
                 <div className="space-y-2">
                   {points.map((point) => {
-                    const isSelected = selected?.id === point.id;
+                    const isSelected = selectedPointId === point.id;
 
                     return (
                       <button

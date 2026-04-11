@@ -21,6 +21,8 @@ O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A e o ajuste de U
 - geolocalizacao automatica ao abrir o mapa
 - layout responsivo do mapa com area controlada e lista sincronizada
 - selecao visual de ponto com confirmacao explicita antes de voltar ao wizard
+- mapa estabilizado para evitar loops de tiles, `429` e consumo destrutivo de recursos
+- login ajustado para redirecionar corretamente no primeiro acesso autenticado
 
 ## Stack
 
@@ -124,6 +126,16 @@ Detalhes importantes:
 - o rascunho do wizard e preservado em `sessionStorage`
 - o retorno do mapa usa query params apenas para concluir a selecao, sem depender de estado global pesado
 - o mapa tenta geolocalizacao automaticamente e usa fallback coerente quando nao ha permissao
+- a instancia do Leaflet permanece estavel, com `invalidateSize()` reduzido ao minimo necessario
+
+## Estabilizacao de frontend
+
+Esta etapa priorizou confiabilidade antes de novas features:
+
+- importacao global correta de `leaflet.css`
+- eliminacao de loops entre estado do mapa, selecao e busca
+- reducao de recentralizacao e `invalidateSize()` em cascata
+- redirect de login alinhado ao mecanismo do Auth.js, sem navegacao manual precoce
 
 ## Estrutura principal
 
