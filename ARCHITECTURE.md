@@ -169,6 +169,16 @@ Comportamentos implementados:
 - selecao visual de ponto na lista e no marcador
 - confirmacao explicita antes de retornar ao wizard
 - correcoes de `setView` e `invalidateSize()` no Leaflet para evitar cortes e areas brancas em resize/layout responsivo
+- eliminacao do churn entre selecao, busca e hidracao inicial do mapa para evitar loops de tiles e `429`
+
+### Login e sessao
+
+O login via `Credentials` usa Auth.js com sessao JWT:
+
+- a tela de login envia `signIn` com callback URL saneado
+- o redirect de sucesso passa a ser conduzido pelo proprio Auth.js
+- o middleware continua protegendo as rotas internas
+- `/inicio` recebe a sessao server-side via `auth()` ja no primeiro acesso autenticado
 
 ## Dados e persistencia
 
@@ -195,6 +205,7 @@ Resolvido:
 - quebra do retorno do mapa para o wizard de doacao
 - recentralizacao inconsistente do Leaflet apos geolocalizacao
 - scroll vertical excessivo e cortes visuais no layout do mapa
+- corrida entre `signIn`, cookie de sessao e navegacao manual no login
 
 ## Bootstrap admin temporario
 

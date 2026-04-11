@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CollectionPoint } from '@/lib/api';
 
 interface CollectionMapProps {
@@ -17,6 +17,20 @@ type MarkerLike = {
   openPopup?: () => void;
 };
 
+function hasViewChanged(
+  previous: { center: [number, number]; zoom: number } | null,
+  nextCenter: [number, number],
+  nextZoom: number,
+) {
+  if (!previous) return true;
+
+  const sameLat = Math.abs(previous.center[0] - nextCenter[0]) < 0.00001;
+  const sameLng = Math.abs(previous.center[1] - nextCenter[1]) < 0.00001;
+  const sameZoom = previous.zoom === nextZoom;
+
+  return !(sameLat && sameLng && sameZoom);
+}
+
 export function CollectionMap({
   points,
   center = [-23.5505, -46.6333],
@@ -27,11 +41,9 @@ export function CollectionMap({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<ReturnType<typeof import('leaflet')['map']> | null>(null);
   const markersRef = useRef<Map<string, MarkerLike>>(new Map());
-  const latestCenterRef = useRef(center);
-  const latestZoomRef = useRef(zoom);
-
-  latestCenterRef.current = center;
-  latestZoomRef.current = zoom;
+  const lastViewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+  const lastOpenedPopupIdRef = useRef<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current) {
@@ -39,10 +51,8 @@ export function CollectionMap({
     }
 
     let isMounted = true;
-    let frameId: number | null = null;
-    let timeoutId: number | null = null;
-    let observer: ResizeObserver | null = null;
-    let invalidateMap = () => {};
+    let resizeTimer: number | null = null;
+    let removeResizeListener = () => {};
 
     import('leaflet').then((L) => {
       if (!isMounted || !mapRef.current || mapInstanceRef.current) {
@@ -58,11 +68,10 @@ export function CollectionMap({
           'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       });
 
-      const map = L.map(mapRef.current, { zoomControl: false }).setView(
-        latestCenterRef.current,
-        latestZoomRef.current,
-      );
+      const map = L.map(mapRef.current, { zoomControl: false }).setView(center, zoom);
       mapInstanceRef.current = map;
+      lastViewRef.current = { center, zoom };
+      setMapReady(true);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap',
@@ -71,76 +80,69 @@ export function CollectionMap({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      invalidateMap = () => {
-        if (frameId != null) {
-          window.cancelAnimationFrame(frameId);
-        }
-
-        frameId = window.requestAnimationFrame(() => {
-          map.invalidateSize({ animate: false });
-        });
-
-        if (timeoutId != null) {
-          window.clearTimeout(timeoutId);
-        }
-
-        timeoutId = window.setTimeout(() => {
-          map.invalidateSize({ animate: false });
-        }, 180);
+      const invalidateMap = () => {
+        map.invalidateSize({ animate: false });
       };
 
-      invalidateMap();
-      window.addEventListener('resize', invalidateMap);
+      window.requestAnimationFrame(invalidateMap);
+      window.setTimeout(invalidateMap, 180);
 
-      observer =
-        typeof window.ResizeObserver === 'function'
-          ? new window.ResizeObserver(() => invalidateMap())
-          : null;
+      const handleResize = () => {
+        if (resizeTimer) {
+          window.clearTimeout(resizeTimer);
+        }
 
-      observer?.observe(mapRef.current);
+        resizeTimer = window.setTimeout(() => {
+          map.invalidateSize({ animate: false });
+        }, 150);
+      };
+
+      window.addEventListener('resize', handleResize);
+      removeResizeListener = () => {
+        window.removeEventListener('resize', handleResize);
+      };
     });
 
     return () => {
       isMounted = false;
-      window.removeEventListener('resize', invalidateMap);
-      observer?.disconnect();
+      removeResizeListener();
 
-      if (frameId != null) {
-        window.cancelAnimationFrame(frameId);
-      }
-
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
+      if (resizeTimer) {
+        window.clearTimeout(resizeTimer);
       }
 
       markersRef.current.forEach((marker) => marker.remove?.());
       markersRef.current.clear();
       mapInstanceRef.current?.remove();
       mapInstanceRef.current = null;
+      lastViewRef.current = null;
+      lastOpenedPopupIdRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map) return;
 
-    map.setView(center, zoom, { animate: true });
-
-    const resizeHandle = window.setTimeout(() => {
-      map.invalidateSize({ animate: false });
-    }, 120);
-
-    return () => {
-      window.clearTimeout(resizeHandle);
-    };
-  }, [center, zoom]);
-
-  useEffect(() => {
-    if (!mapInstanceRef.current) {
+    if (!map || !hasViewChanged(lastViewRef.current, center, zoom)) {
       return;
     }
 
+    map.setView(center, zoom, { animate: false });
+    lastViewRef.current = { center, zoom };
+  }, [center, zoom]);
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+
     import('leaflet').then((L) => {
+      if (cancelled || !mapInstanceRef.current) {
+        return;
+      }
+
       const defaultIcon = L.divIcon({
         className: '',
         html: `<div style="
@@ -217,17 +219,20 @@ export function CollectionMap({
         markersRef.current.set(point.id, marker);
       });
 
-      if (selectedId) {
+      if (selectedId && lastOpenedPopupIdRef.current !== selectedId) {
         markersRef.current.get(selectedId)?.openPopup?.();
+        lastOpenedPopupIdRef.current = selectedId;
+      }
+
+      if (!selectedId) {
+        lastOpenedPopupIdRef.current = null;
       }
     });
-  }, [onPointClick, points, selectedId]);
 
-  return (
-    <div
-      ref={mapRef}
-      className="h-full w-full overflow-hidden rounded-[1.75rem]"
-      style={{ minHeight: '100%' }}
-    />
-  );
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, onPointClick, points, selectedId]);
+
+  return <div ref={mapRef} className="h-full w-full overflow-hidden rounded-[1.75rem]" />;
 }

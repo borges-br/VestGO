@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -504,19 +504,17 @@ export default function DoarPage() {
   const progress = ((currentStep + 1) / steps.length) * 100;
   const estimatedQuantity = getEstimatedQuantity(quantity);
   const rewardPreview = buildPostDonationReward(existingDonations);
-  const mapSelectionHref = useMemo(() => {
-    const params = new URLSearchParams({
-      mode: 'select-point',
-      returnTo: '/doar',
-      step: '2',
-    });
+  const mapSelectionParams = new URLSearchParams({
+    mode: 'select-point',
+    returnTo: '/doar',
+    step: '2',
+  });
 
-    if (pointId) {
-      params.set('selectedPointId', pointId);
-    }
+  if (pointId) {
+    mapSelectionParams.set('selectedPointId', pointId);
+  }
 
-    return `/mapa?${params.toString()}`;
-  }, [pointId]);
+  const mapSelectionHref = `/mapa?${mapSelectionParams.toString()}`;
   const canContinue =
     currentStep === 0
       ? selectedCategories.length > 0

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { MapPin, User, Users } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 
 type Tab = 'login' | 'register';
@@ -41,13 +41,10 @@ function sanitizeCallbackUrl(value: string | null) {
   return value;
 }
 
-function navigateTo(url: string) {
-  window.location.assign(url);
-}
-
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl'));
+  const authError = searchParams.get('error');
 
   const [tab, setTab] = useState<Tab>('login');
   const [email, setEmail] = useState('');
@@ -56,29 +53,42 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const errorMessage = useMemo(() => {
+    if (error) {
+      return error;
+    }
+
+    if (authError) {
+      return 'E-mail ou senha incorretos.';
+    }
+
+    return null;
+  }, [authError, error]);
+
+  useEffect(() => {
+    if (authError) {
+      setLoading(false);
+    }
+  }, [authError]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const result = await signIn('credentials', {
+      await signIn('credentials', {
         email,
         password,
-        redirect: false,
         callbackUrl,
       });
-
-      if (result?.error) {
-        setError('E-mail ou senha incorretos.');
-        return;
-      }
-
-      navigateTo(result?.url ?? callbackUrl);
     } catch {
       setError('Nao foi possivel entrar agora. Tente novamente.');
-    } finally {
       setLoading(false);
+    } finally {
+      if (authError) {
+        setLoading(false);
+      }
     }
   };
 
@@ -162,9 +172,9 @@ export default function LoginPage() {
                 <span className="text-sm text-gray-600">Lembrar de mim</span>
               </label>
 
-              {error && (
+              {errorMessage && (
                 <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
-                  {error}
+                  {errorMessage}
                 </div>
               )}
 
