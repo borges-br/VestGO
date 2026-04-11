@@ -13,9 +13,10 @@ O projeto ja esta funcional e nesta etapa consolida a Fase 10A:
 - cadastro publico bloqueando criacao de `ADMIN`
 - `/inicio` com comportamento minimo por papel
 - perfil operacional sem latitude/longitude manual
-- geocoding no backend a partir do endereco informado
+- geocoding no backend com fallback progressivo a partir do endereco informado
 - mapa e busca usando dados reais
 - `/pontos` alinhado com a descoberta real do produto
+- bootstrap admin temporario controlado por ambiente
 
 ## Stack
 
@@ -60,7 +61,7 @@ Latitude e longitude nao sao mais digitadas manualmente por usuarios operacionai
 Fluxo atual:
 
 1. usuario informa endereco no perfil operacional
-2. backend resolve coordenadas por geocoding
+2. backend normaliza os dados e tenta geocoding com consultas estruturadas e fallback textual
 3. coordenadas sao persistidas no usuario
 4. mapa e busca usam essas coordenadas internamente
 
@@ -71,6 +72,29 @@ Variaveis de ambiente relacionadas estao em `.env.example`:
 - `GEOCODING_ACCEPT_LANGUAGE`
 - `GEOCODING_COUNTRY_CODES`
 - `GEOCODING_TIMEOUT_MS`
+- `GEOCODING_EMAIL`
+
+### Erros diferenciados de geolocalizacao
+
+O backend separa tres casos:
+
+- endereco incompleto: perfil pode ser salvo como rascunho sem coordenadas
+- endereco nao encontrado: retorna erro de validacao para revisao do endereco
+- provider indisponivel: retorna erro temporario de servico
+
+## Bootstrap admin temporario
+
+Existe um bootstrap admin provisório e removivel, controlado por ambiente:
+
+- `BOOTSTRAP_ADMIN_EMAIL`
+- `BOOTSTRAP_ADMIN_PASSWORD`
+
+Comportamento:
+
+- a API cria o admin apenas se ainda nao existir um `ADMIN` com esse email
+- nao duplica usuarios
+- nao depende do seed para funcionar
+- foi pensado para provisionamento inicial e deve ser removido depois
 
 ## Descoberta publica
 

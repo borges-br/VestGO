@@ -109,16 +109,19 @@ Arquivos centrais:
 - provider padrao: Nominatim (`https://nominatim.openstreetmap.org/search`)
 - entrada: endereco textual do perfil operacional
 - saida: `latitude` e `longitude` persistidas no usuario
+- estrategia: consulta estruturada primeiro, com fallback textual progressivo
 
 ### Fluxo
 
 1. usuario salva o perfil operacional
 2. backend valida se o endereco esta completo o suficiente
-3. backend chama o provider de geocoding
+3. backend normaliza CEP, estado e texto do endereco
+4. backend chama o provider de geocoding com tentativas progressivas
 4. coordenadas resolvidas sao persistidas
 5. checklist e estado publico passam a refletir a capacidade de descoberta no mapa
 
 Se o endereco estiver completo, mas nao puder ser geolocalizado, o backend responde erro de validacao em vez de persistir coordenadas inconsistentes.
+Se o provider estiver indisponivel, o backend responde erro temporario de servico.
 
 ## Descoberta publica
 
@@ -162,6 +165,21 @@ Resolvido:
 - latitude/longitude manual no perfil operacional
 - busca apenas visual no mapa
 - superficie mockada de `/pontos`
+
+## Bootstrap admin temporario
+
+Arquivo central:
+
+- `api/src/bootstrap/bootstrap-admin.ts`
+
+Comportamento:
+
+- a API le `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD`
+- se o email nao existir como `ADMIN`, cria um admin bootstrap
+- se ja existir admin com o mesmo email, nao altera nem duplica
+- se o email ja pertencer a outro papel, apenas registra aviso no log
+
+Essa rotina e propositalmente temporaria e voltada a provisionamento inicial em ambiente real.
 
 Preparado para a Fase 10B:
 
