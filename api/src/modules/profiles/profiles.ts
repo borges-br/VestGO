@@ -1,4 +1,8 @@
-import { Prisma, UserRole } from '@prisma/client';
+import {
+  OperationalPartnershipStatus,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
@@ -54,8 +58,24 @@ const editableProfileSelect = {
       donations: true,
       collectedAt: true,
       receivedAt: true,
-      outgoingOperationalPartnerships: true,
-      incomingOperationalPartnerships: true,
+    },
+  },
+  outgoingOperationalPartnerships: {
+    where: {
+      status: OperationalPartnershipStatus.ACTIVE,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  },
+  incomingOperationalPartnerships: {
+    where: {
+      status: OperationalPartnershipStatus.ACTIVE,
+      isActive: true,
+    },
+    select: {
+      id: true,
     },
   },
 } satisfies Prisma.UserSelect;
@@ -73,14 +93,14 @@ function buildProfileStats(user: EditableProfileRecord) {
   if (user.role === UserRole.COLLECTION_POINT) {
     return {
       handledDonations: user._count.collectedAt,
-      activePartnerships: user._count.outgoingOperationalPartnerships,
+      activePartnerships: user.outgoingOperationalPartnerships.length,
     };
   }
 
   if (user.role === UserRole.NGO) {
     return {
       handledDonations: user._count.receivedAt,
-      activePartnerships: user._count.incomingOperationalPartnerships,
+      activePartnerships: user.incomingOperationalPartnerships.length,
     };
   }
 

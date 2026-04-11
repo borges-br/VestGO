@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { getSession, signIn } from 'next-auth/react';
 import {
   ArrowLeft,
   CheckCircle,
@@ -49,21 +49,56 @@ function sanitizeCallbackUrl(value: string | null) {
   return value;
 }
 
-function navigateTo(url: string) {
-  window.location.assign(url);
+function sanitizeRedirectTarget(value: string | null | undefined, fallback: string) {
+  if (!value) {
+    return fallback;
+  }
+
+  if (value.startsWith('/')) {
+    return value;
+  }
+
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.origin === window.location.origin) {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
+function normalizePerfil(value: string | null): Perfil | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/-/g, '_').toUpperCase();
+  const perfilMap: Record<string, Perfil> = {
+    DONOR: 'DONOR',
+    DOADOR: 'DONOR',
+    COLLECTION_POINT: 'COLLECTION_POINT',
+    PONTO: 'COLLECTION_POINT',
+    NGO: 'NGO',
+    ONG: 'NGO',
+  };
+
+  return perfilMap[normalized] ?? null;
 }
 
 function CadastroForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const perfilParam = searchParams.get('perfil')?.toUpperCase() as Perfil | null;
+  const perfilParam = normalizePerfil(searchParams.get('perfil'));
   const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl'));
-  const validPerfis: Perfil[] = ['DONOR', 'COLLECTION_POINT', 'NGO'];
-
-  const initialPerfil: Perfil = validPerfis.includes(perfilParam as Perfil)
-    ? (perfilParam as Perfil)
-    : 'DONOR';
-  const initialStep: Step =
-    perfilParam && validPerfis.includes(perfilParam as Perfil) ? 'form' : 'perfil';
+  const initialPerfil: Perfil = perfilParam ?? 'DONOR';
+  const initialStep: Step = perfilParam ? 'form' : 'perfil';
 
   const [step, setStep] = useState<Step>(initialStep);
   const [perfil, setPerfil] = useState<Perfil>(initialPerfil);
@@ -113,11 +148,16 @@ function CadastroForm() {
 
       setStep('success');
 
+      const orgCallbackUrl = callbackUrl === '/inicio' ? '/operacoes' : callbackUrl;
+      const destination = isOrg
+        ? `/perfil/operacional?setup=1&callbackUrl=${encodeURIComponent(orgCallbackUrl)}`
+        : callbackUrl;
+
       const result = await signIn('credentials', {
         email: form.email,
         password: form.password,
         redirect: false,
-        callbackUrl,
+        callbackUrl: destination,
       });
 
       if (result?.error) {
@@ -126,12 +166,10 @@ function CadastroForm() {
         return;
       }
 
-      const orgCallbackUrl = callbackUrl === '/inicio' ? '/operacoes' : callbackUrl;
-      const destination = isOrg
-        ? `/perfil/operacional?setup=1&callbackUrl=${encodeURIComponent(orgCallbackUrl)}`
-        : (result?.url ?? callbackUrl);
-
-      navigateTo(destination);
+      await getSession();
+      const nextUrl = sanitizeRedirectTarget(result?.url, destination);
+      router.replace(nextUrl);
+      router.refresh();
     } catch {
       setError('Nao foi possivel conectar ao servidor. Verifique sua conexao.');
     } finally {

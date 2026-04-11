@@ -42,6 +42,23 @@ const ROLE_LABELS: Record<string, string> = {
 
 const DEFAULT_CENTER: [number, number] = [-23.5505, -46.6333];
 
+function isDonationSelectablePoint(point: CollectionPoint | null | undefined) {
+  return point?.role === 'COLLECTION_POINT' && point.donationEligibility?.canDonateHere === true;
+}
+
+function sortSelectionPoints(points: CollectionPoint[]) {
+  return [...points].sort((left, right) => {
+    const leftEligible = isDonationSelectablePoint(left) ? 1 : 0;
+    const rightEligible = isDonationSelectablePoint(right) ? 1 : 0;
+
+    if (leftEligible !== rightEligible) {
+      return rightEligible - leftEligible;
+    }
+
+    return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
+  });
+}
+
 function mergeCollectionPoints(primary: CollectionPoint[], secondary: CollectionPoint[]) {
   const map = new Map<string, CollectionPoint>();
 
@@ -118,6 +135,7 @@ export function MapaPageContent() {
           radius,
           limit: 30,
           search: nextSearch,
+          forDonation: isSelectionMode,
         });
 
         if (requestId !== lastFetchRequestIdRef.current) {
@@ -125,7 +143,7 @@ export function MapaPageContent() {
         }
 
         const availablePoints = isSelectionMode
-          ? response.data.filter((point) => point.role === 'COLLECTION_POINT')
+          ? sortSelectionPoints(response.data.filter((point) => point.role === 'COLLECTION_POINT'))
           : response.data;
 
         setPoints((current) => {
@@ -210,6 +228,14 @@ export function MapaPageContent() {
   }, [requestLocation]);
 
   const handleSelectPoint = useCallback((point: CollectionPoint) => {
+    if (isSelectionMode && !isDonationSelectablePoint(point)) {
+      setLocationNotice(
+        point.donationEligibility?.message ??
+          'Este ponto ainda nao pode finalizar doacoes no fluxo doador.',
+      );
+      return;
+    }
+
     setSelectedPointId(point.id);
     setSelectedPointPreview(point);
     setCenter((current) => {
@@ -219,12 +245,12 @@ export function MapaPageContent() {
 
       return [point.latitude, point.longitude];
     });
-  }, []);
+  }, [isSelectionMode]);
 
   const handleConfirmSelection = useCallback(() => {
-    if (!selectedPointId) return;
+    if (!selectedPointId || !isDonationSelectablePoint(selectedPoint)) return;
     router.push(buildReturnUrl(returnTo, selectedPointId));
-  }, [returnTo, router, selectedPointId]);
+  }, [returnTo, router, selectedPoint, selectedPointId]);
 
   useEffect(() => {
     if (!initialSelectedPointId) return;
@@ -270,12 +296,22 @@ export function MapaPageContent() {
 
     async function loadSelectedPoint() {
       try {
-        const point = await getCollectionPoint(pointIdToLoad);
+        const point = await getCollectionPoint(pointIdToLoad, {
+          forDonation: isSelectionMode,
+        });
 
         if (cancelled) return;
         if (isSelectionMode && point.role !== 'COLLECTION_POINT') return;
 
         setSelectedPointPreview(point);
+
+        if (isSelectionMode && !isDonationSelectablePoint(point)) {
+          setSelectedPointId(null);
+          setLocationNotice(
+            point.donationEligibility?.message ??
+              'O ponto anteriormente selecionado ainda nao pode finalizar doacoes.',
+          );
+        }
       } catch {
         if (!cancelled) {
           setLocationNotice('O ponto anteriormente selecionado nao esta mais disponivel nesta busca.');
@@ -289,6 +325,24 @@ export function MapaPageContent() {
       cancelled = true;
     };
   }, [hasSelectedPointLoaded, isSelectionMode, selectedPointId]);
+
+  useEffect(() => {
+    if (!isSelectionMode || !selectedPointId) {
+      return;
+    }
+
+    const point = points.find((item) => item.id === selectedPointId);
+
+    if (!point || isDonationSelectablePoint(point)) {
+      return;
+    }
+
+    setSelectedPointId(null);
+    setLocationNotice(
+      point.donationEligibility?.message ??
+        'Este ponto ainda nao pode finalizar doacoes no fluxo doador.',
+    );
+  }, [isSelectionMode, points, selectedPointId]);
 
   return (
     <div className={`flex flex-col bg-surface font-sans ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
@@ -364,9 +418,9 @@ export function MapaPageContent() {
                   <button
                     type="button"
                     onClick={handleConfirmSelection}
-                    disabled={!selectedPointId}
+                    disabled={!isDonationSelectablePoint(selectedPoint)}
                     className={`inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
-                      selectedPointId
+                      isDonationSelectablePoint(selectedPoint)
                         ? 'bg-primary-deeper text-white hover:bg-primary-dark'
                         : 'cursor-not-allowed bg-surface text-gray-300'
                     }`}
@@ -458,16 +512,20 @@ export function MapaPageContent() {
                 <div className="space-y-2">
                   {points.map((point) => {
                     const isSelected = selectedPointId === point.id;
+                    const canSelect = !isSelectionMode || isDonationSelectablePoint(point);
 
                     return (
                       <button
                         key={point.id}
                         type="button"
                         onClick={() => handleSelectPoint(point)}
+                        disabled={!canSelect}
                         className={`w-full rounded-2xl bg-white p-4 text-left transition-all active:scale-[0.98] ${
                           isSelected
                             ? 'ring-2 ring-primary shadow-card-lg'
-                            : 'shadow-card hover:shadow-card-lg'
+                            : canSelect
+                              ? 'shadow-card hover:shadow-card-lg'
+                              : 'border border-amber-200 bg-amber-50/70 shadow-none'
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -488,6 +546,18 @@ export function MapaPageContent() {
                                 <p className="mt-2 line-clamp-2 text-xs leading-6 text-gray-500">
                                   {point.description ?? point.address ?? 'Perfil publico em construcao.'}
                                 </p>
+                                {point.donationEligibility && (
+                                  <div
+                                    className={`mt-3 rounded-2xl px-3 py-2 text-xs leading-6 ${
+                                      point.donationEligibility.canDonateHere
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-amber-100 text-amber-800'
+                                    }`}
+                                  >
+                                    <p className="font-semibold">{point.donationEligibility.label}</p>
+                                    <p>{point.donationEligibility.message}</p>
+                                  </div>
+                                )}
                               </div>
 
                               <div className="flex flex-shrink-0 flex-col items-end gap-1">
@@ -501,10 +571,14 @@ export function MapaPageContent() {
                                     className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
                                       isSelected
                                         ? 'bg-primary-deeper text-white'
-                                        : 'bg-surface text-gray-400'
+                                        : canSelect
+                                          ? 'bg-surface text-gray-400'
+                                          : 'bg-amber-100 text-amber-800'
                                     }`}
                                   >
-                                    {isSelected ? 'Selecionado' : 'Selecionar'}
+                                    {isSelected
+                                      ? 'Selecionado'
+                                      : point.donationEligibility?.label ?? 'Selecionar'}
                                   </span>
                                 ) : (
                                   <Link

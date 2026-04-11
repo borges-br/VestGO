@@ -157,6 +157,19 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   </div>
                 </div>
 
+                {point.donationEligibility && (
+                  <div
+                    className={`mt-4 rounded-[1.25rem] px-4 py-4 ${
+                      point.donationEligibility.canDonateHere
+                        ? 'bg-emerald-50 text-emerald-800'
+                        : 'bg-amber-50 text-amber-800'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold">{point.donationEligibility.label}</p>
+                    <p className="mt-2 text-sm leading-7">{point.donationEligibility.message}</p>
+                  </div>
+                )}
+
                 {point.accessibilityDetails && (
                   <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
                     <p className="text-sm font-semibold text-primary-deeper">Acessibilidade</p>
@@ -253,12 +266,26 @@ export default async function CollectionPointDetailPage({ params }: Props) {
             )}
 
             <div className="rounded-[2rem] bg-white p-6 shadow-card">
-              <Link
-                href="/login?callbackUrl=%2Fdoar"
-                className="block rounded-2xl bg-primary px-5 py-4 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-              >
-                Iniciar doacao
-              </Link>
+              {isNgo ? (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-center text-sm text-indigo-800">
+                  <p className="font-semibold">ONG parceira</p>
+                  <p className="mt-2 leading-7">
+                    ONGs aparecem no mapa publico, mas nao sao selecionadas diretamente como destino no fluxo doador.
+                  </p>
+                </div>
+              ) : point.donationEligibility?.canDonateHere === false ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-center text-sm text-amber-800">
+                  <p className="font-semibold">{point.donationEligibility.label}</p>
+                  <p className="mt-2 leading-7">{point.donationEligibility.message}</p>
+                </div>
+              ) : (
+                <Link
+                  href="/login?callbackUrl=%2Fdoar"
+                  className="block rounded-2xl bg-primary px-5 py-4 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+                >
+                  Iniciar doacao
+                </Link>
+              )}
 
               {googleMapsUrl && (
                 <a

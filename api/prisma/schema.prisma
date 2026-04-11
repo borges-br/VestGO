@@ -38,6 +38,12 @@ enum PublicProfileState {
   VERIFIED
 }
 
+enum OperationalPartnershipStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String
@@ -115,13 +121,14 @@ model Donation {
 }
 
 model OperationalPartnership {
-  id                String @id @default(cuid())
-  collectionPoint   User   @relation("CollectionPointOperationalPartnerships", fields: [collectionPointId], references: [id], onDelete: Cascade)
+  id                String                       @id @default(cuid())
+  collectionPoint   User                         @relation("CollectionPointOperationalPartnerships", fields: [collectionPointId], references: [id], onDelete: Cascade)
   collectionPointId String
-  ngo               User   @relation("NgoOperationalPartnerships", fields: [ngoId], references: [id], onDelete: Cascade)
+  ngo               User                         @relation("NgoOperationalPartnerships", fields: [ngoId], references: [id], onDelete: Cascade)
   ngoId             String
-  isActive          Boolean @default(true)
-  priority          Int     @default(0)
+  status            OperationalPartnershipStatus @default(PENDING)
+  isActive          Boolean                      @default(false)
+  priority          Int                          @default(0)
   notes             String?
 
   donations Donation[] @relation("DonationOperationalPartnership")
@@ -130,8 +137,8 @@ model OperationalPartnership {
   updatedAt DateTime @updatedAt
 
   @@unique([collectionPointId, ngoId])
-  @@index([collectionPointId, isActive, priority])
-  @@index([ngoId, isActive, priority])
+  @@index([collectionPointId, status, priority])
+  @@index([ngoId, status, priority])
   @@map("operational_partnerships")
 }
 

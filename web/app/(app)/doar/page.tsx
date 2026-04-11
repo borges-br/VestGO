@@ -209,6 +209,23 @@ function splitQuantity(total: number, parts: number) {
   return quantities;
 }
 
+function isDonationEligiblePoint(point: CollectionPoint | null | undefined) {
+  return point?.role === 'COLLECTION_POINT' && point.donationEligibility?.canDonateHere === true;
+}
+
+function sortPointsForDonation(points: CollectionPoint[]) {
+  return [...points].sort((left, right) => {
+    const leftEligible = isDonationEligiblePoint(left) ? 1 : 0;
+    const rightEligible = isDonationEligiblePoint(right) ? 1 : 0;
+
+    if (leftEligible !== rightEligible) {
+      return rightEligible - leftEligible;
+    }
+
+    return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
+  });
+}
+
 function SummaryCard({
   selectedCategories,
   quantity,
@@ -281,6 +298,19 @@ function SummaryCard({
               <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                 {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
               </p>
+              {selectedPoint.donationEligibility && (
+                <div
+                  className={cn(
+                    'mt-3 rounded-2xl px-3 py-2 text-xs leading-6',
+                    selectedPoint.donationEligibility.canDonateHere
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-amber-50 text-amber-700',
+                  )}
+                >
+                  <p className="font-semibold">{selectedPoint.donationEligibility.label}</p>
+                  <p>{selectedPoint.donationEligibility.message}</p>
+                </div>
+              )}
             </div>
           ) : (
             <p className="mt-3 text-sm text-gray-400">Escolha do ponto ainda pendente.</p>
@@ -399,14 +429,24 @@ export default function DoarPage() {
 
     async function loadSelectedPoint() {
       try {
-        const point = await getCollectionPoint(pointId);
+        const point = await getCollectionPoint(pointId, { forDonation: true });
 
         if (cancelled || point.role !== 'COLLECTION_POINT') return;
 
         setPoints((current) => mergeCollectionPoints([point], current));
+
+        if (!isDonationEligiblePoint(point)) {
+          setPointId('');
+          setConfirmed(false);
+          setPointsError(point.donationEligibility?.message ?? 'Este ponto ainda nao pode finalizar doacoes.');
+        } else {
+          setPointsError(null);
+        }
       } catch {
         if (!cancelled) {
-          setSelectionFeedback('O ponto escolhido anteriormente nao esta mais disponivel. Escolha outro para seguir.');
+          setPointId('');
+          setConfirmed(false);
+          setPointsError('O ponto escolhido anteriormente nao esta mais disponivel. Escolha outro para seguir.');
         }
       }
     }
@@ -427,17 +467,27 @@ export default function DoarPage() {
 
       try {
         const location = await getCurrentPosition();
-        const nearbyPromise = getNearbyPoints({ lat: location.lat, lng: location.lng, radius: 15, limit: 6 });
+        const nearbyPromise = getNearbyPoints({
+          lat: location.lat,
+          lng: location.lng,
+          radius: 15,
+          limit: 6,
+          forDonation: true,
+        });
         const donationsPromise = session?.user?.accessToken
           ? getUserDonations(session.user.accessToken, { limit: 50 })
           : Promise.resolve(null);
 
         const [nearby, donationsResponse] = await Promise.all([nearbyPromise, donationsPromise]);
-        const collectionPointsOnly = nearby.data.filter((point) => point.role === 'COLLECTION_POINT');
+        const collectionPointsOnly = sortPointsForDonation(
+          nearby.data.filter((point) => point.role === 'COLLECTION_POINT'),
+        );
         setPoints(collectionPointsOnly);
 
-        if (collectionPointsOnly.length > 0) {
-          setPointId((current) => current || collectionPointsOnly[0].id);
+        const firstEligiblePoint = collectionPointsOnly.find((point) => isDonationEligiblePoint(point));
+
+        if (firstEligiblePoint) {
+          setPointId((current) => current || firstEligiblePoint.id);
         }
 
         if (donationsResponse) {
@@ -446,6 +496,10 @@ export default function DoarPage() {
 
         if (collectionPointsOnly.length === 0) {
           setPointsError('Nenhum ponto parceiro disponivel agora.');
+        } else if (!firstEligiblePoint) {
+          setPointsError(
+            'Os pontos visiveis nesta area ainda aguardam ONG parceira ativa e, por isso, nao podem finalizar doacoes.',
+          );
         }
       } catch {
         setPointsError('Nao foi possivel carregar os pontos de coleta no momento.');
@@ -456,6 +510,25 @@ export default function DoarPage() {
 
     loadContext();
   }, [draftReady, isDonor, session?.user?.accessToken, status]);
+
+  useEffect(() => {
+    if (!pointId) {
+      return;
+    }
+
+    const currentPoint = points.find((item) => item.id === pointId);
+
+    if (!currentPoint || isDonationEligiblePoint(currentPoint)) {
+      return;
+    }
+
+    setPointId('');
+    setConfirmed(false);
+    setPointsError(
+      currentPoint.donationEligibility?.message ??
+        'Este ponto ainda nao pode finalizar doacoes.',
+    );
+  }, [pointId, points]);
 
   if (status === 'loading' || !draftReady) {
     return (
@@ -521,8 +594,8 @@ export default function DoarPage() {
       : currentStep === 1
         ? estimatedQuantity > 0
         : currentStep === 2
-          ? Boolean(selectedPoint)
-          : confirmed;
+          ? isDonationEligiblePoint(selectedPoint)
+          : confirmed && isDonationEligiblePoint(selectedPoint);
 
   function toggleCategory(categoryId: CategoryId) {
     setSelectedCategories((current) =>
@@ -789,7 +862,7 @@ export default function DoarPage() {
                     <div>
                       <p className="text-sm font-semibold text-primary-deeper">Escolha um ponto parceiro real.</p>
                       <p className="mt-2 text-sm leading-7 text-gray-500">
-                        Esta lista ja vem do backend e usa os parceiros cadastrados na base atual.
+                        So pontos de coleta com ONG ativa podem finalizar a doacao. Pontos ainda em estruturacao continuam visiveis como indisponiveis.
                       </p>
                     </div>
                     <Link href={mapSelectionHref} className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
@@ -818,15 +891,29 @@ export default function DoarPage() {
                   <div className="space-y-3">
                     {points.map((point) => {
                       const isSelected = point.id === pointId;
+                      const canDonateHere = isDonationEligiblePoint(point);
 
                       return (
                         <button
                           key={point.id}
                           type="button"
-                          onClick={() => setPointId(point.id)}
+                          onClick={() => {
+                            if (!canDonateHere) {
+                              return;
+                            }
+
+                            setPointId(point.id);
+                            setPointsError(null);
+                          }}
+                          disabled={!canDonateHere}
                           className={cn(
                             'w-full rounded-[1.75rem] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-lg',
-                            isSelected ? 'border-primary bg-primary-light/35 shadow-card' : 'border-gray-100 bg-white',
+                            isSelected
+                              ? 'border-primary bg-primary-light/35 shadow-card'
+                              : canDonateHere
+                                ? 'border-gray-100 bg-white'
+                                : 'border-amber-200 bg-amber-50/70 text-gray-500 opacity-95',
+                            !canDonateHere && 'cursor-not-allowed hover:translate-y-0 hover:shadow-none',
                           )}
                         >
                           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -850,11 +937,35 @@ export default function DoarPage() {
                                 <p className="mt-2 text-sm leading-7 text-gray-500">
                                   {point.city} {point.state ? `- ${point.state}` : ''}
                                 </p>
+                                {point.donationEligibility && (
+                                  <div
+                                    className={cn(
+                                      'mt-3 rounded-2xl px-3 py-2 text-xs leading-6',
+                                      canDonateHere
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-amber-100 text-amber-800',
+                                    )}
+                                  >
+                                    <p className="font-semibold">{point.donationEligibility.label}</p>
+                                    <p>{point.donationEligibility.message}</p>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
-                            <div className={cn('inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em]', isSelected ? 'bg-primary-deeper text-white' : 'bg-surface text-gray-400')}>
-                              {isSelected ? 'Selecionado' : 'Disponivel'}
+                            <div
+                              className={cn(
+                                'inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em]',
+                                isSelected
+                                  ? 'bg-primary-deeper text-white'
+                                  : canDonateHere
+                                    ? 'bg-surface text-gray-400'
+                                    : 'bg-amber-100 text-amber-800',
+                              )}
+                            >
+                              {isSelected
+                                ? 'Selecionado'
+                                : point.donationEligibility?.label ?? 'Disponivel'}
                             </div>
                           </div>
                         </button>
@@ -898,6 +1009,11 @@ export default function DoarPage() {
                         <div>
                           <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
                           <p className="mt-1 text-sm text-gray-400">{selectedPoint.address}</p>
+                          {selectedPoint.donationEligibility && (
+                            <p className="mt-2 text-sm text-gray-500">
+                              {selectedPoint.donationEligibility.label}: {selectedPoint.donationEligibility.message}
+                            </p>
+                          )}
                         </div>
                         <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
                           {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}

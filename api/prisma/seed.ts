@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import {
   DonationStatus,
   ItemCategory,
+  OperationalPartnershipStatus,
   PrismaClient,
   PublicProfileState,
   UserRole,
@@ -311,6 +312,7 @@ async function upsertOperationalPartnership(params: {
       },
     },
     update: {
+      status: OperationalPartnershipStatus.ACTIVE,
       isActive: true,
       priority: params.priority ?? 0,
       notes: params.notes,
@@ -318,6 +320,7 @@ async function upsertOperationalPartnership(params: {
     create: {
       collectionPointId: params.collectionPointId,
       ngoId: params.ngoId,
+      status: OperationalPartnershipStatus.ACTIVE,
       isActive: true,
       priority: params.priority ?? 0,
       notes: params.notes,
