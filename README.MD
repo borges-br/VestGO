@@ -1,297 +1,131 @@
 # VestGO
 
-<p align="center">
-  <img src="https://img.shields.io/badge/status-em%20planejamento-0f766e?style=for-the-badge" alt="status">
-  <img src="https://img.shields.io/badge/projeto-UPX%20I-0b1320?style=for-the-badge" alt="upx">
-  <img src="https://img.shields.io/badge/foco-UI%2FUX%20%2B%20WebApp-14b8a6?style=for-the-badge" alt="focus">
-  <img src="https://img.shields.io/badge/licença-acadêmico-334155?style=for-the-badge" alt="license">
-</p>
+Plataforma de doacao e operacao solidaria focada na jornada real da doacao: cadastro, ponto de coleta, ONG parceira, operacao e rastreio.
 
-<p align="center">
-  <strong>Doação de roupas com agendamento e rastreio para ONGs verificadas.</strong><br>
-  Um produto digital pensado para tornar a doação mais organizada, transparente e confiável.
-</p>
+Projeto publicado em [mosfet.com.br](https://mosfet.com.br) e mantido neste repositorio como uma base full-stack ativa, sem reestruturacao do zero.
 
----
+## Estado atual
 
-## Visão geral
+O projeto ja esta funcional e nesta etapa consolida a Fase 10A:
 
-O **VestGO** é um projeto desenvolvido no contexto da **UPX I — Usina de Projetos Experimentais** do curso de **Análise e Desenvolvimento de Sistemas**.
+- permissoes corretas por papel no frontend e no backend
+- fluxo de doacao restrito a perfis `DONOR`
+- cadastro publico bloqueando criacao de `ADMIN`
+- `/inicio` com comportamento minimo por papel
+- perfil operacional sem latitude/longitude manual
+- geocoding no backend a partir do endereco informado
+- mapa e busca usando dados reais
+- `/pontos` alinhado com a descoberta real do produto
 
-A proposta do sistema é conectar:
+## Stack
 
-- **doadores**
-- **pontos de coleta**
-- **ONGs verificadas**
+- frontend: Next.js 14 + TypeScript + App Router
+- backend: Fastify + Prisma
+- banco: PostgreSQL
+- autenticacao: NextAuth no web + JWT/refresh token no backend
+- cache/sessoes: Redis
+- arquivos: MinIO
+- infraestrutura: Docker / Docker Compose
+- deploy alvo: VPS Ubuntu + Nginx Proxy Manager
 
-por meio de uma experiência digital simples, moderna e orientada à confiança.
+## Papéis do sistema
 
-Hoje, grande parte das doações de roupas ainda acontece de forma improvisada: combinações informais, pouca previsibilidade logística, baixa transparência sobre o destino das peças e dificuldade para as instituições organizarem coletas de forma eficiente.
+- `DONOR`: cria doacoes e acompanha rastreio
+- `COLLECTION_POINT`: opera recebimento e atualizacao inicial das doacoes
+- `NGO`: opera etapas posteriores e distribuicao
+- `ADMIN`: acompanha a operacao e modera perfis operacionais
 
-O VestGO busca resolver esse cenário com uma plataforma capaz de:
+### Regras de permissao vigentes
 
-- localizar pontos de coleta próximos
-- registrar doações
-- organizar o fluxo de retirada
-- acompanhar o status da doação
-- aumentar a transparência até a triagem e destinação final
+- apenas `DONOR` pode criar doacao
+- `COLLECTION_POINT` e `NGO` nao usam o wizard de `/doar`
+- `ADMIN` nao pode ser criado via cadastro publico
+- a navegacao principal muda conforme o papel da sessao
 
----
+## Perfil operacional e estados publicos
 
-## Problema que o projeto resolve
+Perfis de `COLLECTION_POINT` e `NGO` usam os estados:
 
-A doação de roupas costuma enfrentar quatro gargalos principais:
+- `DRAFT`
+- `PENDING`
+- `ACTIVE`
+- `VERIFIED`
 
-1. **Fricção para o doador**  
-   Falta praticidade para encontrar onde doar e como acompanhar o processo.
+O estado depende do checklist operacional e aparece nas areas de perfil e dashboard.
 
-2. **Baixa previsibilidade para ONGs**  
-   Muitas coletas acontecem sem planejamento, sem informação clara de volume e sem priorização.
+## Geolocalizacao
 
-3. **Pouca transparência**  
-   O doador normalmente entrega a roupa, mas não sabe o que acontece depois.
+Latitude e longitude nao sao mais digitadas manualmente por usuarios operacionais.
 
-4. **Desorganização logística**  
-   Pontos de coleta e instituições têm dificuldade para centralizar informações em um fluxo único.
+Fluxo atual:
 
----
+1. usuario informa endereco no perfil operacional
+2. backend resolve coordenadas por geocoding
+3. coordenadas sao persistidas no usuario
+4. mapa e busca usam essas coordenadas internamente
 
-## Proposta de solução
+Variaveis de ambiente relacionadas estao em `.env.example`:
 
-O VestGO propõe uma plataforma com foco em **logística humanizada** e **transparência operacional**, onde o usuário pode:
+- `GEOCODING_BASE_URL`
+- `GEOCODING_USER_AGENT`
+- `GEOCODING_ACCEPT_LANGUAGE`
+- `GEOCODING_COUNTRY_CODES`
+- `GEOCODING_TIMEOUT_MS`
 
-- encontrar o ponto de coleta mais próximo via CEP, endereço ou geolocalização
-- visualizar detalhes do ponto antes da entrega
-- registrar sua doação
-- acompanhar o fluxo da doação por meio de rastreio
-- visualizar histórico e impacto gerado
+## Descoberta publica
 
-Ao mesmo tempo, a solução prepara o sistema para que **ONGs e pontos de coleta** tenham uma visão mais organizada das coletas, volumes, prioridades e atualizações de status.
+A descoberta publica agora usa dados reais do backend:
 
----
+- `/mapa` e `/mapa/[id]` exibem perfis publicos aptos
+- a busca do mapa consulta o backend com `search`
+- apenas perfis operacionais `ACTIVE` ou `VERIFIED` com coordenadas validas entram no mapa
+- `/pontos` foi alinhado para redirecionar para `/mapa`
 
-## Diferenciais do produto
+## Estrutura principal
 
-- **Rastreio da doação**
-- **ONGs verificadas**
-- **Fluxo mais transparente**
-- **Experiência visual humanizada**
-- **Organização logística desde o MVP**
-- **Arquitetura pensada para evolução real**
-
----
-
-## Público-alvo
-
-### Doador
-
-Pessoa que deseja doar roupas com mais praticidade, confiança e visibilidade do impacto gerado.
-
-### Ponto de coleta
-
-Local parceiro responsável por receber peças e disponibilizar lotes para retirada.
-
-### ONG parceira
-
-Instituição que realiza triagem, coleta e destinação das doações.
-
----
-
-## MVP proposto
-
-O escopo inicial do VestGO contempla:
-
-- landing page pública
-- login e cadastro
-- seleção de perfil de usuário
-- dashboard do doador
-- mapa de pontos de coleta
-- detalhes do ponto de coleta
-- cadastro de doação
-- feedback de sucesso/erro
-- rastreio da doação
-- perfil do doador
-- painel operacional de ONG / coleta
-
----
-
-## Design System
-
-A linguagem visual do projeto foi definida com base no conceito:
-
-> **The Digital Curator**
-
-Diretrizes principais:
-
-- visual premium, clean e institucional
-- identidade humanizada
-- hierarquia por contraste de superfícies
-- ausência de bordas rígidas
-- cantos arredondados
-- tipografia estilo **Inter**
-- cor principal em **teal/petróleo**
-- cor de destaque em **aqua/menta**
-- foco em clareza, rastreabilidade e confiança
-
-O design foi pensado para fugir da estética “e-commerce/logística fria” e transmitir uma sensação de produto social bem cuidado.
-
----
-
-## Stack alvo do WebApp
-
-> Esta é a arquitetura alvo recomendada para a próxima fase de implementação.
-
-- **Next.js**
-- **TypeScript**
-- **Tailwind CSS**
-- **Auth.js**
-- **Prisma ORM**
-- **PostgreSQL**
-- **Docker Compose**
-- **Nginx Proxy Manager**
-- Deploy em servidor próprio
-
----
-
-## Infraestrutura prevista
-
-O projeto será preparado para rodar em ambiente self-hosted com:
-
-- servidor próprio
-- containers Docker
-- reverse proxy com **Nginx Proxy Manager**
-- domínio principal: **www.mosfet.com.br**
-- rede Docker externa para roteamento entre serviços
-
----
-
-## Status do projeto
-
-### Etapa atual
-
-- definição do problema
-- validação de protótipo UI/UX
-- modelagem do fluxo principal
-- estruturação da identidade visual
-- organização da proposta técnica para o webapp
-
-### Próxima etapa
-
-- implementação do webapp funcional
-- autenticação real
-- dashboard interativo
-- persistência em banco de dados
-- deploy em Docker
-
----
-
-## Estrutura esperada do projeto
-
-```bash
-vestgo/
-├── web/                  # Frontend / App Web
-├── prisma/               # Schema e migrations
-├── docker/               # Configurações de container
-├── docs/                 # Documentação, prompts, fluxos e materiais acadêmicos
-├── public/               # Assets estáticos
-└── README.md
+```text
+VestGO/
+|-- api/
+|   |-- prisma/
+|   `-- src/
+|-- web/
+|   |-- app/
+|   |-- components/
+|   `-- lib/
+|-- infra/
+|-- docker-compose.yml
+|-- docker-compose.dev.yml
+|-- docker-compose.prod.yml
+|-- README.MD
+`-- ARCHITECTURE.md
 ```
 
-> A estrutura final pode evoluir conforme a implementação for iniciada.
+## Execucao local
 
----
+Exemplos mais comuns:
 
-## Roadmap
+```bash
+cd api
+npm install
+npm run build
 
-### Fase 1 — Base do produto
+cd ../web
+npm install
+npm run build
+```
 
-- [ ] Landing page
-- [ ] Login e cadastro
-- [ ] Autenticação funcional
-- [ ] Dashboard do doador
-- [ ] Banco de dados inicial
-- [ ] Deploy em Docker
+Para subir a stack completa, use os arquivos `docker-compose*.yml` do repositorio conforme o ambiente.
 
-### Fase 2 — Núcleo operacional
+## Proxima etapa
 
-- [ ] Mapa de pontos de coleta
-- [ ] Cadastro de doação
-- [ ] Rastreamento da doação
-- [ ] Perfil do doador
-- [ ] Painel de ponto de coleta
+A Fase 10B fica concentrada em operacao:
 
-### Fase 3 — Expansão
+- solicitacao de retirada entre ponto e ONG
+- sugestao de parceiros por proximidade operacional
+- dashboards dedicados para `COLLECTION_POINT` e `NGO`
+- semantica operacional propria no rastreio
 
-- [ ] Painel de ONG
-- [ ] Fluxos de triagem
-- [ ] Métricas de impacto
-- [ ] Relatórios operacionais
-- [ ] Notificações e melhorias de UX
+## Documentacao complementar
 
----
-
-## Documentação do projeto
-
-Este repositório pode agrupar, de forma progressiva:
-
-- documentação funcional
-- fluxos de navegação
-- identidade visual
-- prompts utilizados na prototipação
-- assets da apresentação acadêmica
-- arquitetura técnica do webapp
-
----
-
-## Objetivos acadêmicos
-
-Além da construção do protótipo, o projeto busca demonstrar:
-
-- organização de sistema
-- coerência entre problema e solução
-- clareza de navegação
-- consistência visual
-- definição de perfis de usuário
-- uso estruturado de IA no processo de ideação e prototipação
-
----
-
-## Equipe
-
-Projeto acadêmico desenvolvido para a disciplina **UPX I — ADS**.
-
-**Equipe 1**
-
-- Nathan Borges
-- Henrique Barros Cavriani
-- Bernardo Comelli dos Santos
-- Guilherme Henrique de Assis Carvalho
-- Julio Melendes Prado Giardina
-- Antônio Carlos Damante De Souza
-- Francisco Comelli dos Santos
-
----
-
-## Observação
-
-Este repositório representa a evolução do VestGO do protótipo para uma aplicação web real.  
-A implementação está sendo planejada para priorizar:
-
-- fidelidade ao design
-- simplicidade operacional no V1
-- deploy self-hosted
-- escalabilidade futura sem complexidade desnecessária
-
----
-
-## Contato / domínio do projeto
-
-**Domínio planejado:**  
-`www.mosfet.com.br`
-
----
-
-<p align="center">
-  <strong>VestGO</strong><br>
-  Tecnologia aplicada à organização da doação com mais transparência, confiança e impacto social.
-</p>
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [`.env.example`](./.env.example)

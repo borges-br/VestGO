@@ -14,12 +14,17 @@ import { getInitialProfileState } from '../profiles/profile-shared';
 const SALT_ROUNDS = 12;
 const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const REFRESH_TOKEN_PREFIX = 'refresh:';
+const PUBLIC_REGISTERABLE_ROLES = [
+  UserRole.DONOR,
+  UserRole.COLLECTION_POINT,
+  UserRole.NGO,
+] as const;
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('E-mail invalido'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
-  role: z.nativeEnum(UserRole).optional().default(UserRole.DONOR),
+  role: z.enum(PUBLIC_REGISTERABLE_ROLES).optional().default(UserRole.DONOR),
   phone: z.string().optional(),
   organizationName: z.string().optional(),
 });

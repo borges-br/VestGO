@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { LogOut, X } from 'lucide-react';
 import {
+  getPrimaryNavItems,
   getUtilityNavItems,
   ROLE_LABELS,
   isNavigationItemActive,
@@ -23,6 +24,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const userRole = session?.user?.role ?? 'DONOR';
   const userEmail = session?.user?.email ?? '';
   const utilityNavItems = getUtilityNavItems(userRole);
+  const primaryNavLabels = getPrimaryNavItems(userRole).map((item) => item.label).join(', ');
   const firstName = userName.split(' ')[0];
   const initials = userName
     .split(' ')
@@ -133,9 +135,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               Navegacao principal
             </p>
             <p className="mt-2 text-sm leading-relaxed text-gray-500">
-              Inicio, Explorar pontos, Nova doacao e Rastreio ficam sempre visiveis no topo ou na
-              barra inferior. Este painel agora tambem abre a entrada dedicada de operacoes para os
-              perfis responsaveis.
+              Sua navegacao principal atual fica disponivel no topo ou na barra inferior: {primaryNavLabels}.
+              Este painel concentra atalhos secundarios e acesso rapido a operacoes e ajustes da conta.
             </p>
           </div>
         </div>

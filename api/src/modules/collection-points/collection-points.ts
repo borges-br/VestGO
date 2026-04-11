@@ -1,43 +1,23 @@
-import {
-  ItemCategory,
-  Prisma,
-  PublicProfileState,
-  UserRole,
-} from '@prisma/client';
+import { ItemCategory, Prisma, PublicProfileState, UserRole } from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError, NotFoundError, toErrorResponse } from '../../shared/errors';
 
 const nearbyQuerySchema = z.object({
-  lat: z.coerce.number().min(-90).max(90),
-  lng: z.coerce.number().min(-180).max(180),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
   radius: z.coerce.number().min(0.1).max(100).default(10),
   category: z.nativeEnum(ItemCategory).optional(),
   limit: z.coerce.number().min(1).max(50).default(20),
   cursor: z.string().optional(),
+  search: z
+    .string()
+    .trim()
+    .min(2)
+    .max(120)
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : undefined)),
 });
-
-type CollectionPointRow = {
-  id: string;
-  name: string;
-  organizationName: string | null;
-  address: string | null;
-  neighborhood: string | null;
-  city: string | null;
-  state: string | null;
-  latitude: number;
-  longitude: number;
-  avatarUrl: string | null;
-  coverImageUrl: string | null;
-  description: string | null;
-  openingHours: string | null;
-  publicNotes: string | null;
-  phone: string | null;
-  role: UserRole;
-  publicProfileState: PublicProfileState;
-  acceptedCategories: ItemCategory[];
-  distanceKm: number;
-};
 
 const publicProfileSelect = {
   id: true,
@@ -78,20 +58,6 @@ const publicProfileSelect = {
 } satisfies Prisma.UserSelect;
 
 type PublicProfileRecord = Prisma.UserGetPayload<{ select: typeof publicProfileSelect }>;
-
-function haversineSQL(lat: number, lng: number) {
-  return `
-    (
-      6371 * acos(
-        cos(radians(${lat})) *
-        cos(radians(latitude)) *
-        cos(radians(longitude) - radians(${lng})) +
-        sin(radians(${lat})) *
-        sin(radians(latitude))
-      )
-    )
-  `;
-}
 
 function mapPublicProfile(point: PublicProfileRecord) {
   const handledDonations =
@@ -138,58 +104,108 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request, reply) => {
     try {
       const query = nearbyQuerySchema.parse(request.query);
-      const distanceExpr = haversineSQL(query.lat, query.lng);
+      const hasCenter = query.lat != null || query.lng != null;
 
-      const points = await fastify.prisma.$queryRawUnsafe<CollectionPointRow[]>(`
-        SELECT
-          id,
-          name,
-          role,
-          "organizationName",
-          address,
-          neighborhood,
-          city,
-          state,
-          latitude,
-          longitude,
-          "avatarUrl",
-          "coverImageUrl",
-          description,
-          "openingHours",
-          "publicNotes",
-          phone,
-          "publicProfileState",
-          "acceptedCategories",
-          ${distanceExpr} AS "distanceKm"
-        FROM users
-        WHERE
-          role IN ('COLLECTION_POINT', 'NGO')
-          AND "publicProfileState" IN ('ACTIVE', 'VERIFIED')
-          AND latitude IS NOT NULL
-          AND longitude IS NOT NULL
-          AND ${distanceExpr} <= ${query.radius}
-          ${query.cursor ? `AND id > '${query.cursor}'` : ''}
-        ORDER BY "distanceKm" ASC
-        LIMIT ${query.limit}
-      `);
+      if ((query.lat == null) !== (query.lng == null)) {
+        throw new AppError(
+          'Informe latitude e longitude juntas para buscar por proximidade.',
+          422,
+          'VALIDATION_ERROR',
+        );
+      }
 
-      const filtered = query.category
-        ? points.filter((point) => point.acceptedCategories?.includes(query.category!))
-        : points;
+      const points = await fastify.prisma.user.findMany({
+        where: {
+          role: { in: [UserRole.COLLECTION_POINT, UserRole.NGO] },
+          publicProfileState: {
+            in: [PublicProfileState.ACTIVE, PublicProfileState.VERIFIED],
+          },
+          latitude: { not: null },
+          longitude: { not: null },
+          ...(query.category ? { acceptedCategories: { has: query.category } } : {}),
+          ...(query.search
+            ? {
+                OR: [
+                  { organizationName: { contains: query.search, mode: 'insensitive' } },
+                  { name: { contains: query.search, mode: 'insensitive' } },
+                  { address: { contains: query.search, mode: 'insensitive' } },
+                  { neighborhood: { contains: query.search, mode: 'insensitive' } },
+                  { city: { contains: query.search, mode: 'insensitive' } },
+                  { state: { contains: query.search, mode: 'insensitive' } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [
+          { verifiedAt: 'desc' },
+          { updatedAt: 'desc' },
+          { createdAt: 'desc' },
+        ],
+        select: publicProfileSelect,
+        take: Math.max(query.limit * 4, 80),
+      });
 
-      const nextCursor =
-        filtered.length === query.limit ? filtered[filtered.length - 1].id : null;
+      const withDistance = points
+        .map((point) => {
+          const mapped = mapPublicProfile(point);
+
+          if (!hasCenter) {
+            return {
+              ...mapped,
+              distanceKm: undefined,
+            };
+          }
+
+          const latitude = Number(point.latitude);
+          const longitude = Number(point.longitude);
+          const earthRadiusKm = 6371;
+          const dLat = ((query.lat! - latitude) * Math.PI) / 180;
+          const dLng = ((query.lng! - longitude) * Math.PI) / 180;
+          const startLat = (latitude * Math.PI) / 180;
+          const endLat = (query.lat! * Math.PI) / 180;
+          const haversine =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(startLat) *
+              Math.cos(endLat) *
+              Math.sin(dLng / 2) *
+              Math.sin(dLng / 2);
+          const distanceKm = earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+
+          return {
+            ...mapped,
+            distanceKm,
+          };
+        })
+        .filter((point) => !hasCenter || (point.distanceKm != null && point.distanceKm <= query.radius))
+        .sort((left, right) => {
+          if (!hasCenter) {
+            return 0;
+          }
+
+          return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
+        });
+
+      const cursor = query.cursor ?? null;
+      const filtered = cursor
+        ? withDistance.filter((point) => point.id > cursor)
+        : withDistance;
+      const paginated = filtered.slice(0, query.limit);
+      const nextCursor = filtered.length > query.limit ? paginated[paginated.length - 1]?.id ?? null : null;
 
       return reply.send({
-        data: filtered.map((point) => ({
+        data: paginated.map((point) => ({
           ...point,
-          distanceKm: Math.round(point.distanceKm * 10) / 10,
+          distanceKm:
+            typeof point.distanceKm === 'number'
+              ? Math.round(point.distanceKm * 10) / 10
+              : undefined,
         })),
         meta: {
-          count: filtered.length,
+          count: paginated.length,
           nextCursor,
           radiusKm: query.radius,
-          center: { lat: query.lat, lng: query.lng },
+          center: hasCenter ? { lat: query.lat!, lng: query.lng! } : null,
+          search: query.search ?? null,
         },
       });
     } catch (err) {

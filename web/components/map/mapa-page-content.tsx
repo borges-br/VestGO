@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
@@ -49,17 +49,33 @@ export function MapaPageContent() {
   const [loading, setLoading] = useState(false);
   const [located, setLocated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
-  const fetchPoints = useCallback(async (lat: number, lng: number, radius = 10) => {
+  const normalizedSearch = useMemo(() => search.trim(), [search]);
+
+  const fetchPoints = useCallback(async (lat: number, lng: number, radius = 10, nextSearch?: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await getNearbyPoints({ lat, lng, radius, limit: 30 });
+      const response = await getNearbyPoints({
+        lat,
+        lng,
+        radius,
+        limit: 30,
+        search: nextSearch,
+      });
       setPoints(response.data);
+      setSelected((current) =>
+        current ? response.data.find((point) => point.id === current.id) ?? null : null,
+      );
 
       if (response.data.length === 0) {
-        setError('Nenhum parceiro publico encontrado nessa area.');
+        setError(
+          nextSearch
+            ? 'Nenhum parceiro publico corresponde a essa busca.'
+            : 'Nenhum parceiro publico encontrado nessa area.',
+        );
       }
     } catch {
       setError('Erro ao buscar pontos. Verifique sua conexao.');
@@ -80,7 +96,6 @@ export function MapaPageContent() {
         const position: [number, number] = [coords.latitude, coords.longitude];
         setCenter(position);
         setLocated(true);
-        fetchPoints(coords.latitude, coords.longitude);
       },
       () => {
         setLoading(false);
@@ -90,8 +105,12 @@ export function MapaPageContent() {
   }, [fetchPoints]);
 
   useEffect(() => {
-    fetchPoints(center[0], center[1]);
-  }, [fetchPoints]);
+    const timeout = window.setTimeout(() => {
+      fetchPoints(center[0], center[1], 10, normalizedSearch || undefined);
+    }, normalizedSearch ? 250 : 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [center, fetchPoints, normalizedSearch]);
 
   return (
     <div className={`flex flex-col bg-surface font-sans ${isLoggedIn ? '' : 'min-h-screen'}`}>
@@ -120,6 +139,8 @@ export function MapaPageContent() {
               <input
                 type="text"
                 placeholder="Buscar cidade, bairro ou parceiro..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
                 className="w-full rounded-2xl border border-gray-100 bg-white py-3 pl-9 pr-4 text-sm shadow-sm outline-none transition-colors focus:border-primary"
               />
             </div>
@@ -147,7 +168,9 @@ export function MapaPageContent() {
                 <p className="mt-1 text-sm text-gray-500">
                   {selected
                     ? `Selecionado: ${selected.organizationName ?? selected.name}`
-                    : 'Veja parceiros ativos, compare perfis e escolha onde doar.'}
+                    : normalizedSearch
+                      ? `Resultados para "${normalizedSearch}".`
+                      : 'Veja parceiros ativos, compare perfis e escolha onde doar.'}
                 </p>
               </div>
               <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary">

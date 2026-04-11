@@ -4,14 +4,12 @@ import { auth } from '@/lib/auth';
 const authPages = new Set(['/login', '/cadastro']);
 const protectedPrefixes = [
   '/inicio',
-  '/mapa',
   '/doar',
   '/rastreio',
   '/operacoes',
   '/configuracoes',
   '/perfil',
   '/notificacoes',
-  '/pontos',
   '/suporte',
 ];
 
@@ -23,15 +21,7 @@ function sanitizeCallbackUrl(value: string | null) {
   return value;
 }
 
-function isPublicPointDetail(pathname: string) {
-  return pathname.startsWith('/mapa/') && pathname !== '/mapa';
-}
-
 function isProtectedPath(pathname: string) {
-  if (isPublicPointDetail(pathname)) {
-    return false;
-  }
-
   return protectedPrefixes.some((prefix) => {
     if (pathname === prefix) {
       return true;

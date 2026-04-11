@@ -8,6 +8,10 @@ import {
   toErrorResponse,
 } from '../../shared/errors';
 import {
+  geocodeAddress,
+  hasGeocodingAddress,
+} from '../../shared/geocoding';
+import {
   getOperationalProfileChecklist,
   getOperationalProfileState,
   profileWriteSchema,
@@ -146,6 +150,11 @@ function mapEditableProfile(user: EditableProfileRecord) {
   };
 }
 
+function normalizeAddressField(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : null;
+}
+
 export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.get('/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
@@ -178,6 +187,13 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           email: true,
           role: true,
           publicProfileState: true,
+          address: true,
+          neighborhood: true,
+          zipCode: true,
+          city: true,
+          state: true,
+          latitude: true,
+          longitude: true,
         },
       });
 
@@ -196,11 +212,45 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const nextProfileState = getOperationalProfileState(
-        existingUser.role,
-        body,
-        existingUser.publicProfileState,
-      );
+      const addressChanged =
+        normalizeAddressField(existingUser.address) !== normalizeAddressField(body.address) ||
+        normalizeAddressField(existingUser.neighborhood) !==
+          normalizeAddressField(body.neighborhood) ||
+        normalizeAddressField(existingUser.zipCode) !== normalizeAddressField(body.zipCode) ||
+        normalizeAddressField(existingUser.city) !== normalizeAddressField(body.city) ||
+        normalizeAddressField(existingUser.state) !== normalizeAddressField(body.state);
+
+      let resolvedLatitude = existingUser.latitude;
+      let resolvedLongitude = existingUser.longitude;
+
+      if (
+        (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) &&
+        (addressChanged || existingUser.latitude == null || existingUser.longitude == null)
+      ) {
+        if (hasGeocodingAddress(body)) {
+          const geocoding = await geocodeAddress(body);
+
+          if (!geocoding) {
+            throw new AppError(
+              'Nao foi possivel localizar o endereco informado. Revise os dados e tente novamente.',
+              422,
+              'GEOCODING_NOT_FOUND',
+            );
+          }
+
+          resolvedLatitude = geocoding.latitude;
+          resolvedLongitude = geocoding.longitude;
+        } else if (addressChanged) {
+          resolvedLatitude = null;
+          resolvedLongitude = null;
+        }
+      }
+
+      const nextProfileState = getOperationalProfileState(existingUser.role, {
+        ...body,
+        latitude: resolvedLatitude ?? undefined,
+        longitude: resolvedLongitude ?? undefined,
+      }, existingUser.publicProfileState);
 
       const updatedUser = await fastify.prisma.user.update({
         where: { id: existingUser.id },
@@ -216,8 +266,8 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           zipCode: body.zipCode,
           city: body.city,
           state: body.state,
-          latitude: body.latitude,
-          longitude: body.longitude,
+          latitude: resolvedLatitude,
+          longitude: resolvedLongitude,
           openingHours: body.openingHours,
           publicNotes: body.publicNotes,
           operationalNotes: body.operationalNotes,

@@ -7,8 +7,8 @@ import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import type { AppNotification } from '@/hooks/use-notifications';
 import {
-  PRIMARY_NAV_ITEMS,
   ROLE_LABELS,
+  getPrimaryNavItems,
   isNavigationItemActive,
 } from '@/components/layout/navigation';
 
@@ -38,6 +38,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
 
   const userName = session?.user?.name ?? 'VestGO';
   const userRole = session?.user?.role ?? 'DONOR';
+  const primaryNavItems = getPrimaryNavItems(userRole);
   const firstName = userName.split(' ')[0];
   const initials = userName
     .split(' ')
@@ -84,7 +85,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
 
         <nav className="hidden flex-1 items-center justify-center md:flex">
           <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white/85 p-1 shadow-sm">
-            {PRIMARY_NAV_ITEMS.map((item) => {
+            {primaryNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavigationItemActive(pathname, item);
 

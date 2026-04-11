@@ -32,8 +32,6 @@ type FormState = {
   zipCode: string;
   city: string;
   state: string;
-  latitude: string;
-  longitude: string;
   openingHours: string;
   publicNotes: string;
   operationalNotes: string;
@@ -90,8 +88,6 @@ function buildInitialState(profile: MyProfile): FormState {
     zipCode: profile.zipCode ?? '',
     city: profile.city ?? '',
     state: profile.state ?? '',
-    latitude: profile.latitude != null ? String(profile.latitude) : '',
-    longitude: profile.longitude != null ? String(profile.longitude) : '',
     openingHours: profile.openingHours ?? '',
     publicNotes: profile.publicNotes ?? '',
     operationalNotes: profile.operationalNotes ?? '',
@@ -143,8 +139,6 @@ function buildPayload(role: string, form: FormState) {
     zipCode: role === 'COLLECTION_POINT' ? form.zipCode || undefined : undefined,
     city: form.city || undefined,
     state: form.state || undefined,
-    latitude: form.latitude ? Number(form.latitude) : undefined,
-    longitude: form.longitude ? Number(form.longitude) : undefined,
     openingHours: role === 'COLLECTION_POINT' ? form.openingHours || undefined : undefined,
     publicNotes: form.publicNotes || undefined,
     operationalNotes: role === 'NGO' ? form.operationalNotes || undefined : undefined,
@@ -596,25 +590,16 @@ export function OperationalProfileForm() {
                   </>
                 )}
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Latitude</span>
-                    <input
-                      value={form.latitude}
-                      onChange={(event) => updateField('latitude', event.target.value)}
-                      placeholder="-23.5505"
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Longitude</span>
-                    <input
-                      value={form.longitude}
-                      onChange={(event) => updateField('longitude', event.target.value)}
-                      placeholder="-46.6333"
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
+                <div className="rounded-[1.5rem] border border-dashed border-primary/25 bg-primary-light/30 p-4 text-sm text-gray-500">
+                  <p className="font-semibold text-primary-deeper">Localizacao estimada automaticamente</p>
+                  <p className="mt-2 leading-7">
+                    O VestGO agora gera as coordenadas a partir do endereco salvo. Nao e mais necessario informar latitude e longitude manualmente.
+                  </p>
+                  <p className="mt-2 text-xs text-gray-400">
+                    {profile.latitude != null && profile.longitude != null
+                      ? `Coordenadas atuais: ${profile.latitude.toFixed(5)}, ${profile.longitude.toFixed(5)}`
+                      : 'Assim que o endereco estiver completo e salvo, a localizacao sera estimada automaticamente para uso no mapa e na busca.'}
+                  </p>
                 </div>
               </section>
             )}
