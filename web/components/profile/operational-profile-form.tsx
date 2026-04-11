@@ -481,6 +481,7 @@ export function OperationalProfileForm() {
                   <input
                     value={form.address}
                     onChange={(event) => updateField('address', event.target.value)}
+                    placeholder="Ex.: Rua Augusta, 1200"
                     className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                   />
                 </label>
@@ -598,7 +599,7 @@ export function OperationalProfileForm() {
                   <p className="mt-2 text-xs text-gray-400">
                     {profile.latitude != null && profile.longitude != null
                       ? `Coordenadas atuais: ${profile.latitude.toFixed(5)}, ${profile.longitude.toFixed(5)}`
-                      : 'Assim que o endereco estiver completo e salvo, a localizacao sera estimada automaticamente para uso no mapa e na busca.'}
+                      : 'Use rua com numero e, de preferencia, cidade/estado e CEP para melhorar a precisao da geolocalizacao automatica.'}
                   </p>
                 </div>
               </section>

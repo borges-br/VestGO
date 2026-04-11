@@ -399,14 +399,6 @@ async function main() {
   });
   console.log(`Doador pronto: ${donor.email}`);
 
-  const admin = await upsertUser({
-    name: 'Admin VestGO',
-    email: 'admin@vestgo.com',
-    password: 'admin1234',
-    role: UserRole.ADMIN,
-  });
-  console.log(`Admin pronto: ${admin.email}`);
-
   const ngoByEmail = new Map<string, Awaited<ReturnType<typeof upsertUser>>>();
 
   for (const ngo of ngoPartners) {
@@ -711,7 +703,7 @@ async function main() {
   console.log('\nSeed concluido com sucesso.');
   console.log('Contas de teste:');
   console.log('  Doador: maria@vestgo.com / senha1234');
-  console.log('  Admin: admin@vestgo.com / admin1234');
+  console.log('  Admin temporario: configurado via BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD no ambiente da API');
   console.log('  ONGs: ong@vestgo.com / ong1234 | aurora@vestgo.com / aurora1234');
   console.log('  Pontos: *@vestgo.com / ponto1234');
   console.log('  Doacoes iniciais: VGO-001, VGO-002, VGO-003, VGO-004, VGO-005');

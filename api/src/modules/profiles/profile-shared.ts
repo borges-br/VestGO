@@ -150,15 +150,15 @@ export function getOperationalProfileState(
   payload: CompletionPayload,
   currentState?: PublicProfileState,
 ) {
-  if (currentState === PublicProfileState.VERIFIED) {
-    return PublicProfileState.VERIFIED;
-  }
-
   const checklist = getOperationalProfileChecklist(role, payload);
   const complete = checklist.every((entry) => entry.complete);
 
   if (role === UserRole.COLLECTION_POINT || role === UserRole.NGO) {
     if (!complete) return PublicProfileState.DRAFT;
+
+    if (currentState === PublicProfileState.VERIFIED) {
+      return PublicProfileState.VERIFIED;
+    }
 
     if (currentState === PublicProfileState.ACTIVE) {
       return currentState;

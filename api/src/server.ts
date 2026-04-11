@@ -3,6 +3,7 @@ import jwt from '@fastify/jwt';
 import Fastify from 'fastify';
 import dotenv from 'dotenv';
 
+import { ensureBootstrapAdmin } from './bootstrap/bootstrap-admin';
 import authRoutes from './modules/auth/auth';
 import collectionPointRoutes from './modules/collection-points/collection-points';
 import donationRoutes from './modules/donations/donations';
@@ -71,6 +72,8 @@ app.register(adminProfileRoutes, { prefix: '/admin/profiles' });
 const start = async () => {
   try {
     const port = Number(process.env.PORT) || 3001;
+    await app.ready();
+    await ensureBootstrapAdmin(app);
     await app.listen({ port, host: '0.0.0.0' });
     console.log(`Fastify rodando em http://localhost:${port}`);
   } catch (error) {

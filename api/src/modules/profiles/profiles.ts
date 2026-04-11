@@ -9,7 +9,6 @@ import {
 } from '../../shared/errors';
 import {
   geocodeAddress,
-  hasGeocodingAddress,
 } from '../../shared/geocoding';
 import {
   getOperationalProfileChecklist,
@@ -227,19 +226,41 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) &&
         (addressChanged || existingUser.latitude == null || existingUser.longitude == null)
       ) {
-        if (hasGeocodingAddress(body)) {
-          const geocoding = await geocodeAddress(body);
+        const geocoding = await geocodeAddress(body);
 
-          if (!geocoding) {
-            throw new AppError(
-              'Nao foi possivel localizar o endereco informado. Revise os dados e tente novamente.',
-              422,
-              'GEOCODING_NOT_FOUND',
-            );
-          }
+        if (geocoding.status === 'resolved') {
+          resolvedLatitude = geocoding.result.latitude;
+          resolvedLongitude = geocoding.result.longitude;
+        } else if (geocoding.status === 'not_found') {
+          fastify.log.warn(
+            {
+              userId: existingUser.id,
+              role: existingUser.role,
+              attempts: geocoding.attempts,
+            },
+            'Geocoding nao encontrou resultado para o endereco informado.',
+          );
 
-          resolvedLatitude = geocoding.latitude;
-          resolvedLongitude = geocoding.longitude;
+          throw new AppError(
+            'Nao foi possivel localizar o endereco informado. Confira rua, numero, cidade e CEP antes de tentar novamente.',
+            422,
+            'GEOCODING_NOT_FOUND',
+          );
+        } else if (geocoding.status === 'unavailable') {
+          fastify.log.warn(
+            {
+              userId: existingUser.id,
+              role: existingUser.role,
+              attempts: geocoding.attempts,
+            },
+            'Geocoding indisponivel ao salvar perfil operacional.',
+          );
+
+          throw new AppError(
+            geocoding.message,
+            503,
+            'GEOCODING_UNAVAILABLE',
+          );
         } else if (addressChanged) {
           resolvedLatitude = null;
           resolvedLongitude = null;
