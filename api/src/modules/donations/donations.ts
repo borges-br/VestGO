@@ -1,6 +1,7 @@
 import {
   DonationStatus,
   ItemCategory,
+  OperationalPartnershipStatus,
   Prisma,
   PublicProfileState,
   UserRole,
@@ -65,6 +66,7 @@ const pointSelect = {
 
 const operationalPartnershipSelect = {
   id: true,
+  status: true,
   isActive: true,
   priority: true,
   notes: true,
@@ -265,6 +267,7 @@ function mapPartnership(partnership: DonationRecord['operationalPartnership'] | 
 
   return {
     id: partnership.id,
+    status: partnership.status,
     isActive: partnership.isActive,
     priority: partnership.priority,
     notes: partnership.notes,
@@ -407,6 +410,7 @@ async function findActiveOperationalPartnership(
   return fastify.prisma.operationalPartnership.findFirst({
     where: {
       collectionPointId,
+      status: OperationalPartnershipStatus.ACTIVE,
       isActive: true,
     },
     orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],

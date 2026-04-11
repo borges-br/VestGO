@@ -6,7 +6,7 @@ Projeto publicado em [mosfet.com.br](https://mosfet.com.br) e mantido neste repo
 
 ## Estado atual
 
-O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A e o ajuste de UX do fluxo de escolha do ponto:
+O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A, a estabilizacao critica do frontend e o endurecimento das regras de elegibilidade no fluxo doador:
 
 - permissoes corretas por papel no frontend e no backend
 - fluxo de doacao restrito a perfis `DONOR`
@@ -22,7 +22,11 @@ O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A e o ajuste de U
 - layout responsivo do mapa com area controlada e lista sincronizada
 - selecao visual de ponto com confirmacao explicita antes de voltar ao wizard
 - mapa estabilizado para evitar loops de tiles, `429` e consumo destrutivo de recursos
-- login ajustado para redirecionar corretamente no primeiro acesso autenticado
+- login e cadastro ajustados para entrar corretamente na area autenticada na primeira tentativa
+- cadastro com perfil pre-selecionado vindo da tela de login
+- fluxo doador blindado para selecionar apenas `COLLECTION_POINT`
+- pontos sem ONG ativa continuam visiveis, mas aparecem como indisponiveis para finalizar doacao
+- parceria operacional minima com fluxo `COLLECTION_POINT -> NGO` (`PENDING`, `ACTIVE`, `REJECTED`)
 
 ## Stack
 
@@ -111,6 +115,14 @@ A descoberta publica agora usa dados reais do backend:
 - apenas perfis operacionais `ACTIVE` ou `VERIFIED` com coordenadas validas entram no mapa
 - `/pontos` foi alinhado para redirecionar para `/mapa`
 
+### Elegibilidade para doacao
+
+- o mapa geral pode exibir `COLLECTION_POINT` e `NGO`
+- no fluxo doador, apenas `COLLECTION_POINT` entra em modo de selecao
+- pontos sem ONG parceira ativa continuam visiveis, mas aparecem como `Aguardando ONG`
+- esses pontos nao podem ser confirmados no wizard nem no mapa em modo de selecao
+- ONGs continuam visiveis em contexto publico, mas nao sao destino direto de doacao
+
 ## Wizard de doacao e mapa
 
 O fluxo de doacao agora tem integracao direta com o mapa:
@@ -127,6 +139,8 @@ Detalhes importantes:
 - o retorno do mapa usa query params apenas para concluir a selecao, sem depender de estado global pesado
 - o mapa tenta geolocalizacao automaticamente e usa fallback coerente quando nao ha permissao
 - a instancia do Leaflet permanece estavel, com `invalidateSize()` reduzido ao minimo necessario
+- a hidratacao do ponto selecionado usa `GET /collection-points/:id?forDonation=true` para impedir ONG como destino no fluxo doador
+- a confirmacao final da doacao exige um ponto com parceria operacional `ACTIVE`
 
 ## Estabilizacao de frontend
 
@@ -135,7 +149,22 @@ Esta etapa priorizou confiabilidade antes de novas features:
 - importacao global correta de `leaflet.css`
 - eliminacao de loops entre estado do mapa, selecao e busca
 - reducao de recentralizacao e `invalidateSize()` em cascata
-- redirect de login alinhado ao mecanismo do Auth.js, sem navegacao manual precoce
+- login e cadastro com sessao estabilizada antes do redirect para a area autenticada
+
+## Parceria ponto -> ONG
+
+Fluxo minimo atual:
+
+1. o ponto de coleta solicita parceria a uma ONG
+2. a ONG aprova ou rejeita a solicitacao
+3. apenas parceria `ACTIVE` torna o ponto elegivel para receber doacoes
+
+Detalhes tecnicos:
+
+- a entidade reutilizada e `OperationalPartnership`
+- os estados atuais sao `PENDING`, `ACTIVE` e `REJECTED`
+- `isActive` foi mantido por compatibilidade imediata, mas o status passou a ser a referencia principal do fluxo
+- a UI minima desta etapa fica concentrada no resumo operacional do perfil
 
 ## Estrutura principal
 
@@ -174,7 +203,7 @@ Para subir a stack completa, use os arquivos `docker-compose*.yml` do repositori
 
 ## Proxima etapa
 
-A Fase 10B fica concentrada em operacao:
+A proxima fase pode focar na operacao acima da parceria ja estabilizada:
 
 - solicitacao de retirada entre ponto e ONG
 - sugestao de parceiros por proximidade operacional

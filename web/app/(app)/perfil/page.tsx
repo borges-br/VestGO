@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Bell,
   ChevronRight,
@@ -51,6 +51,25 @@ export default function PerfilPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  const loadOperationalProfile = useCallback(async () => {
+    if (!session?.user?.accessToken || session.user.role === 'DONOR') {
+      setLoadingProfile(false);
+      return;
+    }
+
+    setLoadingProfile(true);
+    setProfileError(null);
+
+    try {
+      const nextProfile = await getMyProfile(session.user.accessToken);
+      setProfile(nextProfile);
+    } catch {
+      setProfileError('Nao foi possivel carregar o perfil operacional agora.');
+    } finally {
+      setLoadingProfile(false);
+    }
+  }, [session?.user?.accessToken, session?.user?.role]);
+
   useEffect(() => {
     async function loadProfileContext() {
       if (!session?.user?.accessToken) {
@@ -76,24 +95,14 @@ export default function PerfilPage() {
         return;
       }
 
-      setLoadingProfile(true);
-      setProfileError(null);
-
-      try {
-        const nextProfile = await getMyProfile(session.user.accessToken);
-        setProfile(nextProfile);
-      } catch {
-        setProfileError('Nao foi possivel carregar o perfil operacional agora.');
-      } finally {
-        setLoadingProfile(false);
-        setLoadingImpact(false);
-      }
+      await loadOperationalProfile();
+      setLoadingImpact(false);
     }
 
     if (status !== 'loading') {
       loadProfileContext();
     }
-  }, [session?.user?.accessToken, status]);
+  }, [loadOperationalProfile, session?.user?.accessToken, status]);
 
   if (status === 'loading') {
     return (
@@ -111,6 +120,8 @@ export default function PerfilPage() {
         profile={profile}
         loading={loadingProfile}
         error={profileError}
+        accessToken={session.user.accessToken}
+        onRefreshProfile={loadOperationalProfile}
       />
     );
   }

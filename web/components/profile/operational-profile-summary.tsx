@@ -1,15 +1,27 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Building2,
   CheckCircle2,
   ClipboardList,
+  Handshake,
+  Loader2,
   MapPin,
   Phone,
+  Send,
   Sparkles,
 } from 'lucide-react';
-import type { MyProfile } from '@/lib/api';
+import {
+  getMyPartnerships,
+  getNearbyPoints,
+  requestOperationalPartnership,
+  updateOperationalPartnershipStatus,
+  type CollectionPoint,
+  type MyProfile,
+  type PartnershipRecord,
+} from '@/lib/api';
 
 const PROFILE_STATE_LABELS = {
   DRAFT: 'Rascunho',
@@ -30,9 +42,171 @@ type Props = {
   profile: MyProfile | null;
   loading: boolean;
   error: string | null;
+  accessToken?: string;
+  onRefreshProfile?: () => Promise<void> | void;
 };
 
-export function OperationalProfileSummary({ profile, loading, error }: Props) {
+export function OperationalProfileSummary({
+  profile,
+  loading,
+  error,
+  accessToken,
+  onRefreshProfile,
+}: Props) {
+  const [partnerships, setPartnerships] = useState<PartnershipRecord[]>([]);
+  const [partnershipsLoading, setPartnershipsLoading] = useState(false);
+  const [partnershipsError, setPartnershipsError] = useState<string | null>(null);
+  const [partnershipsNotice, setPartnershipsNotice] = useState<string | null>(null);
+  const [ngoCandidates, setNgoCandidates] = useState<CollectionPoint[]>([]);
+  const [ngoCandidatesLoading, setNgoCandidatesLoading] = useState(false);
+  const [selectedNgoId, setSelectedNgoId] = useState('');
+  const [requesting, setRequesting] = useState(false);
+  const [actingPartnershipId, setActingPartnershipId] = useState<string | null>(null);
+
+  async function loadPartnerships() {
+    if (!accessToken || !profile || !['COLLECTION_POINT', 'NGO'].includes(profile.role)) {
+      setPartnerships([]);
+      return;
+    }
+
+    setPartnershipsLoading(true);
+    setPartnershipsError(null);
+
+    try {
+      const response = await getMyPartnerships(accessToken);
+      setPartnerships(response.data);
+    } catch (loadError) {
+      setPartnershipsError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Nao foi possivel carregar as parcerias operacionais agora.',
+      );
+    } finally {
+      setPartnershipsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadPartnerships();
+  }, [accessToken, profile?.id, profile?.role]);
+
+  useEffect(() => {
+    async function loadNgoCandidates() {
+      if (!profile || profile.role !== 'COLLECTION_POINT') {
+        setNgoCandidates([]);
+        setSelectedNgoId('');
+        return;
+      }
+
+      setNgoCandidatesLoading(true);
+
+      try {
+        const response = await getNearbyPoints({
+          ...(profile.latitude != null && profile.longitude != null
+            ? {
+                lat: profile.latitude,
+                lng: profile.longitude,
+                radius: 30,
+              }
+            : {}),
+          limit: 12,
+          role: 'NGO',
+        });
+
+        const nextCandidates = response.data.filter((item) => item.role === 'NGO');
+        setNgoCandidates(nextCandidates);
+        setSelectedNgoId((current) => current || nextCandidates[0]?.id || '');
+      } catch {
+        setNgoCandidates([]);
+      } finally {
+        setNgoCandidatesLoading(false);
+      }
+    }
+
+    void loadNgoCandidates();
+  }, [profile?.latitude, profile?.longitude, profile?.role]);
+
+  const activePartnership = useMemo(
+    () => partnerships.find((item) => item.status === 'ACTIVE') ?? null,
+    [partnerships],
+  );
+  const pendingPartnership = useMemo(
+    () => partnerships.find((item) => item.status === 'PENDING') ?? null,
+    [partnerships],
+  );
+  const pendingRequests = useMemo(
+    () => partnerships.filter((item) => item.status === 'PENDING'),
+    [partnerships],
+  );
+  const rejectedPartnerships = useMemo(
+    () => partnerships.filter((item) => item.status === 'REJECTED'),
+    [partnerships],
+  );
+  const canRequestPartnership =
+    profile?.role === 'COLLECTION_POINT' &&
+    ['ACTIVE', 'VERIFIED'].includes(profile.publicProfileState) &&
+    !activePartnership &&
+    !pendingPartnership;
+
+  async function refreshPartnershipContext() {
+    await loadPartnerships();
+    await onRefreshProfile?.();
+  }
+
+  async function handleRequestPartnership() {
+    if (!accessToken || !selectedNgoId || !canRequestPartnership) {
+      return;
+    }
+
+    setRequesting(true);
+    setPartnershipsError(null);
+    setPartnershipsNotice(null);
+
+    try {
+      await requestOperationalPartnership({ ngoId: selectedNgoId }, accessToken);
+      setPartnershipsNotice(
+        'Solicitacao enviada para a ONG selecionada. O ponto passa a aceitar doacoes assim que a parceria for aprovada.',
+      );
+      await refreshPartnershipContext();
+    } catch (requestError) {
+      setPartnershipsError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Nao foi possivel solicitar a parceria agora.',
+      );
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  async function handleDecision(partnershipId: string, status: 'ACTIVE' | 'REJECTED') {
+    if (!accessToken) {
+      return;
+    }
+
+    setActingPartnershipId(partnershipId);
+    setPartnershipsError(null);
+    setPartnershipsNotice(null);
+
+    try {
+      await updateOperationalPartnershipStatus(partnershipId, { status }, accessToken);
+      setPartnershipsNotice(
+        status === 'ACTIVE'
+          ? 'Parceria aprovada. O ponto agora fica elegivel para receber doacoes.'
+          : 'Solicitacao rejeitada pela ONG.',
+      );
+      await refreshPartnershipContext();
+    } catch (decisionError) {
+      setPartnershipsError(
+        decisionError instanceof Error
+          ? decisionError.message
+          : 'Nao foi possivel responder a solicitacao agora.',
+      );
+    } finally {
+      setActingPartnershipId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -138,6 +312,184 @@ export function OperationalProfileSummary({ profile, loading, error }: Props) {
                   <ClipboardList size={16} className="text-primary" />
                 </Link>
               </div>
+            </div>
+
+            <div className="rounded-[2rem] bg-white p-6 shadow-card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                    Parceria operacional
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                    {profile.role === 'COLLECTION_POINT'
+                      ? 'O ponto solicita parceria a uma ONG. So uma parceria ativa torna o ponto elegivel para receber doacoes.'
+                      : 'Solicitacoes pendentes chegam aqui para aprovacao ou rejeicao pela ONG.'}
+                  </p>
+                </div>
+                <Handshake size={18} className="text-primary" />
+              </div>
+
+              {partnershipsNotice && (
+                <div className="mt-4 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {partnershipsNotice}
+                </div>
+              )}
+
+              {partnershipsError && (
+                <div className="mt-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  {partnershipsError}
+                </div>
+              )}
+
+              {partnershipsLoading ? (
+                <div className="mt-4 flex items-center gap-3 rounded-[1.5rem] bg-surface px-4 py-4 text-sm text-gray-500">
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                  Carregando parcerias operacionais...
+                </div>
+              ) : profile.role === 'COLLECTION_POINT' ? (
+                <div className="mt-4 space-y-3">
+                  {activePartnership && (
+                    <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                      <p className="font-semibold">Pronto para doar</p>
+                      <p className="mt-2 leading-7">
+                        ONG ativa: {activePartnership.ngo.organizationName ?? activePartnership.ngo.name}.
+                      </p>
+                    </div>
+                  )}
+
+                  {!activePartnership && pendingPartnership && (
+                    <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                      <p className="font-semibold">Aguardando ONG</p>
+                      <p className="mt-2 leading-7">
+                        Solicitacao enviada para {pendingPartnership.ngo.organizationName ?? pendingPartnership.ngo.name}. O ponto fica visivel no mapa, mas ainda nao pode finalizar doacoes.
+                      </p>
+                    </div>
+                  )}
+
+                  {!activePartnership && !pendingPartnership && (
+                    <div className="rounded-[1.5rem] bg-surface px-4 py-4">
+                      <p className="text-sm font-semibold text-primary-deeper">
+                        Solicitar parceria a uma ONG
+                      </p>
+                      <p className="mt-2 text-sm leading-7 text-gray-500">
+                        Escolha uma ONG parceira ativa para tornar este ponto elegivel para doacoes.
+                      </p>
+
+                      <div className="mt-4 space-y-3">
+                        <label className="block text-sm text-gray-500">
+                          <span className="mb-2 block font-semibold text-on-surface">ONG parceira</span>
+                          <select
+                            value={selectedNgoId}
+                            onChange={(event) => setSelectedNgoId(event.target.value)}
+                            disabled={!canRequestPartnership || ngoCandidatesLoading}
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary/40 disabled:cursor-not-allowed disabled:bg-surface"
+                          >
+                            <option value="">
+                              {ngoCandidatesLoading ? 'Carregando ONGs...' : 'Selecione uma ONG'}
+                            </option>
+                            {ngoCandidates.map((ngo) => (
+                              <option key={ngo.id} value={ngo.id}>
+                                {ngo.organizationName ?? ngo.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        {!canRequestPartnership && (
+                          <p className="text-sm leading-7 text-gray-500">
+                            {['ACTIVE', 'VERIFIED'].includes(profile.publicProfileState)
+                              ? 'Seu ponto ja possui uma parceria ativa ou pendente.'
+                              : 'Ative ou verifique o perfil publico do ponto antes de solicitar parceria.'}
+                          </p>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => void handleRequestPartnership()}
+                          disabled={!selectedNgoId || !canRequestPartnership || requesting}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-surface disabled:text-gray-300"
+                        >
+                          {requesting ? (
+                            <>
+                              <Loader2 size={15} className="animate-spin" />
+                              Enviando...
+                            </>
+                          ) : (
+                            <>
+                              <Send size={15} />
+                              Solicitar parceria
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {rejectedPartnerships.length > 0 && (
+                    <div className="rounded-[1.5rem] bg-surface px-4 py-4">
+                      <p className="text-sm font-semibold text-primary-deeper">Historico recente</p>
+                      <div className="mt-3 space-y-2 text-sm text-gray-500">
+                        {rejectedPartnerships.slice(0, 2).map((partnership) => (
+                          <p key={partnership.id}>
+                            Solicitacao rejeitada por {partnership.ngo.organizationName ?? partnership.ngo.name}.
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {pendingRequests.length === 0 ? (
+                    <div className="rounded-[1.5rem] bg-surface px-4 py-4 text-sm leading-7 text-gray-500">
+                      Nenhuma solicitacao pendente no momento.
+                    </div>
+                  ) : (
+                    pendingRequests.map((partnership) => {
+                      const acting = actingPartnershipId === partnership.id;
+
+                      return (
+                        <div key={partnership.id} className="rounded-[1.5rem] bg-surface px-4 py-4">
+                          <p className="text-sm font-semibold text-primary-deeper">
+                            {partnership.collectionPoint.organizationName ?? partnership.collectionPoint.name}
+                          </p>
+                          <p className="mt-2 text-sm leading-7 text-gray-500">
+                            {partnership.collectionPoint.address ??
+                              'Endereco publico ainda nao informado.'}
+                          </p>
+                          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                            <button
+                              type="button"
+                              onClick={() => void handleDecision(partnership.id, 'ACTIVE')}
+                              disabled={acting}
+                              className="rounded-2xl bg-primary-deeper px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-surface disabled:text-gray-300"
+                            >
+                              {acting ? 'Processando...' : 'Aprovar'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDecision(partnership.id, 'REJECTED')}
+                              disabled={acting}
+                              className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
+                            >
+                              Rejeitar
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+
+                  {activePartnership && (
+                    <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                      <p className="font-semibold">Parceria ativa</p>
+                      <p className="mt-2 leading-7">
+                        Este perfil ja opera com o ponto {activePartnership.collectionPoint.organizationName ?? activePartnership.collectionPoint.name}.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {profile.profileCompletion.missingFields.length > 0 && (

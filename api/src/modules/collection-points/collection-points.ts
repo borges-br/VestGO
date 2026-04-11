@@ -1,4 +1,10 @@
-import { ItemCategory, Prisma, PublicProfileState, UserRole } from '@prisma/client';
+import {
+  ItemCategory,
+  OperationalPartnershipStatus,
+  Prisma,
+  PublicProfileState,
+  UserRole,
+} from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError, NotFoundError, toErrorResponse } from '../../shared/errors';
@@ -8,8 +14,10 @@ const nearbyQuerySchema = z.object({
   lng: z.coerce.number().min(-180).max(180).optional(),
   radius: z.coerce.number().min(0.1).max(100).default(10),
   category: z.nativeEnum(ItemCategory).optional(),
+  role: z.enum(['COLLECTION_POINT', 'NGO']).optional(),
   limit: z.coerce.number().min(1).max(50).default(20),
   cursor: z.string().optional(),
+  forDonation: z.coerce.boolean().default(false),
   search: z
     .string()
     .trim()
@@ -18,6 +26,20 @@ const nearbyQuerySchema = z.object({
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined)),
 });
+
+const detailQuerySchema = z.object({
+  forDonation: z.coerce.boolean().default(false),
+});
+
+const publicPartnerSelect = {
+  id: true,
+  name: true,
+  organizationName: true,
+  address: true,
+  city: true,
+  state: true,
+  role: true,
+} satisfies Prisma.UserSelect;
 
 const publicProfileSelect = {
   id: true,
@@ -51,21 +73,80 @@ const publicProfileSelect = {
     select: {
       collectedAt: true,
       receivedAt: true,
-      outgoingOperationalPartnerships: true,
-      incomingOperationalPartnerships: true,
+    },
+  },
+  outgoingOperationalPartnerships: {
+    where: {
+      status: OperationalPartnershipStatus.ACTIVE,
+      isActive: true,
+    },
+    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      ngo: { select: publicPartnerSelect },
+    },
+  },
+  incomingOperationalPartnerships: {
+    where: {
+      status: OperationalPartnershipStatus.ACTIVE,
+      isActive: true,
+    },
+    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      collectionPoint: { select: publicPartnerSelect },
     },
   },
 } satisfies Prisma.UserSelect;
 
 type PublicProfileRecord = Prisma.UserGetPayload<{ select: typeof publicProfileSelect }>;
 
+function mapPublicPartner(
+  partner:
+    | PublicProfileRecord['outgoingOperationalPartnerships'][number]['ngo']
+    | PublicProfileRecord['incomingOperationalPartnerships'][number]['collectionPoint'],
+) {
+  return {
+    id: partner.id,
+    name: partner.name,
+    organizationName: partner.organizationName,
+    address: partner.address,
+    city: partner.city,
+    state: partner.state,
+    role: partner.role,
+  };
+}
+
 function mapPublicProfile(point: PublicProfileRecord) {
   const handledDonations =
     point.role === UserRole.NGO ? point._count.receivedAt : point._count.collectedAt;
   const activePartnerships =
     point.role === UserRole.NGO
-      ? point._count.incomingOperationalPartnerships
-      : point._count.outgoingOperationalPartnerships;
+      ? point.incomingOperationalPartnerships.length
+      : point.outgoingOperationalPartnerships.length;
+  const activeNgo =
+    point.role === UserRole.COLLECTION_POINT
+      ? point.outgoingOperationalPartnerships[0]?.ngo ?? null
+      : null;
+  const donationEligibility =
+    point.role === UserRole.COLLECTION_POINT
+      ? activeNgo
+        ? {
+            canDonateHere: true,
+            status: 'ELIGIBLE',
+            label: 'Pronto para doar',
+            message: `Doacoes concluidas aqui seguem para ${activeNgo.organizationName ?? activeNgo.name}.`,
+            activeNgo: mapPublicPartner(activeNgo),
+          }
+        : {
+            canDonateHere: false,
+            status: 'WAITING_NGO',
+            label: 'Aguardando ONG',
+            message:
+              'Este ponto ainda nao possui uma ONG parceira ativa. Ele aparece no mapa, mas ainda nao pode finalizar doacoes.',
+            activeNgo: null,
+          }
+      : null;
 
   return {
     id: point.id,
@@ -97,6 +178,7 @@ function mapPublicProfile(point: PublicProfileRecord) {
     createdAt: point.createdAt.toISOString(),
     totalDonations: handledDonations,
     activePartnerships,
+    donationEligibility,
   };
 }
 
@@ -116,7 +198,9 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
 
       const points = await fastify.prisma.user.findMany({
         where: {
-          role: { in: [UserRole.COLLECTION_POINT, UserRole.NGO] },
+          role: query.forDonation
+            ? UserRole.COLLECTION_POINT
+            : query.role ?? { in: [UserRole.COLLECTION_POINT, UserRole.NGO] },
           publicProfileState: {
             in: [PublicProfileState.ACTIVE, PublicProfileState.VERIFIED],
           },
@@ -228,10 +312,13 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
   fastify.get('/:id', async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
+      const query = detailQuerySchema.parse(request.query);
       const point = await fastify.prisma.user.findFirst({
         where: {
           id,
-          role: { in: [UserRole.COLLECTION_POINT, UserRole.NGO] },
+          role: query.forDonation
+            ? UserRole.COLLECTION_POINT
+            : { in: [UserRole.COLLECTION_POINT, UserRole.NGO] },
           publicProfileState: {
             in: [PublicProfileState.ACTIVE, PublicProfileState.VERIFIED],
           },

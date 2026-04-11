@@ -10,6 +10,7 @@ import donationRoutes from './modules/donations/donations';
 import healthRoutes from './modules/health';
 import profileRoutes from './modules/profiles/profiles';
 import adminProfileRoutes from './modules/admin/admin-profiles';
+import partnershipRoutes from './modules/partnerships/partnerships';
 import authPlugin from './plugins/auth';
 import prismaPlugin from './plugins/prisma';
 import redisPlugin from './plugins/redis';
@@ -68,6 +69,7 @@ app.register(collectionPointRoutes, { prefix: '/collection-points' });
 app.register(donationRoutes, { prefix: '/donations' });
 app.register(profileRoutes, { prefix: '/profiles' });
 app.register(adminProfileRoutes, { prefix: '/admin/profiles' });
+app.register(partnershipRoutes, { prefix: '/partnerships' });
 
 const start = async () => {
   try {

@@ -38,6 +38,13 @@ export type CollectionPoint = {
   distanceKm?: number;
   totalDonations?: number;
   activePartnerships?: number;
+  donationEligibility?: {
+    canDonateHere: boolean;
+    status: 'ELIGIBLE' | 'WAITING_NGO';
+    label: string;
+    message: string;
+    activeNgo: DonationPoint | null;
+  } | null;
   createdAt?: string;
 };
 
@@ -61,6 +68,7 @@ export type DonationStatus =
   | 'CANCELLED';
 
 export type PublicProfileState = 'DRAFT' | 'PENDING' | 'ACTIVE' | 'VERIFIED';
+export type PartnershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
 
 export type DonationPoint = {
   id: string;
@@ -93,6 +101,7 @@ export type DonationEvent = {
 
 export type DonationPartnership = {
   id: string;
+  status: PartnershipStatus;
   isActive: boolean;
   priority: number;
   notes: string | null;
@@ -135,6 +144,26 @@ export type OperationalFilters = {
   limit?: number;
   sortBy?: 'updatedAt' | 'createdAt';
   direction?: 'asc' | 'desc';
+};
+
+export type PartnershipRecord = {
+  id: string;
+  status: PartnershipStatus;
+  isActive: boolean;
+  priority: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  collectionPoint: DonationPoint & { publicProfileState?: PublicProfileState };
+  ngo: DonationPoint & { publicProfileState?: PublicProfileState };
+};
+
+export type PartnershipListResponse = {
+  data: PartnershipRecord[];
+  meta: {
+    count: number;
+    statusCounts: Record<PartnershipStatus, number>;
+  };
 };
 
 export type OperationalDonationListResponse = {
@@ -285,8 +314,10 @@ export async function getNearbyPoints(params: {
   lng?: number;
   radius?: number;
   category?: string;
+  role?: 'COLLECTION_POINT' | 'NGO';
   limit?: number;
   search?: string;
+  forDonation?: boolean;
 }): Promise<NearbyResponse> {
   const qs = new URLSearchParams();
 
@@ -306,6 +337,10 @@ export async function getNearbyPoints(params: {
     qs.set('category', params.category);
   }
 
+  if (params.role) {
+    qs.set('role', params.role);
+  }
+
   if (params.limit) {
     qs.set('limit', String(params.limit));
   }
@@ -314,11 +349,25 @@ export async function getNearbyPoints(params: {
     qs.set('search', params.search);
   }
 
+  if (params.forDonation) {
+    qs.set('forDonation', 'true');
+  }
+
   return apiFetch<NearbyResponse>(`/collection-points?${qs}`);
 }
 
-export async function getCollectionPoint(id: string): Promise<CollectionPoint> {
-  return apiFetch<CollectionPoint>(`/collection-points/${id}`);
+export async function getCollectionPoint(
+  id: string,
+  options?: { forDonation?: boolean },
+): Promise<CollectionPoint> {
+  const qs = new URLSearchParams();
+
+  if (options?.forDonation) {
+    qs.set('forDonation', 'true');
+  }
+
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiFetch<CollectionPoint>(`/collection-points/${id}${suffix}`);
 }
 
 export async function getMyProfile(accessToken: string): Promise<MyProfile> {
@@ -397,6 +446,43 @@ export async function updateDonationStatus(
   accessToken: string,
 ): Promise<DonationRecord> {
   return apiFetch<DonationRecord>(`/donations/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function getMyPartnerships(
+  accessToken: string,
+  params?: { status?: PartnershipStatus },
+): Promise<PartnershipListResponse> {
+  const qs = new URLSearchParams({
+    ...(params?.status ? { status: params.status } : {}),
+  });
+
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiFetch<PartnershipListResponse>(`/partnerships${suffix}`, {
+    accessToken,
+  });
+}
+
+export async function requestOperationalPartnership(
+  input: { ngoId: string; notes?: string },
+  accessToken: string,
+): Promise<PartnershipRecord> {
+  return apiFetch<PartnershipRecord>('/partnerships', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function updateOperationalPartnershipStatus(
+  id: string,
+  input: { status: Extract<PartnershipStatus, 'ACTIVE' | 'REJECTED'>; notes?: string },
+  accessToken: string,
+): Promise<PartnershipRecord> {
+  return apiFetch<PartnershipRecord>(`/partnerships/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify(input),
     accessToken,

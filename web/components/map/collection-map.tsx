@@ -17,6 +17,47 @@ type MarkerLike = {
   openPopup?: () => void;
 };
 
+function getMarkerColors(point: CollectionPoint, selected: boolean) {
+  if (point.role === 'NGO') {
+    return selected
+      ? { fill: '#312e81', shadow: 'rgba(49,46,129,0.45)' }
+      : { fill: '#4f46e5', shadow: 'rgba(79,70,229,0.35)' };
+  }
+
+  if (point.donationEligibility?.canDonateHere === false) {
+    return selected
+      ? { fill: '#92400e', shadow: 'rgba(146,64,14,0.45)' }
+      : { fill: '#d97706', shadow: 'rgba(217,119,6,0.35)' };
+  }
+
+  return selected
+    ? { fill: '#00333c', shadow: 'rgba(0,51,60,0.45)' }
+    : { fill: '#006a62', shadow: 'rgba(0,106,98,0.35)' };
+}
+
+function buildMarkerIcon(point: CollectionPoint, selected: boolean, size: 32 | 38) {
+  const colors = getMarkerColors(point, selected);
+  const iconSize = size;
+  const iconAnchorX = size / 2;
+  const iconAnchorY = size;
+  const popupAnchorY = size + 4;
+
+  return {
+    html: `<div style="
+      width:${iconSize}px;
+      height:${iconSize}px;
+      background:${colors.fill};
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+      border:3px solid white;
+      box-shadow:0 2px 10px ${colors.shadow};
+    "></div>`,
+    iconSize: [iconSize, iconSize] as [number, number],
+    iconAnchor: [iconAnchorX, iconAnchorY] as [number, number],
+    popupAnchor: [0, -popupAnchorY] as [number, number],
+  };
+}
+
 function hasViewChanged(
   previous: { center: [number, number]; zoom: number } | null,
   nextCenter: [number, number],
@@ -143,36 +184,6 @@ export function CollectionMap({
         return;
       }
 
-      const defaultIcon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:32px;height:32px;
-          background:#006a62;
-          border-radius:50% 50% 50% 0;
-          transform:rotate(-45deg);
-          border:3px solid white;
-          box-shadow:0 2px 8px rgba(0,0,0,0.3);
-        "></div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -36],
-      });
-
-      const selectedIcon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:38px;height:38px;
-          background:#00333c;
-          border-radius:50% 50% 50% 0;
-          transform:rotate(-45deg);
-          border:3px solid white;
-          box-shadow:0 2px 12px rgba(0,0,0,0.5);
-        "></div>`,
-        iconSize: [38, 38],
-        iconAnchor: [19, 38],
-        popupAnchor: [0, -42],
-      });
-
       const currentIds = new Set(points.map((point) => point.id));
       markersRef.current.forEach((marker, id) => {
         if (!currentIds.has(id)) {
@@ -182,9 +193,20 @@ export function CollectionMap({
       });
 
       points.forEach((point) => {
-        const icon = point.id === selectedId ? selectedIcon : defaultIcon;
+        const icon = L.divIcon({
+          className: '',
+          ...buildMarkerIcon(point, point.id === selectedId, point.id === selectedId ? 38 : 32),
+        });
         const popupDescription = point.description ?? point.address ?? 'Perfil publico ativo.';
         const popupRole = point.role === 'NGO' ? 'ONG parceira' : 'Ponto de coleta';
+        const popupEligibility = point.donationEligibility
+          ? `<div style="margin-top:8px;padding:8px 10px;border-radius:12px;background:${
+              point.donationEligibility.canDonateHere ? '#ecfdf5' : '#fffbeb'
+            };color:${point.donationEligibility.canDonateHere ? '#047857' : '#92400e'}">
+              <p style="margin:0;font-size:11px;font-weight:700">${point.donationEligibility.label}</p>
+              <p style="margin:4px 0 0;font-size:11px;line-height:1.5">${point.donationEligibility.message}</p>
+            </div>`
+          : '';
 
         if (markersRef.current.has(point.id)) {
           markersRef.current.get(point.id)?.setIcon?.(icon);
@@ -209,6 +231,7 @@ export function CollectionMap({
                   ? `<p style="font-size:11px;font-weight:600;color:#006a62;margin:0">${point.distanceKm}km de distancia</p>`
                   : ''
               }
+              ${popupEligibility}
             </div>
           `);
 

@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { getSession, signIn } from 'next-auth/react';
 import { MapPin, User, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
@@ -14,21 +14,21 @@ const profiles = [
     icon: User,
     title: 'Doador',
     desc: 'Quero doar roupas e rastrear meu impacto.',
-    profile: 'doador',
+    profile: 'DONOR',
     color: 'bg-sky-100 text-sky-600',
   },
   {
     icon: MapPin,
     title: 'Ponto de Coleta',
     desc: 'Minha empresa deseja ser um ponto logistico.',
-    profile: 'ponto',
+    profile: 'COLLECTION_POINT',
     color: 'bg-teal-100 text-teal-600',
   },
   {
     icon: Users,
     title: 'ONG Parceira',
     desc: 'Instituicoes que recebem e distribuem doacoes.',
-    profile: 'ong',
+    profile: 'NGO',
     color: 'bg-indigo-100 text-indigo-600',
   },
 ];
@@ -41,7 +41,33 @@ function sanitizeCallbackUrl(value: string | null) {
   return value;
 }
 
+function sanitizeRedirectTarget(value: string | null | undefined, fallback: string) {
+  if (!value) {
+    return fallback;
+  }
+
+  if (value.startsWith('/')) {
+    return value;
+  }
+
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.origin === window.location.origin) {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
 export default function LoginPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl'));
   const authError = searchParams.get('error');
@@ -77,18 +103,26 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signIn('credentials', {
+      const result = await signIn('credentials', {
         email,
         password,
+        redirect: false,
         callbackUrl,
       });
+
+      if (result?.error) {
+        setError('E-mail ou senha incorretos.');
+        setLoading(false);
+        return;
+      }
+
+      await getSession();
+      const destination = sanitizeRedirectTarget(result?.url, callbackUrl);
+      router.replace(destination);
+      router.refresh();
     } catch {
       setError('Nao foi possivel entrar agora. Tente novamente.');
       setLoading(false);
-    } finally {
-      if (authError) {
-        setLoading(false);
-      }
     }
   };
 

@@ -40,6 +40,7 @@ VestGO/
 - `/doar`: wizard real, mas so para `DONOR`
 - `/operacoes`: fila operacional atual
 - `/perfil/operacional`: onboarding/edicao de perfis operacionais
+- `/perfil`: resumo operacional com a UI minima de parceria ponto -> ONG
 - `/mapa`: descoberta publica com busca real e modo opcional de selecao para o wizard
 - `/pontos`: redireciona para `/mapa`
 
@@ -50,9 +51,16 @@ O wizard em `web/app/(app)/doar/page.tsx` continua client-side, mas agora possui
 - o rascunho da doacao e preservado em `sessionStorage`
 - a etapa 3 pode abrir `/mapa` em modo de selecao
 - ao confirmar um ponto no mapa, o retorno para `/doar` aplica `selectedPointId`
-- se o ponto escolhido nao estiver na lista curta carregada pelo wizard, o frontend hidrata esse ponto via `GET /collection-points/:id`
+- se o ponto escolhido nao estiver na lista curta carregada pelo wizard, o frontend hidrata esse ponto via `GET /collection-points/:id?forDonation=true`
 
 Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o ponto realmente escolhido no mapa.
+
+### Regras de elegibilidade no fluxo doador
+
+- o fluxo doador nunca seleciona `NGO` como destino
+- a busca de pontos para doacao usa `forDonation=true` no backend
+- pontos sem parceria `ACTIVE` continuam visiveis, mas ficam indisponiveis para confirmacao
+- a UI mostra esse estado como `Aguardando ONG`
 
 ## Backend
 
@@ -62,6 +70,7 @@ Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o
 - `profiles`: leitura e edicao do proprio perfil
 - `donations`: criacao, listagem, detalhe, timeline e mudanca de status
 - `collection-points`: descoberta publica e detalhe de ponto/ONG
+- `partnerships`: solicitacao e resposta minima de parceria operacional
 - `admin-profiles`: governanca minima de perfis operacionais
 
 ### Endpoints importantes
@@ -77,6 +86,9 @@ Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o
 - `PATCH /profiles/me`
 - `GET /collection-points`
 - `GET /collection-points/:id`
+- `GET /partnerships`
+- `POST /partnerships`
+- `PATCH /partnerships/:id/status`
 - `GET /admin/profiles`
 - `PATCH /admin/profiles/:id/status`
 
@@ -96,6 +108,7 @@ Papéis atuais no schema Prisma:
 - `NGO` conclui etapas posteriores
 - `ADMIN` acompanha e modera
 - o cadastro publico so aceita `DONOR`, `COLLECTION_POINT` e `NGO`
+- o doador so consegue concluir doacao com `COLLECTION_POINT` que possua parceria `ACTIVE`
 
 ## Perfil operacional
 
@@ -146,6 +159,8 @@ Se o provider estiver indisponivel, o backend responde erro temporario de servic
 - inclui apenas perfis `ACTIVE` ou `VERIFIED`
 - exige `latitude` e `longitude` persistidas
 - aceita filtro por `category`
+- aceita filtro por `role`
+- aceita `forDonation=true` para blindar o fluxo doador contra `NGO`
 - aceita `search` por nome, organizacao, endereco, bairro, cidade e estado
 - aceita busca por proximidade com `lat`, `lng` e `radius`
 
@@ -159,7 +174,7 @@ Se o provider estiver indisponivel, o backend responde erro temporario de servic
 O mapa usa dois modos no frontend:
 
 - modo exploracao: lista parceiros publicos e detalhes gerais
-- modo selecao: restringe a lista a `COLLECTION_POINT` para o fluxo de doacao
+- modo selecao: restringe a lista a `COLLECTION_POINT` e so confirma pontos elegiveis para o fluxo de doacao
 
 Comportamentos implementados:
 
@@ -170,15 +185,22 @@ Comportamentos implementados:
 - confirmacao explicita antes de retornar ao wizard
 - correcoes de `setView` e `invalidateSize()` no Leaflet para evitar cortes e areas brancas em resize/layout responsivo
 - eliminacao do churn entre selecao, busca e hidracao inicial do mapa para evitar loops de tiles e `429`
+- distincao visual entre `COLLECTION_POINT`, `NGO` e ponto `Aguardando ONG`
 
 ### Login e sessao
 
 O login via `Credentials` usa Auth.js com sessao JWT:
 
-- a tela de login envia `signIn` com callback URL saneado
-- o redirect de sucesso passa a ser conduzido pelo proprio Auth.js
+- a tela de login saneia `callbackUrl` e estabiliza a sessao antes do redirect
+- o cadastro usa o mesmo principio para evitar corrida entre `signIn`, cookie e navegacao
 - o middleware continua protegendo as rotas internas
 - `/inicio` recebe a sessao server-side via `auth()` ja no primeiro acesso autenticado
+
+### Cadastro orientado por perfil
+
+- os cards da tela de login enviam o usuario para `/cadastro` com o perfil correto
+- o cadastro aceita aliases e enums reais para evitar dupla escolha de papel
+- perfis operacionais seguem para `/perfil/operacional?setup=1` apos autenticacao
 
 ## Dados e persistencia
 
@@ -187,13 +209,27 @@ O login via `Credentials` usa Auth.js com sessao JWT:
 - PostgreSQL via Prisma
 - schema central em `api/prisma/schema.prisma`
 
+### OperationalPartnership
+
+O modelo existente foi reaproveitado e endurecido:
+
+- `status`: `PENDING`, `ACTIVE`, `REJECTED`
+- `isActive`: mantido por compatibilidade imediata
+- o status passou a ser a referencia principal para elegibilidade e resposta operacional
+
+Fluxo minimo atual:
+
+1. `COLLECTION_POINT` solicita parceria
+2. `NGO` aprova ou rejeita
+3. apenas `ACTIVE` torna o ponto elegivel para doacoes
+
 ### Infra de apoio
 
 - Redis para refresh token e suporte de autenticacao
 - MinIO para storage
 - Docker Compose para stack local e deploy
 
-## Estado desta arquitetura apos a Fase 10A
+## Estado desta arquitetura apos a Fase 10A e do endurecimento operacional inicial
 
 Resolvido:
 
@@ -206,6 +242,10 @@ Resolvido:
 - recentralizacao inconsistente do Leaflet apos geolocalizacao
 - scroll vertical excessivo e cortes visuais no layout do mapa
 - corrida entre `signIn`, cookie de sessao e navegacao manual no login
+- duplicidade de escolha de perfil no cadastro
+- possibilidade de ONG ser tratada como destino doador
+- falta de estado explicito para ponto sem ONG ativa
+- ausencia de fluxo minimo de parceria ponto -> ONG
 
 ## Bootstrap admin temporario
 
