@@ -22,15 +22,20 @@ import {
   ImpactSummaryCard,
   RankingPreviewCard,
 } from '@/components/gamification/impact-widgets';
+import { PickupRequestsPanel } from '@/components/operations/pickup-requests-panel';
 import { auth } from '@/lib/auth';
 import {
   getMyProfile,
+  getMyPartnerships,
   getNearbyPoints,
+  getPickupRequests,
   getUserDonations,
   type CollectionPoint,
   type DonationRecord,
   type DonationStatus,
   type MyProfile,
+  type PartnershipRecord,
+  type PickupRequestRecord,
 } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
 import { buildImpactSnapshot } from '@/lib/gamification';
@@ -208,11 +213,17 @@ function OperationalHome({
   role,
   profile,
   nearbyPoints,
+  partnerships,
+  pickupRequests,
+  accessToken,
 }: {
   firstName: string;
   role: string;
   profile: MyProfile | null;
   nearbyPoints: CollectionPoint[];
+  partnerships: PartnershipRecord[];
+  pickupRequests: PickupRequestRecord[];
+  accessToken: string;
 }) {
   const actions = operationalActionMap[role] ?? operationalActionMap.ADMIN;
   const profileStateLabel =
@@ -221,6 +232,12 @@ function OperationalHome({
       : PROFILE_STATE_LABELS[profile?.publicProfileState ?? 'DRAFT'] ?? 'Rascunho';
   const completion = profile?.profileCompletion;
   const stats = profile?.stats ?? { handledDonations: 0, activePartnerships: 0 };
+  const activePartnership = partnerships.find(
+    (partnership) => partnership.status === 'ACTIVE' && partnership.isActive,
+  );
+  const pendingPickupRequests = pickupRequests.filter(
+    (pickupRequest) => pickupRequest.status === 'PENDING',
+  );
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -302,19 +319,52 @@ function OperationalHome({
 
           <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Blocos prontos para a Fase 10B
+              Painel do papel
             </p>
             <div className="mt-4 space-y-3">
-              {[
-                'permissoes corretas por papel',
-                'perfil operacional com geocoding salvo no backend',
-                'descoberta publica usando dados reais',
-                'base pronta para retirada e dashboards especificos',
-              ].map((item) => (
-                <div key={item} className="rounded-3xl bg-surface p-4">
-                  <p className="text-sm font-semibold text-primary-deeper">{item}</p>
-                </div>
-              ))}
+              {role === 'ADMIN' ? (
+                <>
+                  <div className="rounded-3xl bg-surface p-4">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      Governanca e operacao continuam centralizadas entre `/admin/perfis` e `/operacoes`
+                    </p>
+                  </div>
+                  <div className="rounded-3xl bg-surface p-4">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      O dashboard dedicado desta fase foca COLLECTION_POINT e NGO
+                    </p>
+                  </div>
+                  <div className="rounded-3xl bg-surface p-4">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      A administracao segue acompanhando a descoberta publica e a fila completa
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-3xl bg-surface p-4">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      {activePartnership
+                        ? role === 'COLLECTION_POINT'
+                          ? `ONG ativa: ${activePartnership.ngo.organizationName ?? activePartnership.ngo.name}`
+                          : `Ponto ativo: ${activePartnership.collectionPoint.organizationName ?? activePartnership.collectionPoint.name}`
+                        : 'Nenhuma parceria ativa no momento'}
+                    </p>
+                  </div>
+                  <div className="rounded-3xl bg-surface p-4">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      {pendingPickupRequests.length} solicitacao(oes) de retirada pendente(s)
+                    </p>
+                  </div>
+                  <div className="rounded-3xl bg-surface p-4">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      {role === 'COLLECTION_POINT'
+                        ? 'Aprovacoes de retirada ficam neste dashboard'
+                        : 'Novas retiradas podem ser solicitadas neste dashboard'}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </section>
@@ -460,6 +510,15 @@ function OperationalHome({
             </div>
           </div>
         </section>
+
+        {(role === 'COLLECTION_POINT' || role === 'NGO') && (
+          <PickupRequestsPanel
+            role={role}
+            accessToken={accessToken}
+            initialPickupRequests={pickupRequests}
+            partnerships={partnerships}
+          />
+        )}
       </div>
     </div>
   );
@@ -474,10 +533,20 @@ export default async function InicioPage() {
   if (role !== 'DONOR') {
     let profile: MyProfile | null = null;
     let nearbyPoints: CollectionPoint[] = [];
+    let partnerships: PartnershipRecord[] = [];
+    let pickupRequests: PickupRequestRecord[] = [];
 
     if (accessToken) {
       try {
-        profile = await getMyProfile(accessToken);
+        const [profileResponse, partnershipsResponse, pickupRequestsResponse] = await Promise.all([
+          getMyProfile(accessToken),
+          role === 'ADMIN' ? Promise.resolve(null) : getMyPartnerships(accessToken),
+          role === 'ADMIN' ? Promise.resolve(null) : getPickupRequests(accessToken),
+        ]);
+
+        profile = profileResponse;
+        partnerships = partnershipsResponse?.data ?? [];
+        pickupRequests = pickupRequestsResponse?.data ?? [];
 
         const pointsResponse =
           profile.latitude != null && profile.longitude != null
@@ -497,15 +566,20 @@ export default async function InicioPage() {
       } catch {
         profile = null;
         nearbyPoints = [];
+        partnerships = [];
+        pickupRequests = [];
       }
     }
 
     return (
       <OperationalHome
+        accessToken={accessToken}
         firstName={firstName}
         role={role}
         profile={profile}
         nearbyPoints={nearbyPoints}
+        partnerships={partnerships}
+        pickupRequests={pickupRequests}
       />
     );
   }

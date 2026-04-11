@@ -51,6 +51,15 @@ enum NotificationType {
   DONATION_CREATED_FOR_POINT
   PARTNERSHIP_REQUEST_RECEIVED
   PARTNERSHIP_STATUS_CHANGED
+  PICKUP_REQUEST_CREATED
+  PICKUP_REQUEST_RECEIVED
+  PICKUP_REQUEST_STATUS_CHANGED
+}
+
+enum PickupRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model User {
@@ -95,6 +104,8 @@ model User {
   receivedAt                      Donation[]               @relation("NgoDonations")
   outgoingOperationalPartnerships OperationalPartnership[] @relation("CollectionPointOperationalPartnerships")
   incomingOperationalPartnerships OperationalPartnership[] @relation("NgoOperationalPartnerships")
+  pickupRequestsToApprove         PickupRequest[]          @relation("CollectionPointPickupRequests")
+  pickupRequestsRequested         PickupRequest[]          @relation("NgoPickupRequests")
   notifications                   Notification[]
 
   createdAt DateTime @default(now())
@@ -144,6 +155,7 @@ model OperationalPartnership {
   notes             String?
 
   donations Donation[] @relation("DonationOperationalPartnership")
+  pickupRequests PickupRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -201,4 +213,26 @@ model Notification {
   @@index([userId, createdAt])
   @@index([userId, readAt, createdAt])
   @@map("notifications")
+}
+
+model PickupRequest {
+  id                       String            @id @default(cuid())
+  operationalPartnership   OperationalPartnership @relation(fields: [operationalPartnershipId], references: [id], onDelete: Cascade)
+  operationalPartnershipId String
+  collectionPoint          User              @relation("CollectionPointPickupRequests", fields: [collectionPointId], references: [id], onDelete: Cascade)
+  collectionPointId        String
+  ngo                      User              @relation("NgoPickupRequests", fields: [ngoId], references: [id], onDelete: Cascade)
+  ngoId                    String
+  status                   PickupRequestStatus @default(PENDING)
+  notes                    String?
+  responseNotes            String?
+  respondedAt              DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([collectionPointId, status, createdAt])
+  @@index([ngoId, status, createdAt])
+  @@index([operationalPartnershipId, status, createdAt])
+  @@map("pickup_requests")
 }

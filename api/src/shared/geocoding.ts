@@ -14,6 +14,11 @@ const geocodingAddressSchema = z
     path: z.string().optional(),
     cycleway: z.string().optional(),
     residential: z.string().optional(),
+    house: z.string().optional(),
+    building: z.string().optional(),
+    amenity: z.string().optional(),
+    shop: z.string().optional(),
+    office: z.string().optional(),
     house_number: z.string().optional(),
     neighbourhood: z.string().optional(),
     suburb: z.string().optional(),
@@ -228,8 +233,71 @@ function getStreetCandidate(address?: GeocodingProviderItem['address']) {
     normalizePart(address.footway) ??
     normalizePart(address.path) ??
     normalizePart(address.cycleway) ??
-    normalizePart(address.residential)
+    normalizePart(address.residential) ??
+    normalizePart(address.house) ??
+    normalizePart(address.building) ??
+    normalizePart(address.amenity) ??
+    normalizePart(address.shop) ??
+    normalizePart(address.office)
   );
+}
+
+function splitDisplayName(displayName?: string) {
+  return (displayName ?? '')
+    .split(',')
+    .map((segment) => normalizePart(segment))
+    .filter((segment): segment is string => Boolean(segment));
+}
+
+function looksLikeStreet(value?: string | null) {
+  const normalized = normalizePart(value ?? undefined);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return /^(rua|r\.|avenida|av\.|av |travessa|tv\.|alameda|rodovia|estrada|praca|praça|largo|via|viela|servid[aã]o|passagem|acesso)/i.test(
+    normalized,
+  );
+}
+
+function looksLikeAddressNumber(value?: string | null) {
+  const normalized = normalizePart(value ?? undefined);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return /^\d+[A-Za-z0-9/-]*$/.test(normalized);
+}
+
+function extractDisplayNameAddress(displayName?: string) {
+  const segments = splitDisplayName(displayName);
+
+  if (segments.length === 0) {
+    return {
+      address: null,
+      addressNumber: null,
+    };
+  }
+
+  const streetIndex = segments.findIndex((segment) => looksLikeStreet(segment));
+  const baseIndex = streetIndex >= 0 ? streetIndex : 0;
+  const rawAddress = segments[baseIndex] ?? null;
+  const nextSegment = segments[baseIndex + 1] ?? null;
+  const trailingNumberMatch = rawAddress?.match(/^(.*?)(?:\s+|,\s*)(\d+[A-Za-z0-9/-]*)$/);
+
+  const address = normalizePart(
+    trailingNumberMatch?.[1] ?? rawAddress ?? undefined,
+  );
+  const addressNumber =
+    normalizePart(trailingNumberMatch?.[2] ?? undefined) ??
+    (looksLikeAddressNumber(nextSegment) ? normalizePart(nextSegment ?? undefined) : null);
+
+  return {
+    address,
+    addressNumber,
+  };
 }
 
 function getNeighborhoodCandidate(address?: GeocodingProviderItem['address']) {
@@ -320,8 +388,10 @@ function mapSuggestionItem(
     return null;
   }
 
-  const address = getStreetCandidate(item.address);
-  const addressNumber = normalizePart(item.address?.house_number);
+  const displayNameAddress = extractDisplayNameAddress(item.display_name);
+  const address = getStreetCandidate(item.address) ?? displayNameAddress.address;
+  const addressNumber =
+    normalizePart(item.address?.house_number) ?? displayNameAddress.addressNumber;
   const neighborhood = getNeighborhoodCandidate(item.address);
   const city = getCityCandidate(item.address);
   const state =

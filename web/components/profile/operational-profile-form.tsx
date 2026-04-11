@@ -76,6 +76,64 @@ function serializeMultiline(value: string) {
     .filter(Boolean);
 }
 
+function normalizeAddressValue(value?: string | null) {
+  const normalized = value?.replace(/\s+/g, ' ').trim();
+  return normalized ? normalized : null;
+}
+
+function looksLikeAddressNumber(value?: string | null) {
+  const normalized = normalizeAddressValue(value);
+  return normalized ? /^\d+[A-Za-z0-9/-]*$/.test(normalized) : false;
+}
+
+function looksLikeStreet(value?: string | null) {
+  const normalized = normalizeAddressValue(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return /^(rua|r\.|avenida|av\.|av |travessa|tv\.|alameda|rodovia|estrada|praca|praça|largo|via|viela|servid[aã]o|passagem|acesso)/i.test(
+    normalized,
+  );
+}
+
+function extractAddressSegments(value?: string | null) {
+  return (value ?? '')
+    .split(/[,-]/)
+    .map((segment) => normalizeAddressValue(segment))
+    .filter((segment): segment is string => Boolean(segment));
+}
+
+function resolveSuggestionAddress(
+  suggestion: {
+    address: string | null;
+    addressNumber: string | null;
+    label?: string | null;
+    displayName?: string | null;
+  },
+  currentAddress: string,
+) {
+  const directAddress = normalizeAddressValue(suggestion.address);
+
+  if (directAddress) {
+    return directAddress;
+  }
+
+  for (const source of [suggestion.label, suggestion.displayName]) {
+    const segments = extractAddressSegments(source);
+    const streetIndex = segments.findIndex((segment) => looksLikeStreet(segment));
+    const baseIndex = streetIndex >= 0 ? streetIndex : 0;
+    const candidate = normalizeAddressValue(segments[baseIndex]);
+
+    if (candidate && !looksLikeAddressNumber(candidate)) {
+      return candidate;
+    }
+  }
+
+  return currentAddress;
+}
+
 function buildInitialState(profile: MyProfile): FormState {
   return {
     name: profile.name ?? '',
@@ -313,15 +371,19 @@ export function OperationalProfileForm() {
     zipCode: string | null;
     latitude: number;
     longitude: number;
+    label?: string | null;
+    displayName?: string | null;
   }) {
     setForm((current) => {
       if (!current) {
         return current;
       }
 
+      const resolvedAddress = resolveSuggestionAddress(suggestion, current.address);
+
       return {
         ...current,
-        address: suggestion.address ?? current.address,
+        address: resolvedAddress,
         addressNumber: suggestion.addressNumber ?? current.addressNumber,
         addressComplement: suggestion.addressComplement ?? current.addressComplement,
         neighborhood: suggestion.neighborhood ?? current.neighborhood,

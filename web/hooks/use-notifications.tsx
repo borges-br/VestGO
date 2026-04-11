@@ -55,6 +55,9 @@ export function NotificationsProvider({
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
+  const refreshRequestIdRef = useRef(0);
+  const mutationVersionRef = useRef(0);
+  const pendingMutationsRef = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!accessToken) {
@@ -66,19 +69,31 @@ export function NotificationsProvider({
       return;
     }
 
+    if (pendingMutationsRef.current > 0) {
+      return;
+    }
+
+    const requestId = refreshRequestIdRef.current + 1;
+    refreshRequestIdRef.current = requestId;
+    const mutationVersionAtStart = mutationVersionRef.current;
+
     setLoading(true);
 
     try {
       const response = await getNotifications(accessToken, { limit: 50 });
 
-      if (!mountedRef.current) {
+      if (
+        !mountedRef.current ||
+        requestId !== refreshRequestIdRef.current ||
+        mutationVersionAtStart !== mutationVersionRef.current
+      ) {
         return;
       }
 
       setNotifications(response.data.map(mapApiNotification));
       setUnreadCount(response.meta.unreadCount);
     } finally {
-      if (mountedRef.current) {
+      if (mountedRef.current && requestId === refreshRequestIdRef.current) {
         setLoading(false);
       }
     }
@@ -128,7 +143,11 @@ export function NotificationsProvider({
         return;
       }
 
+      mutationVersionRef.current += 1;
+      pendingMutationsRef.current += 1;
       let shouldRequest = false;
+      let shouldRefreshOnFailure = false;
+      const optimisticReadAt = new Date().toISOString();
 
       setNotifications((current) =>
         current.map((notification) => {
@@ -140,7 +159,7 @@ export function NotificationsProvider({
           return {
             ...notification,
             read: true,
-            readAt: new Date().toISOString(),
+            readAt: optimisticReadAt,
           };
         }),
       );
@@ -152,9 +171,23 @@ export function NotificationsProvider({
       setUnreadCount((current) => Math.max(0, current - 1));
 
       try {
-        await markNotificationAsRead(id, accessToken);
+        const updated = mapApiNotification(await markNotificationAsRead(id, accessToken));
+
+        if (!mountedRef.current) {
+          return;
+        }
+
+        setNotifications((current) =>
+          current.map((notification) => (notification.id === id ? updated : notification)),
+        );
       } catch {
-        await refresh();
+        shouldRefreshOnFailure = true;
+      } finally {
+        pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
+
+        if (shouldRefreshOnFailure) {
+          await refresh();
+        }
       }
     },
     [accessToken, refresh],
@@ -165,6 +198,9 @@ export function NotificationsProvider({
       return;
     }
 
+    mutationVersionRef.current += 1;
+    pendingMutationsRef.current += 1;
+    let shouldRefreshOnFailure = false;
     const now = new Date().toISOString();
 
     setNotifications((current) =>
@@ -183,7 +219,13 @@ export function NotificationsProvider({
     try {
       await markAllNotificationsAsRead(accessToken);
     } catch {
-      await refresh();
+      shouldRefreshOnFailure = true;
+    } finally {
+      pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
+
+      if (shouldRefreshOnFailure) {
+        await refresh();
+      }
     }
   }, [accessToken, refresh, unreadCount]);
 
