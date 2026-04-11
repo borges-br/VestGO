@@ -12,6 +12,8 @@ O projeto ja esta funcional e, nesta etapa, consolida:
 - endurecimento das regras de elegibilidade no fluxo doador
 - preenchimento inteligente de endereco com autocomplete
 - notificacoes in-app reais e persistidas
+- solicitacoes de retirada entre ONG e ponto de coleta
+- dashboards operacionais dedicados em `/inicio`
 
 Capacidades relevantes ja ativas:
 
@@ -39,6 +41,10 @@ Capacidades relevantes ja ativas:
 - busca publica com camada adicional de sugestao de endereco/lugar, sem substituir a busca textual de parceiros
 - fallback geografico padrao para Sorocaba quando a localizacao atual nao estiver disponivel
 - notificacoes reais persistidas no backend, com contador de nao lidas e marcacao como lida
+- correcoes de regressao no autocomplete para garantir preenchimento real do logradouro
+- correcoes de concorrencia no frontend para manter notificacoes como lidas apos refetch/polling
+- solicitacao de retirada com fluxo `NGO -> COLLECTION_POINT`
+- dashboards de `COLLECTION_POINT` e `NGO` com contexto operacional e painel de retiradas
 
 ## Stack
 
@@ -216,6 +222,30 @@ Detalhes tecnicos:
 - `isActive` foi mantido por compatibilidade imediata, mas o status passou a ser a referencia principal do fluxo
 - a UI minima desta etapa fica concentrada no resumo operacional do perfil
 
+## Solicitacao de retirada
+
+Com a parceria `ACTIVE` estabelecida, a operacao agora possui uma camada minima de retirada:
+
+1. a `NGO` solicita retirada para um ponto parceiro
+2. o `COLLECTION_POINT` aprova ou rejeita
+3. o status da solicitacao passa por `PENDING`, `APPROVED` ou `REJECTED`
+
+Detalhes tecnicos:
+
+- a entidade nova e `PickupRequest`
+- cada solicitacao referencia uma `OperationalPartnership` `ACTIVE`
+- a ONG nao consegue abrir outra retirada pendente para a mesma parceria
+- o ponto de coleta responde no proprio dashboard de `/inicio`
+- `/operacoes` continua como fila operacional compartilhada para execucao detalhada
+
+## Dashboards operacionais
+
+`/inicio` agora diferencia melhor os papeis operacionais:
+
+- `COLLECTION_POINT`: estado do perfil, parceria ativa, pendencias de retirada e acoes de aprovar/rejeitar
+- `NGO`: estado do perfil, parceria ativa, historico de retiradas e acao de solicitar retirada
+- `ADMIN`: continua com uma visao sintetica de governanca e operacao, sem duplicar a fila detalhada
+
 ## Notificacoes reais
 
 As notificacoes deixaram de ser mock e agora sao persistidas no backend.
@@ -240,12 +270,16 @@ Para `COLLECTION_POINT`:
 
 - nova doacao criada para o ponto
 - mudanca relevante de parceria
+- nova solicitacao de retirada recebida
 
 Para `NGO`:
 
 - nova solicitacao de parceria
 - solicitacao aprovada
 - solicitacao rejeitada
+- solicitacao de retirada criada
+- solicitacao de retirada aprovada
+- solicitacao de retirada rejeitada
 
 ### Gamificacao
 
@@ -267,7 +301,6 @@ Ainda nao entram nesta fase:
 - email transacional
 - websocket
 - notificacoes de capacidade maxima
-- notificacoes de retirada pendente
 
 Esses itens continuam fora de escopo ate que o dominio tenha dados reais e confiaveis para isso.
 
@@ -306,7 +339,7 @@ npm install
 npm run build
 ```
 
-Se houver novas migrations pendentes, aplique-as antes de subir a stack para que os campos de endereco estruturado e a tabela de notificacoes existam no banco real.
+Se houver novas migrations pendentes, aplique-as antes de subir a stack para que os campos de endereco estruturado, a tabela de notificacoes e o modelo `PickupRequest` existam no banco real.
 
 Para subir a stack completa, use os arquivos `docker-compose*.yml` do repositorio conforme o ambiente.
 
@@ -314,11 +347,10 @@ Para subir a stack completa, use os arquivos `docker-compose*.yml` do repositori
 
 A proxima fase pode focar na operacao acima da parceria ja estabilizada:
 
-- solicitacao de retirada entre ponto e ONG
 - sugestao de parceiros por proximidade operacional
-- dashboards dedicados para `COLLECTION_POINT` e `NGO`
 - semantica operacional propria no rastreio
 - refinamento futuro das regras de badges e notificacoes operacionais quando o dominio tiver mais eventos reais
+- fechamento do ciclo logico de retirada com impacto direto em prioridades e timeline operacional
 
 ## Documentacao complementar
 

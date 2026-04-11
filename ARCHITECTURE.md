@@ -42,6 +42,7 @@ VestGO/
 - `/operacoes`: fila operacional atual
 - `/perfil/operacional`: onboarding/edicao de perfis operacionais
 - `/perfil`: resumo operacional com a UI minima de parceria ponto -> ONG
+- `/inicio`: para papeis operacionais, tambem funciona como dashboard/contexto de retirada
 - `/notificacoes`: listagem real de notificacoes do usuario autenticado
 - `/mapa`: descoberta publica com busca real e modo opcional de selecao para o wizard
 - `/pontos`: redireciona para `/mapa`
@@ -81,6 +82,16 @@ Fluxo atual no frontend:
 - ao selecionar uma sugestao, o formulario preenche automaticamente os campos disponiveis
 - as coordenadas sugeridas ficam visiveis antes do save
 - o backend continua sendo a fonte autoritativa para persistencia e geocoding final
+
+### Dashboards operacionais em `/inicio`
+
+Sem abrir uma nova area pesada nesta fase, `/inicio` foi expandido como dashboard por papel:
+
+- `COLLECTION_POINT`: estado do perfil, parceria ativa, pendencias de retirada e acoes de aprovar/rejeitar
+- `NGO`: estado do perfil, parceria ativa, historico de retiradas e acao de solicitar retirada
+- `ADMIN`: visao sintetica de governanca/operacao
+
+`/operacoes` continua sendo a fila operacional compartilhada para execucao detalhada.
 
 ### Mapa e descoberta publica
 
@@ -124,6 +135,7 @@ Nao ha websocket nesta fase. O consumo atual usa refetch controlado:
 - `donations`: criacao, listagem, detalhe, timeline e mudanca de status
 - `collection-points`: descoberta publica e detalhe de ponto/ONG
 - `partnerships`: solicitacao e resposta minima de parceria operacional
+- `pickup-requests`: solicitacao e resposta minima de retirada entre ONG e ponto parceiro
 - `addresses`: sugestoes/autocomplete de endereco
 - `notifications`: listagem e leitura de notificacoes persistidas
 - `admin-profiles`: governanca minima de perfis operacionais
@@ -144,6 +156,9 @@ Nao ha websocket nesta fase. O consumo atual usa refetch controlado:
 - `GET /partnerships`
 - `POST /partnerships`
 - `PATCH /partnerships/:id/status`
+- `GET /pickup-requests`
+- `POST /pickup-requests`
+- `PATCH /pickup-requests/:id/status`
 - `GET /addresses/suggestions`
 - `GET /notifications`
 - `PATCH /notifications/:id/read`
@@ -302,6 +317,27 @@ Fluxo minimo atual:
 2. `NGO` aprova ou rejeita
 3. apenas `ACTIVE` torna o ponto elegivel para doacoes
 
+### PickupRequest
+
+Nova entidade operacional minima para retirada:
+
+- `operationalPartnershipId`
+- `collectionPointId`
+- `ngoId`
+- `status`: `PENDING`, `APPROVED`, `REJECTED`
+- `notes`
+- `responseNotes`
+- `respondedAt`
+- `createdAt`
+- `updatedAt`
+
+Fluxo atual:
+
+1. `NGO` cria uma solicitacao de retirada para uma parceria `ACTIVE`
+2. `COLLECTION_POINT` aprova ou rejeita
+3. a mesma parceria nao pode manter mais de uma retirada `PENDING`
+4. a solicitacao alimenta dashboard e notificacoes de ambos os papeis
+
 ### Notification
 
 Nova entidade persistida para notificacoes in-app:
@@ -324,6 +360,9 @@ Tipos atualmente usados:
 - `DONATION_CREATED_FOR_POINT`
 - `PARTNERSHIP_REQUEST_RECEIVED`
 - `PARTNERSHIP_STATUS_CHANGED`
+- `PICKUP_REQUEST_CREATED`
+- `PICKUP_REQUEST_RECEIVED`
+- `PICKUP_REQUEST_STATUS_CHANGED`
 
 ## Eventos reais conectados a notificacoes
 
@@ -342,6 +381,14 @@ Tipos atualmente usados:
 
 - nova solicitacao de parceria recebida pela ONG
 - aprovacao ou rejeicao da solicitacao
+
+### Pickup request events
+
+`api/src/modules/pickup-requests/pickup-requests.ts` agora cria notificacoes para:
+
+- nova solicitacao de retirada recebida pelo ponto de coleta
+- criacao da retirada para a ONG que iniciou o pedido
+- aprovacao ou rejeicao da retirada para a ONG solicitante
 
 ### Gamificacao
 
@@ -395,11 +442,12 @@ Resolvido:
 - endereco sem numero separado
 - ausencia de sugestoes/autocomplete de endereco
 - notificacoes mock sem persistencia
+- falha de preenchimento do logradouro ao selecionar sugestoes
+- corrida entre mutation/refetch que fazia notificacoes voltarem para nao lidas
+- ausencia de um modelo minimo de retirada entre ONG e ponto parceiro
 
 Preparado para a proxima fase:
 
-- solicitacao de retirada
 - proximidade operacional ponto -> ONG
-- dashboards dedicados por papel operacional
 - rastreio com semantica operacional especifica
 - refinamento de notificacoes operacionais quando existirem novos eventos reais no dominio

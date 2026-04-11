@@ -8,8 +8,9 @@ import {
   CheckCheck,
   ChevronRight,
   HeartHandshake,
+  Truck,
 } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useNotifications, type AppNotification, type NotificationType } from '@/hooks/use-notifications';
 
 const TYPE_CONFIG: Record<NotificationType, { icon: typeof Bell; bg: string; color: string }> = {
@@ -26,6 +27,21 @@ const TYPE_CONFIG: Record<NotificationType, { icon: typeof Bell; bg: string; col
     icon: Settings,
     bg: 'bg-gray-100',
     color: 'text-gray-500',
+  },
+  PICKUP_REQUEST_CREATED: {
+    icon: Truck,
+    bg: 'bg-sky-50',
+    color: 'text-sky-600',
+  },
+  PICKUP_REQUEST_RECEIVED: {
+    icon: Truck,
+    bg: 'bg-cyan-50',
+    color: 'text-cyan-600',
+  },
+  PICKUP_REQUEST_STATUS_CHANGED: {
+    icon: Truck,
+    bg: 'bg-teal-50',
+    color: 'text-teal-600',
   },
 };
 
@@ -70,13 +86,22 @@ function NotifCard({
   notif: AppNotification;
   onRead: (id: string) => Promise<void>;
 }) {
+  const router = useRouter();
   const cfg = TYPE_CONFIG[notif.type];
   const Icon = cfg.icon;
+  const handleOpen = async () => {
+    await onRead(notif.id);
 
-  const inner = (
-    <div
-      onClick={() => onRead(notif.id)}
-      className={`flex items-start gap-3 px-5 py-4 transition-colors cursor-pointer ${
+    if (notif.href) {
+      router.push(notif.href);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => void handleOpen()}
+      className={`flex w-full items-start gap-3 px-5 py-4 text-left transition-colors cursor-pointer ${
         !notif.read ? 'bg-primary-light/20' : 'hover:bg-surface'
       }`}
     >
@@ -100,13 +125,8 @@ function NotifCard({
       </div>
 
       {notif.href && <ChevronRight size={15} className="text-gray-300 flex-shrink-0 mt-3" />}
-    </div>
+    </button>
   );
-
-  if (notif.href) {
-    return <Link href={notif.href}>{inner}</Link>;
-  }
-  return inner;
 }
 
 export default function NotificacoesPage() {

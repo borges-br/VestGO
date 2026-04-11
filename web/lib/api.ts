@@ -71,6 +71,7 @@ export type DonationStatus =
 
 export type PublicProfileState = 'DRAFT' | 'PENDING' | 'ACTIVE' | 'VERIFIED';
 export type PartnershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
+export type PickupRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type DonationPoint = {
   id: string;
@@ -167,6 +168,28 @@ export type PartnershipListResponse = {
   meta: {
     count: number;
     statusCounts: Record<PartnershipStatus, number>;
+  };
+};
+
+export type PickupRequestRecord = {
+  id: string;
+  status: PickupRequestStatus;
+  notes: string | null;
+  responseNotes: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  operationalPartnershipId: string;
+  operationalPartnership: DonationPartnership;
+  collectionPoint: DonationPoint & { publicProfileState?: PublicProfileState };
+  ngo: DonationPoint & { publicProfileState?: PublicProfileState };
+};
+
+export type PickupRequestListResponse = {
+  data: PickupRequestRecord[];
+  meta: {
+    count: number;
+    statusCounts: Record<PickupRequestStatus, number>;
   };
 };
 
@@ -322,7 +345,10 @@ export type NotificationType =
   | 'BADGE_EARNED'
   | 'DONATION_CREATED_FOR_POINT'
   | 'PARTNERSHIP_REQUEST_RECEIVED'
-  | 'PARTNERSHIP_STATUS_CHANGED';
+  | 'PARTNERSHIP_STATUS_CHANGED'
+  | 'PICKUP_REQUEST_CREATED'
+  | 'PICKUP_REQUEST_RECEIVED'
+  | 'PICKUP_REQUEST_STATUS_CHANGED';
 
 export type NotificationRecord = {
   id: string;
@@ -583,6 +609,43 @@ export async function updateOperationalPartnershipStatus(
   accessToken: string,
 ): Promise<PartnershipRecord> {
   return apiFetch<PartnershipRecord>(`/partnerships/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function getPickupRequests(
+  accessToken: string,
+  params?: { status?: PickupRequestStatus },
+): Promise<PickupRequestListResponse> {
+  const qs = new URLSearchParams({
+    ...(params?.status ? { status: params.status } : {}),
+  });
+
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiFetch<PickupRequestListResponse>(`/pickup-requests${suffix}`, {
+    accessToken,
+  });
+}
+
+export async function createPickupRequest(
+  input: { operationalPartnershipId: string; notes?: string },
+  accessToken: string,
+): Promise<PickupRequestRecord> {
+  return apiFetch<PickupRequestRecord>('/pickup-requests', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function updatePickupRequestStatus(
+  id: string,
+  input: { status: Extract<PickupRequestStatus, 'APPROVED' | 'REJECTED'>; responseNotes?: string },
+  accessToken: string,
+): Promise<PickupRequestRecord> {
+  return apiFetch<PickupRequestRecord>(`/pickup-requests/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify(input),
     accessToken,

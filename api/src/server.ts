@@ -13,6 +13,7 @@ import profileRoutes from './modules/profiles/profiles';
 import adminProfileRoutes from './modules/admin/admin-profiles';
 import notificationRoutes from './modules/notifications/notifications';
 import partnershipRoutes from './modules/partnerships/partnerships';
+import pickupRequestRoutes from './modules/pickup-requests/pickup-requests';
 import authPlugin from './plugins/auth';
 import prismaPlugin from './plugins/prisma';
 import redisPlugin from './plugins/redis';
@@ -74,6 +75,7 @@ app.register(notificationRoutes, { prefix: '/notifications' });
 app.register(profileRoutes, { prefix: '/profiles' });
 app.register(adminProfileRoutes, { prefix: '/admin/profiles' });
 app.register(partnershipRoutes, { prefix: '/partnerships' });
+app.register(pickupRequestRoutes, { prefix: '/pickup-requests' });
 
 const start = async () => {
   try {
