@@ -14,6 +14,8 @@ export type CollectionPoint = {
   name: string;
   organizationName: string | null;
   address: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
   neighborhood: string | null;
   zipCode?: string | null;
   city: string | null;
@@ -75,6 +77,8 @@ export type DonationPoint = {
   name: string;
   organizationName: string | null;
   address: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
   city: string | null;
   state: string | null;
   role: string;
@@ -217,6 +221,8 @@ export type MyProfile = {
   description: string | null;
   purpose: string | null;
   address: string | null;
+  addressNumber: string | null;
+  addressComplement: string | null;
   neighborhood: string | null;
   zipCode: string | null;
   city: string | null;
@@ -258,6 +264,8 @@ export type UpdateMyProfileInput = {
   description?: string;
   purpose?: string;
   address?: string;
+  addressNumber?: string;
+  addressComplement?: string;
   neighborhood?: string;
   zipCode?: string;
   city?: string;
@@ -277,6 +285,63 @@ export type UpdateDonationStatusInput = {
   status: DonationStatus;
   description?: string;
   location?: string;
+};
+
+export type AddressSuggestion = {
+  id: string;
+  label: string;
+  displayName: string;
+  address: string | null;
+  addressNumber: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  latitude: number;
+  longitude: number;
+  distanceKm: number | null;
+};
+
+export type AddressSuggestionsResponse = {
+  data: AddressSuggestion[];
+  meta: {
+    count: number;
+    bias: {
+      latitude: number;
+      longitude: number;
+      source: 'user' | 'fallback';
+      label: string;
+    } | null;
+  };
+};
+
+export type NotificationType =
+  | 'DONATION_STATUS'
+  | 'DONATION_POINTS'
+  | 'BADGE_EARNED'
+  | 'DONATION_CREATED_FOR_POINT'
+  | 'PARTNERSHIP_REQUEST_RECEIVED'
+  | 'PARTNERSHIP_STATUS_CHANGED';
+
+export type NotificationRecord = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  href: string | null;
+  payload: Record<string, unknown> | null;
+  read: boolean;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationsResponse = {
+  data: NotificationRecord[];
+  meta: {
+    count: number;
+    unreadCount: number;
+  };
 };
 
 type ApiFetchOptions = RequestInit & {
@@ -354,6 +419,41 @@ export async function getNearbyPoints(params: {
   }
 
   return apiFetch<NearbyResponse>(`/collection-points?${qs}`);
+}
+
+export async function searchAddressSuggestions(
+  params: {
+    query: string;
+    lat?: number;
+    lng?: number;
+    limit?: number;
+    scope?: 'profile' | 'public';
+  },
+  options?: { signal?: AbortSignal },
+): Promise<AddressSuggestionsResponse> {
+  const qs = new URLSearchParams();
+
+  qs.set('q', params.query);
+
+  if (typeof params.lat === 'number') {
+    qs.set('lat', String(params.lat));
+  }
+
+  if (typeof params.lng === 'number') {
+    qs.set('lng', String(params.lng));
+  }
+
+  if (params.limit) {
+    qs.set('limit', String(params.limit));
+  }
+
+  if (params.scope) {
+    qs.set('scope', params.scope);
+  }
+
+  return apiFetch<AddressSuggestionsResponse>(`/addresses/suggestions?${qs.toString()}`, {
+    signal: options?.signal,
+  });
 }
 
 export async function getCollectionPoint(
@@ -517,6 +617,39 @@ export async function updateAdminProfileStatus(
   return apiFetch<MyProfile>(`/admin/profiles/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+    accessToken,
+  });
+}
+
+export async function getNotifications(
+  accessToken: string,
+  params?: { limit?: number },
+): Promise<NotificationsResponse> {
+  const qs = new URLSearchParams({
+    ...(params?.limit ? { limit: String(params.limit) } : {}),
+  });
+
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiFetch<NotificationsResponse>(`/notifications${suffix}`, {
+    accessToken,
+  });
+}
+
+export async function markNotificationAsRead(
+  id: string,
+  accessToken: string,
+): Promise<NotificationRecord> {
+  return apiFetch<NotificationRecord>(`/notifications/${id}/read`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
+
+export async function markAllNotificationsAsRead(
+  accessToken: string,
+): Promise<{ updatedCount: number }> {
+  return apiFetch<{ updatedCount: number }>('/notifications/read-all', {
+    method: 'PATCH',
     accessToken,
   });
 }

@@ -1,14 +1,32 @@
 'use client';
-import { useState } from 'react';
-import { Bell, Package, MapPin, Lightbulb, Settings, CheckCheck, ChevronRight } from 'lucide-react';
+import {
+  Bell,
+  Package,
+  MapPin,
+  Trophy,
+  Settings,
+  CheckCheck,
+  ChevronRight,
+  HeartHandshake,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useNotifications, type AppNotification, type NotificationType } from '@/hooks/use-notifications';
 
 const TYPE_CONFIG: Record<NotificationType, { icon: typeof Bell; bg: string; color: string }> = {
-  donation_status: { icon: Package,   bg: 'bg-primary-light',  color: 'text-primary' },
-  new_point:       { icon: MapPin,    bg: 'bg-blue-50',        color: 'text-blue-500' },
-  tip:             { icon: Lightbulb, bg: 'bg-amber-50',       color: 'text-amber-500' },
-  system:          { icon: Settings,  bg: 'bg-gray-100',       color: 'text-gray-500' },
+  DONATION_STATUS: { icon: Package, bg: 'bg-primary-light', color: 'text-primary' },
+  DONATION_POINTS: { icon: Trophy, bg: 'bg-amber-50', color: 'text-amber-600' },
+  BADGE_EARNED: { icon: Trophy, bg: 'bg-emerald-50', color: 'text-emerald-600' },
+  DONATION_CREATED_FOR_POINT: { icon: MapPin, bg: 'bg-blue-50', color: 'text-blue-500' },
+  PARTNERSHIP_REQUEST_RECEIVED: {
+    icon: HeartHandshake,
+    bg: 'bg-indigo-50',
+    color: 'text-indigo-600',
+  },
+  PARTNERSHIP_STATUS_CHANGED: {
+    icon: Settings,
+    bg: 'bg-gray-100',
+    color: 'text-gray-500',
+  },
 };
 
 function timeAgo(date: Date): string {
@@ -50,7 +68,7 @@ function NotifCard({
   onRead,
 }: {
   notif: AppNotification;
-  onRead: (id: string) => void;
+  onRead: (id: string) => Promise<void>;
 }) {
   const cfg = TYPE_CONFIG[notif.type];
   const Icon = cfg.icon;

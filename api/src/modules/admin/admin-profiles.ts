@@ -25,6 +25,8 @@ const adminProfileSelect = {
   city: true,
   state: true,
   address: true,
+  addressNumber: true,
+  addressComplement: true,
   neighborhood: true,
   zipCode: true,
   acceptedCategories: true,

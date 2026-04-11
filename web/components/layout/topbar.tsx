@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, ChevronRight, Settings2 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import type { AppNotification } from '@/hooks/use-notifications';
 import {
@@ -16,7 +16,7 @@ interface TopBarProps {
   onMenuOpen: () => void;
   unreadCount: number;
   notifPreview: AppNotification[];
-  onNotifRead: (id: string) => void;
+  onNotifRead: (id: string) => Promise<void>;
 }
 
 function timeAgo(date: Date): string {
@@ -32,6 +32,7 @@ function timeAgo(date: Date): string {
 
 export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: TopBarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -141,9 +142,12 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
                     notifPreview.map((notification) => (
                       <button
                         key={notification.id}
-                        onClick={() => {
-                          onNotifRead(notification.id);
+                        onClick={async () => {
+                          await onNotifRead(notification.id);
                           setDropdownOpen(false);
+                          if (notification.href) {
+                            router.push(notification.href);
+                          }
                         }}
                         className={`w-full px-4 py-3 text-left transition-colors hover:bg-surface ${
                           !notification.read ? 'bg-primary-light/30' : ''

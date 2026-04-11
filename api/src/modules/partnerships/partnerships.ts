@@ -13,12 +13,15 @@ import {
   NotFoundError,
   toErrorResponse,
 } from '../../shared/errors';
+import { createNotifications } from '../../shared/notifications';
 
 const partnershipPartnerSelect = {
   id: true,
   name: true,
   organizationName: true,
   address: true,
+  addressNumber: true,
+  addressComplement: true,
   city: true,
   state: true,
   role: true,
@@ -80,6 +83,8 @@ function mapPartner(
     name: partner.name,
     organizationName: partner.organizationName,
     address: partner.address,
+    addressNumber: partner.addressNumber,
+    addressComplement: partner.addressComplement,
     city: partner.city,
     state: partner.state,
     role: partner.role,
@@ -284,6 +289,22 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
             select: partnershipSelect,
           });
 
+      await createNotifications(fastify, [
+        {
+          userId: partnership.ngo.id,
+          type: 'PARTNERSHIP_REQUEST_RECEIVED' as const,
+          title: 'Nova solicitacao de parceria',
+          body: `${partnership.collectionPoint.organizationName ?? partnership.collectionPoint.name} solicitou parceria operacional com a sua ONG.`,
+          href: '/perfil',
+          payload: {
+            partnershipId: partnership.id,
+            collectionPointId: partnership.collectionPoint.id,
+            ngoId: partnership.ngo.id,
+            status: partnership.status,
+          },
+        },
+      ]);
+
       return reply.code(existing ? 200 : 201).send(mapPartnership(partnership));
     } catch (err) {
       if (err instanceof AppError) {
@@ -355,6 +376,44 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
         },
         select: partnershipSelect,
       });
+
+      const statusLabel =
+        body.status === OperationalPartnershipStatus.ACTIVE ? 'aprovada' : 'rejeitada';
+
+      await createNotifications(fastify, [
+        {
+          userId: updated.collectionPoint.id,
+          type: 'PARTNERSHIP_STATUS_CHANGED' as const,
+          title:
+            body.status === OperationalPartnershipStatus.ACTIVE
+              ? 'Parceria aprovada'
+              : 'Parceria rejeitada',
+          body: `A ONG ${updated.ngo.organizationName ?? updated.ngo.name} ${statusLabel} a solicitacao de parceria do ponto.`,
+          href: '/perfil',
+          payload: {
+            partnershipId: updated.id,
+            collectionPointId: updated.collectionPoint.id,
+            ngoId: updated.ngo.id,
+            status: updated.status,
+          },
+        },
+        {
+          userId: updated.ngo.id,
+          type: 'PARTNERSHIP_STATUS_CHANGED' as const,
+          title:
+            body.status === OperationalPartnershipStatus.ACTIVE
+              ? 'Solicitacao aprovada'
+              : 'Solicitacao rejeitada',
+          body: `A solicitacao envolvendo ${updated.collectionPoint.organizationName ?? updated.collectionPoint.name} foi ${statusLabel}.`,
+          href: '/perfil',
+          payload: {
+            partnershipId: updated.id,
+            collectionPointId: updated.collectionPoint.id,
+            ngoId: updated.ngo.id,
+            status: updated.status,
+          },
+        },
+      ]);
 
       return reply.send(mapPartnership(updated));
     } catch (err) {

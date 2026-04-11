@@ -6,7 +6,14 @@ Projeto publicado em [mosfet.com.br](https://mosfet.com.br) e mantido neste repo
 
 ## Estado atual
 
-O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A, a estabilizacao critica do frontend e o endurecimento das regras de elegibilidade no fluxo doador:
+O projeto ja esta funcional e, nesta etapa, consolida:
+
+- Fase 10A e a estabilizacao critica do frontend
+- endurecimento das regras de elegibilidade no fluxo doador
+- preenchimento inteligente de endereco com autocomplete
+- notificacoes in-app reais e persistidas
+
+Capacidades relevantes ja ativas:
 
 - permissoes corretas por papel no frontend e no backend
 - fluxo de doacao restrito a perfis `DONOR`
@@ -27,6 +34,11 @@ O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A, a estabilizaca
 - fluxo doador blindado para selecionar apenas `COLLECTION_POINT`
 - pontos sem ONG ativa continuam visiveis, mas aparecem como indisponiveis para finalizar doacao
 - parceria operacional minima com fluxo `COLLECTION_POINT -> NGO` (`PENDING`, `ACTIVE`, `REJECTED`)
+- endereco estruturado com `address`, `addressNumber` e `addressComplement`
+- autocomplete backend-driven para formularios operacionais
+- busca publica com camada adicional de sugestao de endereco/lugar, sem substituir a busca textual de parceiros
+- fallback geografico padrao para Sorocaba quando a localizacao atual nao estiver disponivel
+- notificacoes reais persistidas no backend, com contador de nao lidas e marcacao como lida
 
 ## Stack
 
@@ -39,11 +51,11 @@ O projeto ja esta funcional e, nesta etapa, consolida a Fase 10A, a estabilizaca
 - infraestrutura: Docker / Docker Compose
 - deploy alvo: VPS Ubuntu + Nginx Proxy Manager
 
-## Papéis do sistema
+## Papeis do sistema
 
 - `DONOR`: cria doacoes e acompanha rastreio
 - `COLLECTION_POINT`: opera recebimento e atualizacao inicial das doacoes
-- `NGO`: opera etapas posteriores e distribuicao
+- `NGO`: opera etapas posteriores, distribuicao e resposta de parceria
 - `ADMIN`: acompanha a operacao e modera perfis operacionais
 
 ### Regras de permissao vigentes
@@ -64,18 +76,52 @@ Perfis de `COLLECTION_POINT` e `NGO` usam os estados:
 
 O estado depende do checklist operacional e aparece nas areas de perfil e dashboard.
 
-## Geolocalizacao
+## Geolocalizacao e endereco
 
 Latitude e longitude nao sao mais digitadas manualmente por usuarios operacionais.
 
-Fluxo atual:
+### Modelagem atual de endereco
 
-1. usuario informa endereco no perfil operacional
-2. backend normaliza os dados e tenta geocoding com consultas estruturadas e fallback textual
-3. coordenadas sao persistidas no usuario
-4. mapa e busca usam essas coordenadas internamente
+- `address`: logradouro
+- `addressNumber`: numero
+- `addressComplement`: complemento
+- `neighborhood`: bairro
+- `city`: cidade
+- `state`: estado
+- `zipCode`: CEP
+- `latitude` / `longitude`: coordenadas persistidas
 
-Variaveis de ambiente relacionadas estao em `.env.example`:
+Os novos campos foram adicionados de forma compativel com registros antigos.
+
+### Fluxo atual
+
+1. usuario informa logradouro, numero, complemento e demais campos do endereco
+2. o frontend pode sugerir enderecos a partir do que esta sendo digitado
+3. ao selecionar uma sugestao, os campos relevantes sao preenchidos automaticamente
+4. backend normaliza os dados e tenta geocoding com consultas estruturadas e fallback textual
+5. coordenadas sao persistidas no usuario
+6. mapa e busca usam essas coordenadas internamente
+
+### Autocomplete de endereco
+
+O autocomplete e servido pelo backend, sem chamar o provider externo diretamente do navegador.
+
+Comportamento atual:
+
+- debounce no frontend para evitar excesso de requests
+- minimo de 3 caracteres para buscar sugestoes
+- vies pela localizacao atual quando disponivel
+- fallback para o centro de Sorocaba quando a localizacao atual nao estiver disponivel
+- cache curto no backend para reduzir carga sobre o provider
+- preenchimento automatico de logradouro, numero, complemento, bairro, cidade, estado, CEP e coordenadas quando a sugestao trouxer esses dados
+
+Onde ja esta aplicado:
+
+- formulario operacional de `COLLECTION_POINT`
+- formulario operacional de `NGO`
+- busca publica de `/mapa` como camada adicional para recentralizar o mapa
+
+### Variaveis de ambiente relacionadas
 
 - `GEOCODING_BASE_URL`
 - `GEOCODING_USER_AGENT`
@@ -94,7 +140,7 @@ O backend separa tres casos:
 
 ## Bootstrap admin temporario
 
-Existe um bootstrap admin provisório e removivel, controlado por ambiente:
+Existe um bootstrap admin provisorio e removivel, controlado por ambiente:
 
 - `BOOTSTRAP_ADMIN_EMAIL`
 - `BOOTSTRAP_ADMIN_PASSWORD`
@@ -108,12 +154,16 @@ Comportamento:
 
 ## Descoberta publica
 
-A descoberta publica agora usa dados reais do backend:
+A descoberta publica usa dados reais do backend.
+
+### Mapa e busca
 
 - `/mapa` e `/mapa/[id]` exibem perfis publicos aptos
-- a busca do mapa consulta o backend com `search`
+- a busca textual atual de parceiros continua ativa
+- o mapa agora soma uma camada de sugestao de endereco/lugar para recentralizar a experiencia
 - apenas perfis operacionais `ACTIVE` ou `VERIFIED` com coordenadas validas entram no mapa
 - `/pontos` foi alinhado para redirecionar para `/mapa`
+- quando a localizacao atual nao estiver disponivel, o centro base passa a ser Sorocaba
 
 ### Elegibilidade para doacao
 
@@ -125,7 +175,7 @@ A descoberta publica agora usa dados reais do backend:
 
 ## Wizard de doacao e mapa
 
-O fluxo de doacao agora tem integracao direta com o mapa:
+O fluxo de doacao tem integracao direta com o mapa:
 
 1. o doador abre `/mapa` a partir da etapa de escolha do ponto
 2. o mapa entra em modo de selecao
@@ -144,7 +194,7 @@ Detalhes importantes:
 
 ## Estabilizacao de frontend
 
-Esta etapa priorizou confiabilidade antes de novas features:
+As ultimas fases priorizaram confiabilidade antes de novas features:
 
 - importacao global correta de `leaflet.css`
 - eliminacao de loops entre estado do mapa, selecao e busca
@@ -166,6 +216,61 @@ Detalhes tecnicos:
 - `isActive` foi mantido por compatibilidade imediata, mas o status passou a ser a referencia principal do fluxo
 - a UI minima desta etapa fica concentrada no resumo operacional do perfil
 
+## Notificacoes reais
+
+As notificacoes deixaram de ser mock e agora sao persistidas no backend.
+
+Capacidades atuais:
+
+- listagem real por usuario autenticado
+- contador real de notificacoes nao lidas
+- marcacao individual como lida
+- marcacao em lote como lida
+- integracao com a UI ja existente, sem redesign amplo
+
+### Eventos que ja disparam notificacao
+
+Para `DONOR`:
+
+- mudanca relevante no status da doacao
+- pontuacao atualizada quando ha ganho real de pontos
+- badge conquistada quando a condicao atual e detectavel
+
+Para `COLLECTION_POINT`:
+
+- nova doacao criada para o ponto
+- mudanca relevante de parceria
+
+Para `NGO`:
+
+- nova solicitacao de parceria
+- solicitacao aprovada
+- solicitacao rejeitada
+
+### Gamificacao
+
+As estruturas atuais de gamificacao foram preservadas:
+
+- metas
+- badges
+- comparativo local
+- historico de contribuicao
+
+Nesta fase, apenas conectamos notificacoes a eventos reais de pontuacao e badges ja detectaveis.
+O backend tambem passou a conter placeholders comentados para futuras regras de badges, sem mudar a UI atual.
+
+### O que fica de fora por enquanto
+
+Ainda nao entram nesta fase:
+
+- push notification
+- email transacional
+- websocket
+- notificacoes de capacidade maxima
+- notificacoes de retirada pendente
+
+Esses itens continuam fora de escopo ate que o dominio tenha dados reais e confiaveis para isso.
+
 ## Estrutura principal
 
 ```text
@@ -176,6 +281,7 @@ VestGO/
 |-- web/
 |   |-- app/
 |   |-- components/
+|   |-- hooks/
 |   `-- lib/
 |-- infra/
 |-- docker-compose.yml
@@ -192,12 +298,15 @@ Exemplos mais comuns:
 ```bash
 cd api
 npm install
+npm run prisma:generate
 npm run build
 
 cd ../web
 npm install
 npm run build
 ```
+
+Se houver novas migrations pendentes, aplique-as antes de subir a stack para que os campos de endereco estruturado e a tabela de notificacoes existam no banco real.
 
 Para subir a stack completa, use os arquivos `docker-compose*.yml` do repositorio conforme o ambiente.
 
@@ -209,6 +318,7 @@ A proxima fase pode focar na operacao acima da parceria ja estabilizada:
 - sugestao de parceiros por proximidade operacional
 - dashboards dedicados para `COLLECTION_POINT` e `NGO`
 - semantica operacional propria no rastreio
+- refinamento futuro das regras de badges e notificacoes operacionais quando o dominio tiver mais eventos reais
 
 ## Documentacao complementar
 

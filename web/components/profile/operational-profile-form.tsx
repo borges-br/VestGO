@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { getMyProfile, updateMyProfile, type MyProfile } from '@/lib/api';
+import { useAddressSuggestions } from '@/hooks/use-address-suggestions';
 
 type StepKey = 'identity' | 'location' | 'acceptance';
 
@@ -28,6 +29,8 @@ type FormState = {
   description: string;
   purpose: string;
   address: string;
+  addressNumber: string;
+  addressComplement: string;
   neighborhood: string;
   zipCode: string;
   city: string;
@@ -84,6 +87,8 @@ function buildInitialState(profile: MyProfile): FormState {
     description: profile.description ?? '',
     purpose: profile.purpose ?? '',
     address: profile.address ?? '',
+    addressNumber: profile.addressNumber ?? '',
+    addressComplement: profile.addressComplement ?? '',
     neighborhood: profile.neighborhood ?? '',
     zipCode: profile.zipCode ?? '',
     city: profile.city ?? '',
@@ -135,8 +140,10 @@ function buildPayload(role: string, form: FormState) {
     description: form.description || undefined,
     purpose: role === 'NGO' ? form.purpose || undefined : undefined,
     address: form.address || undefined,
-    neighborhood: role === 'COLLECTION_POINT' ? form.neighborhood || undefined : undefined,
-    zipCode: role === 'COLLECTION_POINT' ? form.zipCode || undefined : undefined,
+    addressNumber: form.addressNumber || undefined,
+    addressComplement: form.addressComplement || undefined,
+    neighborhood: form.neighborhood || undefined,
+    zipCode: form.zipCode || undefined,
     city: form.city || undefined,
     state: form.state || undefined,
     openingHours: role === 'COLLECTION_POINT' ? form.openingHours || undefined : undefined,
@@ -165,6 +172,14 @@ export function OperationalProfileForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [addressFocused, setAddressFocused] = useState(false);
+  const [addressAssistMessage, setAddressAssistMessage] = useState<string | null>(null);
+  const [addressPreview, setAddressPreview] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+
+  const addressBlurTimeoutRef = useRef<number | null>(null);
 
   const setupMode = searchParams.get('setup') === '1';
   const role = session?.user?.role ?? '';
@@ -172,6 +187,28 @@ export function OperationalProfileForm() {
   const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl'), defaultCallback);
   const steps = getStepOrder();
   const currentStepIndex = steps.indexOf(step);
+  const addressBias = useMemo(
+    () =>
+      addressPreview ??
+      (profile?.latitude != null && profile.longitude != null
+        ? { latitude: profile.latitude, longitude: profile.longitude }
+        : null),
+    [addressPreview, profile?.latitude, profile?.longitude],
+  );
+
+  const {
+    suggestions: addressSuggestions,
+    loading: addressSuggestionsLoading,
+    error: addressSuggestionsError,
+    hasQuery: hasAddressSuggestionQuery,
+    clearSuggestions,
+  } = useAddressSuggestions({
+    query: form?.address ?? '',
+    lat: addressBias?.latitude,
+    lng: addressBias?.longitude,
+    scope: 'profile',
+    enabled: Boolean(form) && addressFocused,
+  });
 
   useEffect(() => {
     async function loadProfile() {
@@ -187,6 +224,12 @@ export function OperationalProfileForm() {
         const nextProfile = await getMyProfile(session.user.accessToken);
         setProfile(nextProfile);
         setForm(buildInitialState(nextProfile));
+        setAddressPreview(
+          nextProfile.latitude != null && nextProfile.longitude != null
+            ? { latitude: nextProfile.latitude, longitude: nextProfile.longitude }
+            : null,
+        );
+        setAddressAssistMessage(null);
         setStep(getStepOrder()[0]);
       } catch {
         setError('Nao foi possivel carregar seu perfil operacional agora.');
@@ -206,6 +249,15 @@ export function OperationalProfileForm() {
     }
   }, [role, router, status]);
 
+  useEffect(
+    () => () => {
+      if (addressBlurTimeoutRef.current) {
+        window.clearTimeout(addressBlurTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   function updateField(field: keyof FormState, value: string | string[]) {
     setForm((current) => {
       if (!current) {
@@ -217,6 +269,77 @@ export function OperationalProfileForm() {
         [field]: value,
       };
     });
+  }
+
+  function updateAddressField(field: keyof FormState, value: string) {
+    updateField(field, value);
+    setAddressAssistMessage(null);
+
+    if (
+      field === 'address' ||
+      field === 'addressNumber' ||
+      field === 'addressComplement' ||
+      field === 'neighborhood' ||
+      field === 'zipCode' ||
+      field === 'city' ||
+      field === 'state'
+    ) {
+      setAddressPreview(null);
+    }
+  }
+
+  function handleAddressFocus() {
+    if (addressBlurTimeoutRef.current) {
+      window.clearTimeout(addressBlurTimeoutRef.current);
+      addressBlurTimeoutRef.current = null;
+    }
+
+    setAddressFocused(true);
+  }
+
+  function handleAddressBlur() {
+    addressBlurTimeoutRef.current = window.setTimeout(() => {
+      setAddressFocused(false);
+    }, 160);
+  }
+
+  function applyAddressSuggestion(suggestion: {
+    address: string | null;
+    addressNumber: string | null;
+    addressComplement: string | null;
+    neighborhood: string | null;
+    city: string | null;
+    state: string | null;
+    zipCode: string | null;
+    latitude: number;
+    longitude: number;
+  }) {
+    setForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        address: suggestion.address ?? current.address,
+        addressNumber: suggestion.addressNumber ?? current.addressNumber,
+        addressComplement: suggestion.addressComplement ?? current.addressComplement,
+        neighborhood: suggestion.neighborhood ?? current.neighborhood,
+        city: suggestion.city ?? current.city,
+        state: suggestion.state ?? current.state,
+        zipCode: suggestion.zipCode ?? current.zipCode,
+      };
+    });
+
+    setAddressPreview({
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    });
+    setAddressAssistMessage(
+      'Sugestao aplicada. Revise numero e complemento antes de salvar, se necessario.',
+    );
+    setAddressFocused(false);
+    clearSuggestions();
   }
 
   function toggleCategory(category: string) {
@@ -255,6 +378,12 @@ export function OperationalProfileForm() {
 
       setProfile(updated);
       setForm(buildInitialState(updated));
+      setAddressPreview(
+        updated.latitude != null && updated.longitude != null
+          ? { latitude: updated.latitude, longitude: updated.longitude }
+          : null,
+      );
+      setAddressAssistMessage('Endereco salvo e coordenadas atualizadas automaticamente.');
       setSuccess(
         setupMode
           ? 'Perfil salvo. Redirecionando para o proximo passo da sua operacao...'
@@ -474,45 +603,118 @@ export function OperationalProfileForm() {
                   </div>
                 </div>
 
-                <label className="space-y-2 text-sm text-gray-500">
+                <div className="space-y-2 text-sm text-gray-500">
                   <span className="font-semibold text-on-surface">
-                    {profile.role === 'NGO' ? 'Endereco ou base operacional' : 'Endereco completo'}
+                    {profile.role === 'NGO' ? 'Logradouro ou base operacional' : 'Logradouro'}
                   </span>
-                  <input
-                    value={form.address}
-                    onChange={(event) => updateField('address', event.target.value)}
-                    placeholder="Ex.: Rua Augusta, 1200"
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
+                  <div className="relative">
+                    <input
+                      value={form.address}
+                      onChange={(event) => updateAddressField('address', event.target.value)}
+                      onFocus={handleAddressFocus}
+                      onBlur={handleAddressBlur}
+                      placeholder="Ex.: Rua Augusta"
+                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {profile.role === 'COLLECTION_POINT' && (
-                    <>
-                      <label className="space-y-2 text-sm text-gray-500">
-                        <span className="font-semibold text-on-surface">Bairro</span>
-                        <input
-                          value={form.neighborhood}
-                          onChange={(event) => updateField('neighborhood', event.target.value)}
-                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm text-gray-500">
-                        <span className="font-semibold text-on-surface">CEP</span>
-                        <input
-                          value={form.zipCode}
-                          onChange={(event) => updateField('zipCode', event.target.value)}
-                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                        />
-                      </label>
-                    </>
-                  )}
+                    {addressFocused && (hasAddressSuggestionQuery || addressSuggestionsLoading) && (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg">
+                        {addressSuggestionsLoading && (
+                          <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
+                            <Loader2 size={15} className="animate-spin text-primary" />
+                            Buscando sugestoes de endereco...
+                          </div>
+                        )}
+
+                        {!addressSuggestionsLoading && addressSuggestionsError && (
+                          <div className="px-4 py-3 text-sm text-amber-700">
+                            {addressSuggestionsError}
+                          </div>
+                        )}
+
+                        {!addressSuggestionsLoading && !addressSuggestionsError && addressSuggestions.length > 0 && (
+                          <div className="max-h-72 overflow-y-auto py-2">
+                            {addressSuggestions.map((suggestion) => (
+                              <button
+                                key={suggestion.id}
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => applyAddressSuggestion(suggestion)}
+                                className="w-full px-4 py-3 text-left transition-colors hover:bg-surface"
+                              >
+                                <p className="text-sm font-semibold text-on-surface">
+                                  {suggestion.label}
+                                </p>
+                                <p className="mt-1 text-xs leading-6 text-gray-400">
+                                  {suggestion.displayName}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {!addressSuggestionsLoading &&
+                          !addressSuggestionsError &&
+                          hasAddressSuggestionQuery &&
+                          addressSuggestions.length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500">
+                              Nenhuma sugestao apareceu para esse trecho. Continue digitando ou refine cidade/estado.
+                            </div>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Digite parte do endereco e escolha uma sugestao para preencher bairro, cidade, estado, CEP e coordenadas automaticamente.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Numero</span>
+                    <input
+                      value={form.addressNumber}
+                      onChange={(event) => updateAddressField('addressNumber', event.target.value)}
+                      placeholder="Ex.: 1200"
+                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Complemento</span>
+                    <input
+                      value={form.addressComplement}
+                      onChange={(event) =>
+                        updateAddressField('addressComplement', event.target.value)
+                      }
+                      placeholder="Ex.: Sala 2, bloco B"
+                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Bairro</span>
+                    <input
+                      value={form.neighborhood}
+                      onChange={(event) => updateAddressField('neighborhood', event.target.value)}
+                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">CEP</span>
+                    <input
+                      value={form.zipCode}
+                      onChange={(event) => updateAddressField('zipCode', event.target.value)}
+                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
 
                   <label className="space-y-2 text-sm text-gray-500">
                     <span className="font-semibold text-on-surface">Cidade</span>
                     <input
                       value={form.city}
-                      onChange={(event) => updateField('city', event.target.value)}
+                      onChange={(event) => updateAddressField('city', event.target.value)}
                       className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                     />
                   </label>
@@ -521,7 +723,7 @@ export function OperationalProfileForm() {
                     <span className="font-semibold text-on-surface">Estado</span>
                     <input
                       value={form.state}
-                      onChange={(event) => updateField('state', event.target.value)}
+                      onChange={(event) => updateAddressField('state', event.target.value)}
                       className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                     />
                   </label>
@@ -596,9 +798,16 @@ export function OperationalProfileForm() {
                   <p className="mt-2 leading-7">
                     O VestGO agora gera as coordenadas a partir do endereco salvo. Nao e mais necessario informar latitude e longitude manualmente.
                   </p>
+                  {addressAssistMessage && (
+                    <p className="mt-2 rounded-2xl bg-white/80 px-3 py-2 text-xs font-medium text-primary-deeper">
+                      {addressAssistMessage}
+                    </p>
+                  )}
                   <p className="mt-2 text-xs text-gray-400">
-                    {profile.latitude != null && profile.longitude != null
-                      ? `Coordenadas atuais: ${profile.latitude.toFixed(5)}, ${profile.longitude.toFixed(5)}`
+                    {addressPreview != null
+                      ? `Coordenadas sugeridas: ${addressPreview.latitude.toFixed(5)}, ${addressPreview.longitude.toFixed(5)}`
+                      : profile.latitude != null && profile.longitude != null
+                        ? `Coordenadas atuais: ${profile.latitude.toFixed(5)}, ${profile.longitude.toFixed(5)}`
                       : 'Use rua com numero e, de preferencia, cidade/estado e CEP para melhorar a precisao da geolocalizacao automatica.'}
                   </p>
                 </div>

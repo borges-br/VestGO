@@ -1,15 +1,50 @@
 import { z } from 'zod';
 
+const BRAZIL_DEFAULT_CENTER = {
+  latitude: -23.50153,
+  longitude: -47.45256,
+  label: 'Sorocaba, SP',
+} as const;
+
+const geocodingAddressSchema = z
+  .object({
+    road: z.string().optional(),
+    pedestrian: z.string().optional(),
+    footway: z.string().optional(),
+    path: z.string().optional(),
+    cycleway: z.string().optional(),
+    residential: z.string().optional(),
+    house_number: z.string().optional(),
+    neighbourhood: z.string().optional(),
+    suburb: z.string().optional(),
+    quarter: z.string().optional(),
+    city_district: z.string().optional(),
+    borough: z.string().optional(),
+    city: z.string().optional(),
+    town: z.string().optional(),
+    village: z.string().optional(),
+    municipality: z.string().optional(),
+    county: z.string().optional(),
+    state: z.string().optional(),
+    state_code: z.string().optional(),
+    postcode: z.string().optional(),
+  })
+  .passthrough();
+
 const geocodingItemSchema = z.object({
   lat: z.string(),
   lon: z.string(),
   display_name: z.string().optional(),
+  place_id: z.union([z.number(), z.string()]).optional(),
+  address: geocodingAddressSchema.optional(),
 });
 
 const geocodingResponseSchema = z.array(geocodingItemSchema);
 
 type GeocodingInput = {
   address?: string;
+  addressNumber?: string;
+  addressComplement?: string;
   neighborhood?: string;
   zipCode?: string;
   city?: string;
@@ -21,11 +56,41 @@ type GeocodingAttempt = {
   params: URLSearchParams;
 };
 
+type GeocodingProviderItem = z.infer<typeof geocodingItemSchema>;
+
+type AddressAutocompleteInput = {
+  query: string;
+  latitude?: number;
+  longitude?: number;
+  limit?: number;
+  scope?: 'profile' | 'public';
+};
+
+type GeocodingRequestResult =
+  | { status: 'resolved'; payload: GeocodingProviderItem[]; query: string }
+  | { status: 'unavailable'; message: string };
+
 export type GeocodingResult = {
   latitude: number;
   longitude: number;
   displayName: string | null;
   query: string;
+};
+
+export type AddressSuggestion = {
+  id: string;
+  label: string;
+  displayName: string;
+  address: string | null;
+  addressNumber: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  latitude: number;
+  longitude: number;
+  distanceKm: number | null;
 };
 
 export type GeocodingLookup =
@@ -47,6 +112,39 @@ export type GeocodingLookup =
       message: string;
       attempts: string[];
     };
+
+export type AddressSuggestionLookup =
+  | {
+      status: 'resolved';
+      suggestions: AddressSuggestion[];
+      bias: {
+        latitude: number;
+        longitude: number;
+        source: 'user' | 'fallback';
+        label: string;
+      };
+    }
+  | {
+      status: 'incomplete';
+    }
+  | {
+      status: 'unavailable';
+      message: string;
+    };
+
+type AddressBias = {
+  latitude: number;
+  longitude: number;
+  source: 'user' | 'fallback';
+  label: string;
+};
+
+const suggestionCache = new Map<
+  string,
+  { expiresAt: number; suggestions: AddressSuggestion[]; bias: AddressBias }
+>();
+const SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
+const SUGGESTION_CACHE_MAX_ITEMS = 200;
 
 function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, ' ').trim();
@@ -85,15 +183,26 @@ function buildFreeformQuery(parts: Array<string | null>) {
   return parts.filter((value): value is string => Boolean(value)).join(', ');
 }
 
-function getMissingGeocodingFields(input: GeocodingInput) {
+function getStreetLine(input: GeocodingInput) {
   const street = normalizePart(input.address);
+  const addressNumber = normalizePart(input.addressNumber);
+
+  if (!street) {
+    return null;
+  }
+
+  return addressNumber ? `${street}, ${addressNumber}` : street;
+}
+
+function getMissingGeocodingFields(input: GeocodingInput) {
+  const streetLine = getStreetLine(input);
   const city = normalizePart(input.city);
   const state = normalizeState(input.state);
   const zipCode = normalizeZipCode(input.zipCode);
 
   const missingFields: string[] = [];
 
-  if (!street) {
+  if (!streetLine) {
     missingFields.push('endereco');
   }
 
@@ -108,12 +217,209 @@ function getMissingGeocodingFields(input: GeocodingInput) {
   return missingFields;
 }
 
+function getStreetCandidate(address?: GeocodingProviderItem['address']) {
+  if (!address) {
+    return null;
+  }
+
+  return (
+    normalizePart(address.road) ??
+    normalizePart(address.pedestrian) ??
+    normalizePart(address.footway) ??
+    normalizePart(address.path) ??
+    normalizePart(address.cycleway) ??
+    normalizePart(address.residential)
+  );
+}
+
+function getNeighborhoodCandidate(address?: GeocodingProviderItem['address']) {
+  if (!address) {
+    return null;
+  }
+
+  return (
+    normalizePart(address.neighbourhood) ??
+    normalizePart(address.suburb) ??
+    normalizePart(address.quarter) ??
+    normalizePart(address.city_district) ??
+    normalizePart(address.borough)
+  );
+}
+
+function getCityCandidate(address?: GeocodingProviderItem['address']) {
+  if (!address) {
+    return null;
+  }
+
+  return (
+    normalizePart(address.city) ??
+    normalizePart(address.town) ??
+    normalizePart(address.village) ??
+    normalizePart(address.municipality) ??
+    normalizePart(address.county)
+  );
+}
+
+function getResolvedBias(
+  latitude?: number,
+  longitude?: number,
+): AddressBias {
+  if (typeof latitude === 'number' && typeof longitude === 'number') {
+    return {
+      latitude,
+      longitude,
+      source: 'user',
+      label: 'localizacao atual',
+    };
+  }
+
+  return {
+    ...BRAZIL_DEFAULT_CENTER,
+    source: 'fallback',
+  };
+}
+
+function getDistanceKm(
+  origin: { latitude: number; longitude: number },
+  target: { latitude: number; longitude: number },
+) {
+  const earthRadiusKm = 6371;
+  const dLat = ((target.latitude - origin.latitude) * Math.PI) / 180;
+  const dLng = ((target.longitude - origin.longitude) * Math.PI) / 180;
+  const startLat = (origin.latitude * Math.PI) / 180;
+  const endLat = (target.latitude * Math.PI) / 180;
+  const haversine =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(startLat) *
+      Math.cos(endLat) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function buildSuggestionLabel(item: Omit<AddressSuggestion, 'label'>) {
+  const primary = buildFreeformQuery([item.address, item.addressNumber]);
+  const secondary = buildFreeformQuery([item.neighborhood, item.city, item.state]);
+
+  if (primary && secondary) {
+    return `${primary} - ${secondary}`;
+  }
+
+  return primary || secondary || item.displayName;
+}
+
+function mapSuggestionItem(
+  item: GeocodingProviderItem,
+  bias: AddressBias,
+): AddressSuggestion | null {
+  const latitude = Number.parseFloat(item.lat);
+  const longitude = Number.parseFloat(item.lon);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  const address = getStreetCandidate(item.address);
+  const addressNumber = normalizePart(item.address?.house_number);
+  const neighborhood = getNeighborhoodCandidate(item.address);
+  const city = getCityCandidate(item.address);
+  const state =
+    normalizeState(item.address?.state_code) ??
+    normalizeState(item.address?.state);
+  const zipCode = normalizeZipCode(item.address?.postcode);
+
+  const suggestionBase = {
+    id: String(item.place_id ?? `${latitude}:${longitude}:${item.display_name ?? 'result'}`),
+    displayName: item.display_name ?? '',
+    address,
+    addressNumber,
+    addressComplement: null,
+    neighborhood,
+    city,
+    state,
+    zipCode,
+    latitude,
+    longitude,
+    distanceKm: Number.isFinite(bias.latitude) && Number.isFinite(bias.longitude)
+      ? Math.round(getDistanceKm(bias, { latitude, longitude }) * 10) / 10
+      : null,
+  };
+
+  return {
+    ...suggestionBase,
+    label: buildSuggestionLabel(suggestionBase),
+  };
+}
+
+function sortSuggestions(
+  suggestions: AddressSuggestion[],
+  query: string,
+  scope: 'profile' | 'public',
+) {
+  const normalizedQuery = normalizeWhitespace(query).toLowerCase();
+
+  return [...suggestions].sort((left, right) => {
+    const leftStartsWith = left.label.toLowerCase().startsWith(normalizedQuery) ? 1 : 0;
+    const rightStartsWith = right.label.toLowerCase().startsWith(normalizedQuery) ? 1 : 0;
+
+    if (leftStartsWith !== rightStartsWith) {
+      return rightStartsWith - leftStartsWith;
+    }
+
+    if (scope === 'profile') {
+      const leftHasStreet = left.address ? 1 : 0;
+      const rightHasStreet = right.address ? 1 : 0;
+
+      if (leftHasStreet !== rightHasStreet) {
+        return rightHasStreet - leftHasStreet;
+      }
+    }
+
+    return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
+  });
+}
+
+function setSuggestionCache(
+  key: string,
+  suggestions: AddressSuggestion[],
+  bias: AddressBias,
+) {
+  if (suggestionCache.size >= SUGGESTION_CACHE_MAX_ITEMS) {
+    const oldestKey = suggestionCache.keys().next().value;
+    if (oldestKey) {
+      suggestionCache.delete(oldestKey);
+    }
+  }
+
+  suggestionCache.set(key, {
+    suggestions,
+    bias,
+    expiresAt: Date.now() + SUGGESTION_CACHE_TTL_MS,
+  });
+}
+
+function getSuggestionCache(key: string) {
+  const cached = suggestionCache.get(key);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    suggestionCache.delete(key);
+    return null;
+  }
+
+  return cached;
+}
+
 export function hasGeocodingAddress(input: GeocodingInput) {
   return getMissingGeocodingFields(input).length === 0;
 }
 
 function buildGeocodingAttempts(input: GeocodingInput) {
-  const street = normalizePart(input.address);
+  const streetLine = getStreetLine(input);
   const neighborhood = normalizePart(input.neighborhood);
   const city = normalizePart(input.city);
   const state = normalizeState(input.state);
@@ -121,11 +427,11 @@ function buildGeocodingAttempts(input: GeocodingInput) {
 
   const attempts: GeocodingAttempt[] = [];
 
-  if (street && city && state && zipCode) {
+  if (streetLine && city && state && zipCode) {
     attempts.push({
       label: 'structured_with_zip',
       params: new URLSearchParams({
-        street,
+        street: streetLine,
         city,
         state,
         postalcode: zipCode,
@@ -133,11 +439,11 @@ function buildGeocodingAttempts(input: GeocodingInput) {
     });
   }
 
-  if (street && city && state) {
+  if (streetLine && city && state) {
     attempts.push({
       label: 'structured_basic',
       params: new URLSearchParams({
-        street,
+        street: streetLine,
         city,
         state,
       }),
@@ -145,7 +451,7 @@ function buildGeocodingAttempts(input: GeocodingInput) {
   }
 
   const freeformComplete = buildFreeformQuery([
-    street,
+    streetLine,
     neighborhood,
     city,
     state,
@@ -160,7 +466,7 @@ function buildGeocodingAttempts(input: GeocodingInput) {
     });
   }
 
-  const freeformAddress = buildFreeformQuery([street, city, state, 'Brasil']);
+  const freeformAddress = buildFreeformQuery([streetLine, city, state, 'Brasil']);
 
   if (freeformAddress) {
     attempts.push({
@@ -169,9 +475,9 @@ function buildGeocodingAttempts(input: GeocodingInput) {
     });
   }
 
-  const freeformAddressZip = buildFreeformQuery([street, zipCode, 'Brasil']);
+  const freeformAddressZip = buildFreeformQuery([streetLine, zipCode, 'Brasil']);
 
-  if (street && zipCode && freeformAddressZip) {
+  if (streetLine && zipCode && freeformAddressZip) {
     attempts.push({
       label: 'freeform_address_zip',
       params: new URLSearchParams({ q: freeformAddressZip }),
@@ -192,12 +498,24 @@ function buildGeocodingAttempts(input: GeocodingInput) {
   });
 }
 
-function applyCommonParams(params: URLSearchParams) {
+function buildBaseGeocodingUrl() {
+  return new URL(
+    process.env.GEOCODING_BASE_URL ?? 'https://nominatim.openstreetmap.org/search',
+  );
+}
+
+function applyCommonParams(
+  params: URLSearchParams,
+  options?: { limit?: number; includeLayer?: boolean },
+) {
   params.set('format', 'jsonv2');
-  params.set('limit', '1');
+  params.set('limit', String(options?.limit ?? 1));
   params.set('addressdetails', '1');
   params.set('countrycodes', process.env.GEOCODING_COUNTRY_CODES ?? 'br');
-  params.set('layer', 'address');
+
+  if (options?.includeLayer !== false) {
+    params.set('layer', 'address');
+  }
 
   const geocodingEmail = normalizePart(process.env.GEOCODING_EMAIL);
   if (geocodingEmail) {
@@ -207,18 +525,13 @@ function applyCommonParams(params: URLSearchParams) {
   return params;
 }
 
-async function fetchGeocodingAttempt(
-  attempt: GeocodingAttempt,
-): Promise<
-  | { status: 'resolved'; result: GeocodingResult }
-  | { status: 'empty' }
-  | { status: 'unavailable'; message: string }
-> {
-  const url = new URL(
-    process.env.GEOCODING_BASE_URL ?? 'https://nominatim.openstreetmap.org/search',
-  );
-  const params = applyCommonParams(new URLSearchParams(attempt.params));
-  url.search = params.toString();
+async function fetchGeocodingPayload(
+  params: URLSearchParams,
+  options?: { limit?: number; includeLayer?: boolean },
+): Promise<GeocodingRequestResult> {
+  const url = buildBaseGeocodingUrl();
+  const queryParams = applyCommonParams(new URLSearchParams(params), options);
+  url.search = queryParams.toString();
 
   const controller = new AbortController();
   const timeout = setTimeout(
@@ -253,31 +566,10 @@ async function fetchGeocodingAttempt(
       };
     }
 
-    const payload = geocodingResponseSchema.parse(await response.json());
-    const firstMatch = payload[0];
-
-    if (!firstMatch) {
-      return { status: 'empty' };
-    }
-
-    const latitude = Number.parseFloat(firstMatch.lat);
-    const longitude = Number.parseFloat(firstMatch.lon);
-
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return {
-        status: 'unavailable',
-        message: 'O servico de geolocalizacao retornou coordenadas invalidas.',
-      };
-    }
-
     return {
       status: 'resolved',
-      result: {
-        latitude,
-        longitude,
-        displayName: firstMatch.display_name ?? null,
-        query: url.toString(),
-      },
+      payload: geocodingResponseSchema.parse(await response.json()),
+      query: url.toString(),
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -300,6 +592,46 @@ async function fetchGeocodingAttempt(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchGeocodingAttempt(
+  attempt: GeocodingAttempt,
+): Promise<
+  | { status: 'resolved'; result: GeocodingResult }
+  | { status: 'empty' }
+  | { status: 'unavailable'; message: string }
+> {
+  const response = await fetchGeocodingPayload(attempt.params);
+
+  if (response.status === 'unavailable') {
+    return response;
+  }
+
+  const firstMatch = response.payload[0];
+
+  if (!firstMatch) {
+    return { status: 'empty' };
+  }
+
+  const latitude = Number.parseFloat(firstMatch.lat);
+  const longitude = Number.parseFloat(firstMatch.lon);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return {
+      status: 'unavailable',
+      message: 'O servico de geolocalizacao retornou coordenadas invalidas.',
+    };
+  }
+
+  return {
+    status: 'resolved',
+    result: {
+      latitude,
+      longitude,
+      displayName: firstMatch.display_name ?? null,
+      query: response.query,
+    },
+  };
 }
 
 export async function geocodeAddress(input: GeocodingInput): Promise<GeocodingLookup> {
@@ -340,4 +672,79 @@ export async function geocodeAddress(input: GeocodingInput): Promise<GeocodingLo
     status: 'not_found',
     attempts: attemptLabels,
   };
+}
+
+export async function suggestAddresses(
+  input: AddressAutocompleteInput,
+): Promise<AddressSuggestionLookup> {
+  const query = normalizePart(input.query);
+
+  if (!query || query.length < 3) {
+    return { status: 'incomplete' };
+  }
+
+  const limit = Math.min(Math.max(input.limit ?? 5, 1), 8);
+  const scope = input.scope ?? 'profile';
+  const bias = getResolvedBias(input.latitude, input.longitude);
+  const cacheKey = `${scope}:${query.toLowerCase()}:${bias.latitude.toFixed(3)}:${bias.longitude.toFixed(3)}:${limit}`;
+  const cached = getSuggestionCache(cacheKey);
+
+  if (cached) {
+    return {
+      status: 'resolved',
+      suggestions: cached.suggestions,
+      bias: cached.bias,
+    };
+  }
+
+  const params = new URLSearchParams({ q: query });
+  const response = await fetchGeocodingPayload(params, {
+    limit: Math.max(limit * 2, 6),
+    includeLayer: false,
+  });
+
+  if (response.status === 'unavailable') {
+    return {
+      status: 'unavailable',
+      message: response.message,
+    };
+  }
+
+  const suggestions = sortSuggestions(
+    response.payload
+      .map((item) => mapSuggestionItem(item, bias))
+      .filter((item): item is AddressSuggestion => Boolean(item)),
+    query,
+    scope,
+  ).slice(0, limit);
+
+  setSuggestionCache(cacheKey, suggestions, bias);
+
+  return {
+    status: 'resolved',
+    suggestions,
+    bias,
+  };
+}
+
+export function formatAddressLine(input: {
+  address?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+}) {
+  const address = normalizePart(input.address ?? undefined);
+  const addressNumber = normalizePart(input.addressNumber ?? undefined);
+  const addressComplement = normalizePart(input.addressComplement ?? undefined);
+
+  const line = buildFreeformQuery([address, addressNumber]);
+
+  if (!line) {
+    return null;
+  }
+
+  return addressComplement ? `${line} - ${addressComplement}` : line;
+}
+
+export function getDefaultLocationBias() {
+  return BRAZIL_DEFAULT_CENTER;
 }

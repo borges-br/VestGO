@@ -2,7 +2,7 @@
 
 ## Visao geral
 
-VestGO e uma aplicacao full-stack com frontend em Next.js e backend em Fastify/Prisma. A arquitetura atual prioriza evolucao incremental: regras de negocio no backend, App Router no frontend e descoberta publica baseada em perfis operacionais reais.
+VestGO e uma aplicacao full-stack com frontend em Next.js e backend em Fastify/Prisma. A arquitetura atual prioriza evolucao incremental: regras de negocio no backend, App Router no frontend, descoberta publica baseada em perfis operacionais reais e integracoes enxutas com eventos de dominio ja existentes.
 
 ## Monorepo
 
@@ -33,6 +33,7 @@ VestGO/
 - a navegacao principal e role-aware:
   - `DONOR`: `/inicio`, `/mapa`, `/doar`, `/rastreio`
   - `COLLECTION_POINT` / `NGO` / `ADMIN`: `/inicio`, `/mapa`, `/operacoes`, `/rastreio`
+- o shell autenticado agora tambem fornece o contexto real de notificacoes via `NotificationsProvider`
 
 ### Paginas relevantes
 
@@ -41,12 +42,13 @@ VestGO/
 - `/operacoes`: fila operacional atual
 - `/perfil/operacional`: onboarding/edicao de perfis operacionais
 - `/perfil`: resumo operacional com a UI minima de parceria ponto -> ONG
+- `/notificacoes`: listagem real de notificacoes do usuario autenticado
 - `/mapa`: descoberta publica com busca real e modo opcional de selecao para o wizard
 - `/pontos`: redireciona para `/mapa`
 
 ### Wizard de doacao
 
-O wizard em `web/app/(app)/doar/page.tsx` continua client-side, mas agora possui um contrato explicito com o mapa:
+O wizard em `web/app/(app)/doar/page.tsx` continua client-side, mas possui um contrato explicito com o mapa:
 
 - o rascunho da doacao e preservado em `sessionStorage`
 - a etapa 3 pode abrir `/mapa` em modo de selecao
@@ -62,6 +64,57 @@ Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o
 - pontos sem parceria `ACTIVE` continuam visiveis, mas ficam indisponiveis para confirmacao
 - a UI mostra esse estado como `Aguardando ONG`
 
+### Formularios operacionais e endereco inteligente
+
+Os formularios operacionais em `web/components/profile/operational-profile-form.tsx` agora usam endereco estruturado:
+
+- `address`: logradouro
+- `addressNumber`: numero
+- `addressComplement`: complemento
+- `neighborhood`, `city`, `state`, `zipCode`
+- `latitude`, `longitude`
+
+Fluxo atual no frontend:
+
+- o usuario digita o endereco base
+- o hook `web/hooks/use-address-suggestions.ts` aplica debounce e chama o backend
+- ao selecionar uma sugestao, o formulario preenche automaticamente os campos disponiveis
+- as coordenadas sugeridas ficam visiveis antes do save
+- o backend continua sendo a fonte autoritativa para persistencia e geocoding final
+
+### Mapa e descoberta publica
+
+`web/components/map/mapa-page-content.tsx` agora trabalha com duas camadas separadas:
+
+- busca textual de parceiros cadastrados
+- sugestoes de endereco/lugar para recentralizar o mapa
+
+Essa separacao evita churn desnecessario no Leaflet.
+
+Comportamentos ativos:
+
+- tentativa automatica de `navigator.geolocation` ao abrir o mapa
+- fallback previsivel para Sorocaba quando a localizacao nao esta disponivel
+- selecao visual de ponto na lista e no marcador
+- confirmacao explicita antes de retornar ao wizard
+- correcao de `setView` e `invalidateSize()` para evitar cortes, areas brancas e loops de tiles
+
+### Notificacoes no frontend
+
+A UI atual de notificacoes foi preservada e ligada ao backend real:
+
+- `web/hooks/use-notifications.tsx` centraliza listagem, contador e marcacao como lida
+- `web/components/layout/app-shell.tsx` injeta o provider no shell autenticado
+- `web/components/layout/topbar.tsx` mostra preview e contador real
+- `web/app/(app)/notificacoes/page.tsx` usa os dados persistidos do backend
+
+Nao ha websocket nesta fase. O consumo atual usa refetch controlado:
+
+- carga inicial
+- foco da janela
+- `visibilitychange`
+- polling leve
+
 ## Backend
 
 ### Modulos principais
@@ -71,6 +124,8 @@ Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o
 - `donations`: criacao, listagem, detalhe, timeline e mudanca de status
 - `collection-points`: descoberta publica e detalhe de ponto/ONG
 - `partnerships`: solicitacao e resposta minima de parceria operacional
+- `addresses`: sugestoes/autocomplete de endereco
+- `notifications`: listagem e leitura de notificacoes persistidas
 - `admin-profiles`: governanca minima de perfis operacionais
 
 ### Endpoints importantes
@@ -89,12 +144,16 @@ Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o
 - `GET /partnerships`
 - `POST /partnerships`
 - `PATCH /partnerships/:id/status`
+- `GET /addresses/suggestions`
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `PATCH /notifications/read-all`
 - `GET /admin/profiles`
 - `PATCH /admin/profiles/:id/status`
 
-## Modelo de papéis
+## Modelo de papeis
 
-Papéis atuais no schema Prisma:
+Papeis atuais no schema Prisma:
 
 - `DONOR`
 - `COLLECTION_POINT`
@@ -125,27 +184,41 @@ Arquivos centrais:
 - `api/src/modules/profiles/profiles.ts`
 - `web/components/profile/operational-profile-form.tsx`
 
-## Geocoding
+## Geocoding e sugestoes de endereco
 
 ### Implementacao atual
 
 - arquivo central: `api/src/shared/geocoding.ts`
 - provider padrao: Nominatim (`https://nominatim.openstreetmap.org/search`)
-- entrada: endereco textual do perfil operacional
-- saida: `latitude` e `longitude` persistidas no usuario
-- estrategia: consulta estruturada primeiro, com fallback textual progressivo
+- entrada: endereco estruturado do perfil operacional ou consulta livre para sugestoes
+- saida:
+  - `latitude` e `longitude` persistidas no usuario
+  - lista de sugestoes de endereco com dados normalizados
+- estrategia:
+  - geocoding estruturado primeiro, com fallback textual progressivo
+  - sugestoes com vies geografico, cache curto e ordenacao por relevancia/distancia
 
-### Fluxo
+### Fluxo de geocoding no save
 
 1. usuario salva o perfil operacional
 2. backend valida se o endereco esta completo o suficiente
-3. backend normaliza CEP, estado e texto do endereco
-4. backend chama o provider de geocoding com tentativas progressivas
-4. coordenadas resolvidas sao persistidas
-5. checklist e estado publico passam a refletir a capacidade de descoberta no mapa
+3. backend normaliza CEP, estado e composicao do endereco
+4. backend chama o provider com tentativas progressivas
+5. coordenadas resolvidas sao persistidas
+6. checklist e estado publico passam a refletir a capacidade de descoberta no mapa
 
 Se o endereco estiver completo, mas nao puder ser geolocalizado, o backend responde erro de validacao em vez de persistir coordenadas inconsistentes.
 Se o provider estiver indisponivel, o backend responde erro temporario de servico.
+
+### Fluxo de sugestao
+
+`GET /addresses/suggestions` entrega uma camada controlada de autocomplete:
+
+- minimo de 3 caracteres
+- limite curto de resultados
+- vies por `lat/lng` quando disponivel
+- fallback para Sorocaba quando nao houver localizacao atual
+- cache em memoria para reduzir carga no provider externo
 
 ## Descoberta publica
 
@@ -161,13 +234,8 @@ Se o provider estiver indisponivel, o backend responde erro temporario de servic
 - aceita filtro por `category`
 - aceita filtro por `role`
 - aceita `forDonation=true` para blindar o fluxo doador contra `NGO`
-- aceita `search` por nome, organizacao, endereco, bairro, cidade e estado
+- aceita `search` por nome, organizacao, endereco, numero, bairro, CEP, cidade e estado
 - aceita busca por proximidade com `lat`, `lng` e `radius`
-
-### Consumo no frontend
-
-- `web/components/map/mapa-page-content.tsx`
-- `web/lib/api.ts`
 
 ### Comportamento do mapa
 
@@ -178,16 +246,13 @@ O mapa usa dois modos no frontend:
 
 Comportamentos implementados:
 
-- tentativa automatica de `navigator.geolocation` ao abrir o mapa
-- fallback previsivel para um centro padrao quando a localizacao nao esta disponivel
+- geolocalizacao automatica controlada
+- fallback previsivel para Sorocaba
 - busca textual sincronizada com os resultados proximos
-- selecao visual de ponto na lista e no marcador
-- confirmacao explicita antes de retornar ao wizard
-- correcoes de `setView` e `invalidateSize()` no Leaflet para evitar cortes e areas brancas em resize/layout responsivo
-- eliminacao do churn entre selecao, busca e hidracao inicial do mapa para evitar loops de tiles e `429`
+- camada adicional de sugestao de endereco/lugar
 - distincao visual entre `COLLECTION_POINT`, `NGO` e ponto `Aguardando ONG`
 
-### Login e sessao
+## Login, cadastro e sessao
 
 O login via `Credentials` usa Auth.js com sessao JWT:
 
@@ -209,6 +274,20 @@ O login via `Credentials` usa Auth.js com sessao JWT:
 - PostgreSQL via Prisma
 - schema central em `api/prisma/schema.prisma`
 
+### User
+
+O usuario agora concentra tambem os campos estruturados de endereco:
+
+- `address`
+- `addressNumber`
+- `addressComplement`
+- `neighborhood`
+- `city`
+- `state`
+- `zipCode`
+- `latitude`
+- `longitude`
+
 ### OperationalPartnership
 
 O modelo existente foi reaproveitado e endurecido:
@@ -223,29 +302,63 @@ Fluxo minimo atual:
 2. `NGO` aprova ou rejeita
 3. apenas `ACTIVE` torna o ponto elegivel para doacoes
 
-### Infra de apoio
+### Notification
+
+Nova entidade persistida para notificacoes in-app:
+
+- `userId`
+- `type`
+- `title`
+- `body`
+- `href`
+- `payload`
+- `readAt`
+- `createdAt`
+- `updatedAt`
+
+Tipos atualmente usados:
+
+- `DONATION_STATUS`
+- `DONATION_POINTS`
+- `BADGE_EARNED`
+- `DONATION_CREATED_FOR_POINT`
+- `PARTNERSHIP_REQUEST_RECEIVED`
+- `PARTNERSHIP_STATUS_CHANGED`
+
+## Eventos reais conectados a notificacoes
+
+### Donation events
+
+`api/src/modules/donations/donations.ts` agora cria notificacoes para:
+
+- nova doacao recebida no ponto
+- mudanca relevante de status para o doador
+- pontuacao atualizada quando o evento gera pontos reais
+- badge conquistada quando a condicao atual e detectavel
+
+### Partnership events
+
+`api/src/modules/partnerships/partnerships.ts` agora cria notificacoes para:
+
+- nova solicitacao de parceria recebida pela ONG
+- aprovacao ou rejeicao da solicitacao
+
+### Gamificacao
+
+`web/lib/gamification.ts` foi mantido estavel.
+
+No backend, `api/src/shared/notifications.ts` espelha apenas o minimo necessario para detectar:
+
+- pontos ganhos por eventos reais de doacao
+- badges atualmente detectaveis
+
+O mesmo arquivo contem placeholders comentados para futuras badges, sem acoplamento prematuro a UI.
+
+## Infra de apoio
 
 - Redis para refresh token e suporte de autenticacao
 - MinIO para storage
 - Docker Compose para stack local e deploy
-
-## Estado desta arquitetura apos a Fase 10A e do endurecimento operacional inicial
-
-Resolvido:
-
-- vazamento do fluxo de doacao para perfis operacionais
-- criacao publica de `ADMIN`
-- latitude/longitude manual no perfil operacional
-- busca apenas visual no mapa
-- superficie mockada de `/pontos`
-- quebra do retorno do mapa para o wizard de doacao
-- recentralizacao inconsistente do Leaflet apos geolocalizacao
-- scroll vertical excessivo e cortes visuais no layout do mapa
-- corrida entre `signIn`, cookie de sessao e navegacao manual no login
-- duplicidade de escolha de perfil no cadastro
-- possibilidade de ONG ser tratada como destino doador
-- falta de estado explicito para ponto sem ONG ativa
-- ausencia de fluxo minimo de parceria ponto -> ONG
 
 ## Bootstrap admin temporario
 
@@ -262,9 +375,31 @@ Comportamento:
 
 Essa rotina e propositalmente temporaria e voltada a provisionamento inicial em ambiente real.
 
-Preparado para a Fase 10B:
+## Estado desta arquitetura nesta fase
+
+Resolvido:
+
+- vazamento do fluxo de doacao para perfis operacionais
+- criacao publica de `ADMIN`
+- latitude/longitude manual no perfil operacional
+- busca apenas visual no mapa
+- superficie mockada de `/pontos`
+- quebra do retorno do mapa para o wizard de doacao
+- recentralizacao inconsistente do Leaflet apos geolocalizacao
+- scroll vertical excessivo e cortes visuais no layout do mapa
+- corrida entre `signIn`, cookie de sessao e navegacao manual no login
+- duplicidade de escolha de perfil no cadastro
+- possibilidade de ONG ser tratada como destino doador
+- falta de estado explicito para ponto sem ONG ativa
+- ausencia de fluxo minimo de parceria ponto -> ONG
+- endereco sem numero separado
+- ausencia de sugestoes/autocomplete de endereco
+- notificacoes mock sem persistencia
+
+Preparado para a proxima fase:
 
 - solicitacao de retirada
 - proximidade operacional ponto -> ONG
 - dashboards dedicados por papel operacional
 - rastreio com semantica operacional especifica
+- refinamento de notificacoes operacionais quando existirem novos eventos reais no dominio

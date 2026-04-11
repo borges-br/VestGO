@@ -4,12 +4,14 @@ import Fastify from 'fastify';
 import dotenv from 'dotenv';
 
 import { ensureBootstrapAdmin } from './bootstrap/bootstrap-admin';
+import addressRoutes from './modules/addresses/addresses';
 import authRoutes from './modules/auth/auth';
 import collectionPointRoutes from './modules/collection-points/collection-points';
 import donationRoutes from './modules/donations/donations';
 import healthRoutes from './modules/health';
 import profileRoutes from './modules/profiles/profiles';
 import adminProfileRoutes from './modules/admin/admin-profiles';
+import notificationRoutes from './modules/notifications/notifications';
 import partnershipRoutes from './modules/partnerships/partnerships';
 import authPlugin from './plugins/auth';
 import prismaPlugin from './plugins/prisma';
@@ -64,9 +66,11 @@ app.register(redisPlugin);
 app.register(authPlugin);
 
 app.register(healthRoutes, { prefix: '/health' });
+app.register(addressRoutes, { prefix: '/addresses' });
 app.register(authRoutes, { prefix: '/auth' });
 app.register(collectionPointRoutes, { prefix: '/collection-points' });
 app.register(donationRoutes, { prefix: '/donations' });
+app.register(notificationRoutes, { prefix: '/notifications' });
 app.register(profileRoutes, { prefix: '/profiles' });
 app.register(adminProfileRoutes, { prefix: '/admin/profiles' });
 app.register(partnershipRoutes, { prefix: '/partnerships' });
