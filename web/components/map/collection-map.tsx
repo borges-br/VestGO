@@ -11,6 +11,12 @@ interface CollectionMapProps {
   selectedId?: string | null;
 }
 
+type MarkerLike = {
+  remove?: () => void;
+  setIcon?: (nextIcon: unknown) => void;
+  openPopup?: () => void;
+};
+
 export function CollectionMap({
   points,
   center = [-23.5505, -46.6333],
@@ -20,21 +26,26 @@ export function CollectionMap({
 }: CollectionMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<ReturnType<typeof import('leaflet')['map']> | null>(null);
-  const markersRef = useRef<Map<string, unknown>>(new Map());
+  const markersRef = useRef<Map<string, MarkerLike>>(new Map());
+  const latestCenterRef = useRef(center);
+  const latestZoomRef = useRef(zoom);
+
+  latestCenterRef.current = center;
+  latestZoomRef.current = zoom;
 
   useEffect(() => {
     if (!mapRef.current) {
       return;
     }
 
-    if ((mapRef.current as { _leaflet_id?: unknown })._leaflet_id) {
-      return;
-    }
-
-    let map: ReturnType<typeof import('leaflet')['map']> | undefined;
+    let isMounted = true;
+    let frameId: number | null = null;
+    let timeoutId: number | null = null;
+    let observer: ResizeObserver | null = null;
+    let invalidateMap = () => {};
 
     import('leaflet').then((L) => {
-      if (!mapRef.current || (mapRef.current as { _leaflet_id?: unknown })._leaflet_id) {
+      if (!isMounted || !mapRef.current || mapInstanceRef.current) {
         return;
       }
 
@@ -47,7 +58,10 @@ export function CollectionMap({
           'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       });
 
-      map = L.map(mapRef.current, { zoomControl: false }).setView(center, zoom);
+      const map = L.map(mapRef.current, { zoomControl: false }).setView(
+        latestCenterRef.current,
+        latestZoomRef.current,
+      );
       mapInstanceRef.current = map;
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -56,15 +70,68 @@ export function CollectionMap({
       }).addTo(map);
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      invalidateMap = () => {
+        if (frameId != null) {
+          window.cancelAnimationFrame(frameId);
+        }
+
+        frameId = window.requestAnimationFrame(() => {
+          map.invalidateSize({ animate: false });
+        });
+
+        if (timeoutId != null) {
+          window.clearTimeout(timeoutId);
+        }
+
+        timeoutId = window.setTimeout(() => {
+          map.invalidateSize({ animate: false });
+        }, 180);
+      };
+
+      invalidateMap();
+      window.addEventListener('resize', invalidateMap);
+
+      observer =
+        typeof window.ResizeObserver === 'function'
+          ? new window.ResizeObserver(() => invalidateMap())
+          : null;
+
+      observer?.observe(mapRef.current);
     });
 
     return () => {
-      markersRef.current.forEach((marker) => {
-        (marker as { remove?: () => void }).remove?.();
-      });
+      isMounted = false;
+      window.removeEventListener('resize', invalidateMap);
+      observer?.disconnect();
+
+      if (frameId != null) {
+        window.cancelAnimationFrame(frameId);
+      }
+
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+
+      markersRef.current.forEach((marker) => marker.remove?.());
       markersRef.current.clear();
-      map?.remove();
+      mapInstanceRef.current?.remove();
       mapInstanceRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    map.setView(center, zoom, { animate: true });
+
+    const resizeHandle = window.setTimeout(() => {
+      map.invalidateSize({ animate: false });
+    }, 120);
+
+    return () => {
+      window.clearTimeout(resizeHandle);
     };
   }, [center, zoom]);
 
@@ -107,7 +174,7 @@ export function CollectionMap({
       const currentIds = new Set(points.map((point) => point.id));
       markersRef.current.forEach((marker, id) => {
         if (!currentIds.has(id)) {
-          (marker as { remove?: () => void }).remove?.();
+          marker.remove?.();
           markersRef.current.delete(id);
         }
       });
@@ -118,9 +185,7 @@ export function CollectionMap({
         const popupRole = point.role === 'NGO' ? 'ONG parceira' : 'Ponto de coleta';
 
         if (markersRef.current.has(point.id)) {
-          (markersRef.current.get(point.id) as { setIcon?: (nextIcon: unknown) => void }).setIcon?.(
-            icon,
-          );
+          markersRef.current.get(point.id)?.setIcon?.(icon);
           return;
         }
 
@@ -151,14 +216,18 @@ export function CollectionMap({
 
         markersRef.current.set(point.id, marker);
       });
+
+      if (selectedId) {
+        markersRef.current.get(selectedId)?.openPopup?.();
+      }
     });
   }, [onPointClick, points, selectedId]);
 
   return (
     <div
       ref={mapRef}
-      className="h-full w-full overflow-hidden rounded-2xl"
-      style={{ minHeight: '300px' }}
+      className="h-full w-full overflow-hidden rounded-[1.75rem]"
+      style={{ minHeight: '100%' }}
     />
   );
 }
