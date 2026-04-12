@@ -28,8 +28,11 @@ export type CollectionPoint = {
   description?: string | null;
   purpose?: string | null;
   openingHours?: string | null;
+  openingSchedule?: OpeningScheduleEntry[];
+  openingHoursExceptions?: string | null;
   publicNotes?: string | null;
   accessibilityDetails?: string | null;
+  accessibilityFeatures?: string[];
   estimatedCapacity?: string | null;
   serviceRegions?: string[];
   rules?: string[];
@@ -72,6 +75,22 @@ export type DonationStatus =
 export type PublicProfileState = 'DRAFT' | 'PENDING' | 'ACTIVE' | 'VERIFIED';
 export type PartnershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
 export type PickupRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type PublicProfileRevisionStatus = 'PENDING' | 'REJECTED';
+export type OpeningScheduleDay =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY';
+
+export type OpeningScheduleEntry = {
+  day: OpeningScheduleDay;
+  isOpen: boolean;
+  open?: string;
+  close?: string;
+};
 
 export type DonationPoint = {
   id: string;
@@ -174,6 +193,9 @@ export type PartnershipListResponse = {
 export type PickupRequestRecord = {
   id: string;
   status: PickupRequestStatus;
+  requestedDate: string | null;
+  timeWindowStart: string | null;
+  timeWindowEnd: string | null;
   notes: string | null;
   responseNotes: string | null;
   respondedAt: string | null;
@@ -253,9 +275,12 @@ export type MyProfile = {
   latitude: number | null;
   longitude: number | null;
   openingHours: string | null;
+  openingSchedule: OpeningScheduleEntry[];
+  openingHoursExceptions: string | null;
   publicNotes: string | null;
   operationalNotes: string | null;
   accessibilityDetails: string | null;
+  accessibilityFeatures: string[];
   verificationNotes: string | null;
   estimatedCapacity: string | null;
   serviceRegions: string[];
@@ -266,6 +291,14 @@ export type MyProfile = {
   verifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  pendingPublicRevision: {
+    status: PublicProfileRevisionStatus;
+    fields: string[];
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    reviewNotes: string | null;
+    payload: Record<string, unknown> | null;
+  } | null;
   profileCompletion: {
     completedItems: number;
     totalItems: number;
@@ -294,9 +327,12 @@ export type UpdateMyProfileInput = {
   city?: string;
   state?: string;
   openingHours?: string;
+  openingSchedule?: OpeningScheduleEntry[];
+  openingHoursExceptions?: string;
   publicNotes?: string;
   operationalNotes?: string;
   accessibilityDetails?: string;
+  accessibilityFeatures?: string[];
   estimatedCapacity?: string;
   acceptedCategories?: string[];
   nonAcceptedItems?: string[];
@@ -376,7 +412,15 @@ type ApiFetchOptions = RequestInit & {
 
 async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set('Content-Type', 'application/json');
+  const hasBody = init.body != null;
+
+  if (hasBody) {
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+  } else {
+    headers.delete('Content-Type');
+  }
 
   if (init.accessToken) {
     headers.set('Authorization', `Bearer ${init.accessToken}`);
@@ -630,7 +674,13 @@ export async function getPickupRequests(
 }
 
 export async function createPickupRequest(
-  input: { operationalPartnershipId: string; notes?: string },
+  input: {
+    operationalPartnershipId: string;
+    requestedDate?: string;
+    timeWindowStart?: string;
+    timeWindowEnd?: string;
+    notes?: string;
+  },
   accessToken: string,
 ): Promise<PickupRequestRecord> {
   return apiFetch<PickupRequestRecord>('/pickup-requests', {
@@ -652,18 +702,48 @@ export async function updatePickupRequestStatus(
   });
 }
 
+export type AdminProfileRecord = {
+  id: string;
+  role: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  organizationName: string | null;
+  description: string | null;
+  city: string | null;
+  state: string | null;
+  address: string | null;
+  addressNumber: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  zipCode: string | null;
+  acceptedCategories: string[];
+  publicProfileState: PublicProfileState;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  pendingPublicRevision: MyProfile['pendingPublicRevision'];
+};
+
 export type AdminProfilesResponse = {
-  data: MyProfile[];
+  data: AdminProfileRecord[];
   meta: { count: number; nextCursor: string | null };
 };
 
 export async function getAdminProfiles(
   accessToken: string,
-  params?: { role?: string; status?: string; limit?: number; cursor?: string },
+  params?: {
+    role?: string;
+    status?: string;
+    revisionStatus?: PublicProfileRevisionStatus;
+    limit?: number;
+    cursor?: string;
+  },
 ): Promise<AdminProfilesResponse> {
   const qs = new URLSearchParams({
     ...(params?.role ? { role: params.role } : {}),
     ...(params?.status ? { status: params.status } : {}),
+    ...(params?.revisionStatus ? { revisionStatus: params.revisionStatus } : {}),
     ...(params?.limit ? { limit: String(params.limit) } : {}),
     ...(params?.cursor ? { cursor: params.cursor } : {}),
   });
@@ -676,10 +756,22 @@ export async function updateAdminProfileStatus(
   id: string,
   status: PublicProfileState,
   accessToken: string,
-): Promise<MyProfile> {
-  return apiFetch<MyProfile>(`/admin/profiles/${id}/status`, {
+): Promise<AdminProfileRecord> {
+  return apiFetch<AdminProfileRecord>(`/admin/profiles/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+    accessToken,
+  });
+}
+
+export async function reviewAdminProfileRevision(
+  id: string,
+  input: { action: 'APPROVE' | 'REJECT'; reviewNotes?: string },
+  accessToken: string,
+): Promise<AdminProfileRecord> {
+  return apiFetch<AdminProfileRecord>(`/admin/profiles/${id}/revision`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
     accessToken,
   });
 }

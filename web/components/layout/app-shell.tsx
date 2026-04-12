@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/topbar';
@@ -58,6 +58,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (session?.error !== 'RefreshAccessTokenError') {
+      return;
+    }
+
+    const callbackUrl = `/login?sessionExpired=1&callbackUrl=${encodeURIComponent(pathname)}`;
+    void signOut({ callbackUrl });
+  }, [pathname, session?.error]);
 
   if (showBareLayout) {
     return <div className="min-h-screen bg-surface">{children}</div>;

@@ -19,7 +19,12 @@ export default async function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="min-h-screen bg-surface text-on-surface">
-        <SessionProvider session={session}>
+        <SessionProvider
+          session={session}
+          refetchInterval={60}
+          refetchOnWindowFocus
+          refetchWhenOffline={false}
+        >
           {children}
         </SessionProvider>
       </body>

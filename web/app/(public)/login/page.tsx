@@ -71,6 +71,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl'));
   const authError = searchParams.get('error');
+  const sessionExpired = searchParams.get('sessionExpired') === '1';
 
   const [tab, setTab] = useState<Tab>('login');
   const [email, setEmail] = useState('');
@@ -84,12 +85,16 @@ export default function LoginPage() {
       return error;
     }
 
+    if (sessionExpired) {
+      return 'Sua sessao expirou. Entre novamente para continuar.';
+    }
+
     if (authError) {
       return 'E-mail ou senha incorretos.';
     }
 
     return null;
-  }, [authError, error]);
+  }, [authError, error, sessionExpired]);
 
   useEffect(() => {
     if (authError) {

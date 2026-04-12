@@ -34,7 +34,7 @@ function isProtectedPath(pathname: string) {
 export default auth((request) => {
   const { nextUrl } = request;
   const { pathname, search } = nextUrl;
-  const isAuthenticated = Boolean(request.auth?.user);
+  const isAuthenticated = Boolean(request.auth?.user?.accessToken);
 
   if (authPages.has(pathname) && isAuthenticated) {
     const callbackUrl = sanitizeCallbackUrl(nextUrl.searchParams.get('callbackUrl'));

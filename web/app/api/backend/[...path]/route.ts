@@ -33,7 +33,13 @@ async function proxyRequest(
   };
 
   if (request.method !== 'GET' && request.method !== 'HEAD') {
-    init.body = await request.text();
+    const body = await request.text();
+
+    if (body.length > 0) {
+      init.body = body;
+    } else {
+      headers.delete('content-type');
+    }
   }
 
   try {

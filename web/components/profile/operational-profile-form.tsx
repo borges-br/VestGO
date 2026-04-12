@@ -14,7 +14,13 @@ import {
   Store,
   Users,
 } from 'lucide-react';
-import { getMyProfile, updateMyProfile, type MyProfile } from '@/lib/api';
+import {
+  getMyProfile,
+  updateMyProfile,
+  type MyProfile,
+  type OpeningScheduleDay,
+  type OpeningScheduleEntry,
+} from '@/lib/api';
 import { useAddressSuggestions } from '@/hooks/use-address-suggestions';
 
 type StepKey = 'identity' | 'location' | 'acceptance';
@@ -35,10 +41,12 @@ type FormState = {
   zipCode: string;
   city: string;
   state: string;
-  openingHours: string;
+  openingSchedule: OpeningScheduleEntry[];
+  openingHoursExceptions: string;
   publicNotes: string;
   operationalNotes: string;
   accessibilityDetails: string;
+  accessibilityFeatures: string[];
   estimatedCapacity: string;
   acceptedCategories: string[];
   nonAcceptedItemsText: string;
@@ -60,6 +68,25 @@ const PROFILE_STATE_LABELS = {
   ACTIVE: 'Ativo',
   VERIFIED: 'Verificado',
 } as const;
+
+const WEEKDAY_OPTIONS: Array<{ day: OpeningScheduleDay; label: string }> = [
+  { day: 'MONDAY', label: 'Segunda' },
+  { day: 'TUESDAY', label: 'Terca' },
+  { day: 'WEDNESDAY', label: 'Quarta' },
+  { day: 'THURSDAY', label: 'Quinta' },
+  { day: 'FRIDAY', label: 'Sexta' },
+  { day: 'SATURDAY', label: 'Sabado' },
+  { day: 'SUNDAY', label: 'Domingo' },
+];
+
+const ACCESSIBILITY_OPTIONS = [
+  { value: 'RAMP_ACCESS', label: 'Acesso por rampa' },
+  { value: 'ACCESSIBLE_RESTROOM', label: 'Banheiro acessivel' },
+  { value: 'ACCESSIBLE_PARKING', label: 'Estacionamento acessivel' },
+  { value: 'PRIORITY_SERVICE', label: 'Atendimento preferencial' },
+  { value: 'GROUND_FLOOR', label: 'Acesso terreo' },
+  { value: 'SIGN_LANGUAGE_SUPPORT', label: 'Suporte em Libras' },
+] as const;
 
 function sanitizeCallbackUrl(value: string | null, fallback: string) {
   if (!value || !value.startsWith('/')) {
@@ -131,7 +158,21 @@ function resolveSuggestionAddress(
     }
   }
 
-  return currentAddress;
+  const fallbackSegments = extractAddressSegments(suggestion.displayName ?? suggestion.label);
+  const fallbackCandidate = normalizeAddressValue(fallbackSegments[0]);
+  return fallbackCandidate ?? currentAddress;
+}
+
+function normalizeScheduleEntries(value?: OpeningScheduleEntry[] | null) {
+  return WEEKDAY_OPTIONS.map(({ day }) => {
+    const current = value?.find((entry) => entry.day === day);
+    return {
+      day,
+      isOpen: current?.isOpen === true,
+      open: current?.open ?? '',
+      close: current?.close ?? '',
+    } satisfies OpeningScheduleEntry;
+  });
 }
 
 function buildInitialState(profile: MyProfile): FormState {
@@ -151,10 +192,12 @@ function buildInitialState(profile: MyProfile): FormState {
     zipCode: profile.zipCode ?? '',
     city: profile.city ?? '',
     state: profile.state ?? '',
-    openingHours: profile.openingHours ?? '',
+    openingSchedule: normalizeScheduleEntries(profile.openingSchedule),
+    openingHoursExceptions: profile.openingHoursExceptions ?? '',
     publicNotes: profile.publicNotes ?? '',
     operationalNotes: profile.operationalNotes ?? '',
     accessibilityDetails: profile.accessibilityDetails ?? '',
+    accessibilityFeatures: profile.accessibilityFeatures ?? [],
     estimatedCapacity: profile.estimatedCapacity ?? '',
     acceptedCategories: profile.acceptedCategories ?? [],
     nonAcceptedItemsText: (profile.nonAcceptedItems ?? []).join('\n'),
@@ -204,11 +247,17 @@ function buildPayload(role: string, form: FormState) {
     zipCode: form.zipCode || undefined,
     city: form.city || undefined,
     state: form.state || undefined,
-    openingHours: role === 'COLLECTION_POINT' ? form.openingHours || undefined : undefined,
+    openingSchedule: form.openingSchedule.map((entry) => ({
+      day: entry.day,
+      isOpen: entry.isOpen,
+      ...(entry.open ? { open: entry.open } : {}),
+      ...(entry.close ? { close: entry.close } : {}),
+    })),
+    openingHoursExceptions: form.openingHoursExceptions || undefined,
     publicNotes: form.publicNotes || undefined,
     operationalNotes: role === 'NGO' ? form.operationalNotes || undefined : undefined,
-    accessibilityDetails:
-      role === 'COLLECTION_POINT' ? form.accessibilityDetails || undefined : undefined,
+    accessibilityDetails: form.accessibilityDetails || undefined,
+    accessibilityFeatures: form.accessibilityFeatures,
     estimatedCapacity:
       role === 'COLLECTION_POINT' ? form.estimatedCapacity || undefined : undefined,
     acceptedCategories: form.acceptedCategories,
@@ -346,6 +395,44 @@ export function OperationalProfileForm() {
     }
   }
 
+  function updateScheduleEntry(day: OpeningScheduleDay, patch: Partial<OpeningScheduleEntry>) {
+    setForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        openingSchedule: current.openingSchedule.map((entry) =>
+          entry.day === day
+            ? {
+                ...entry,
+                ...patch,
+                ...(patch.isOpen === false ? { open: '', close: '' } : {}),
+              }
+            : entry,
+        ),
+      };
+    });
+  }
+
+  function toggleAccessibilityFeature(value: string) {
+    setForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const exists = current.accessibilityFeatures.includes(value);
+
+      return {
+        ...current,
+        accessibilityFeatures: exists
+          ? current.accessibilityFeatures.filter((item) => item !== value)
+          : [...current.accessibilityFeatures, value],
+      };
+    });
+  }
+
   function handleAddressFocus() {
     if (addressBlurTimeoutRef.current) {
       window.clearTimeout(addressBlurTimeoutRef.current);
@@ -447,9 +534,11 @@ export function OperationalProfileForm() {
       );
       setAddressAssistMessage('Endereco salvo e coordenadas atualizadas automaticamente.');
       setSuccess(
-        setupMode
-          ? 'Perfil salvo. Redirecionando para o proximo passo da sua operacao...'
-          : 'Perfil operacional atualizado com sucesso.',
+        updated.pendingPublicRevision?.status === 'PENDING'
+          ? 'Alteracoes publicas enviadas para revisao administrativa. O perfil publicado segue estavel ate a aprovacao.'
+          : setupMode
+            ? 'Perfil salvo. Redirecionando para o proximo passo da sua operacao...'
+            : 'Perfil operacional atualizado com sucesso.',
       );
 
       if (setupMode) {
@@ -514,6 +603,32 @@ export function OperationalProfileForm() {
             {PROFILE_STATE_LABELS[profile.publicProfileState]}
           </div>
         </div>
+
+        {profile.pendingPublicRevision && (
+          <div
+            className={`mb-5 rounded-[1.75rem] border px-5 py-4 text-sm ${
+              profile.pendingPublicRevision.status === 'PENDING'
+                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                : 'border-rose-200 bg-rose-50 text-rose-800'
+            }`}
+          >
+            <p className="font-semibold">
+              {profile.pendingPublicRevision.status === 'PENDING'
+                ? 'Alteracoes publicas em revisao'
+                : 'Ultima revisao de alteracoes foi rejeitada'}
+            </p>
+            <p className="mt-2 leading-7">
+              {profile.pendingPublicRevision.status === 'PENDING'
+                ? 'Endereco, telefone, imagens, horario, acessibilidade, regras e observacoes publicas passam primeiro por revisao administrativa antes de atualizar o perfil publicado.'
+                : 'Voce pode ajustar os dados abaixo e reenviar para nova revisao quando estiver pronto.'}
+            </p>
+            {profile.pendingPublicRevision.reviewNotes && (
+              <p className="mt-2 text-xs font-medium">
+                Revisao admin: {profile.pendingPublicRevision.reviewNotes}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
           <form
@@ -791,47 +906,87 @@ export function OperationalProfileForm() {
                   </label>
                 </div>
 
-                {profile.role === 'COLLECTION_POINT' && (
-                  <>
+                <div className="space-y-4 rounded-[1.75rem] border border-gray-100 bg-surface p-5">
+                  <div>
+                    <p className="text-sm font-semibold text-primary-deeper">Horario de funcionamento</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Estruture dias e faixas de horario para publicar o local com mais clareza.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {WEEKDAY_OPTIONS.map(({ day, label }) => {
+                      const entry = form.openingSchedule.find((item) => item.day === day);
+
+                      return (
+                        <div
+                          key={day}
+                          className="grid gap-3 rounded-[1.25rem] bg-white px-4 py-4 md:grid-cols-[11rem_minmax(0,1fr)] md:items-center"
+                        >
+                          <label className="inline-flex items-center gap-3 text-sm font-semibold text-on-surface">
+                            <input
+                              type="checkbox"
+                              checked={entry?.isOpen === true}
+                              onChange={(event) =>
+                                updateScheduleEntry(day, { isOpen: event.target.checked })
+                              }
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            {label}
+                          </label>
+
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <input
+                              type="time"
+                              value={entry?.open ?? ''}
+                              disabled={!entry?.isOpen}
+                              onChange={(event) =>
+                                updateScheduleEntry(day, { open: event.target.value })
+                              }
+                              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:bg-surface disabled:text-gray-300"
+                            />
+                            <input
+                              type="time"
+                              value={entry?.close ?? ''}
+                              disabled={!entry?.isOpen}
+                              onChange={(event) =>
+                                updateScheduleEntry(day, { close: event.target.value })
+                              }
+                              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:bg-surface disabled:text-gray-300"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Excecoes simples</span>
+                    <textarea
+                      rows={2}
+                      value={form.openingHoursExceptions}
+                      onChange={(event) => updateField('openingHoursExceptions', event.target.value)}
+                      placeholder="Ex.: Fecha em feriados municipais ou atende aos sabados mediante campanha."
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {profile.role === 'COLLECTION_POINT' && (
                     <label className="space-y-2 text-sm text-gray-500">
-                      <span className="font-semibold text-on-surface">Horario de funcionamento</span>
-                      <textarea
-                        rows={3}
-                        value={form.openingHours}
-                        onChange={(event) => updateField('openingHours', event.target.value)}
-                        placeholder="Segunda a sexta, das 9h as 18h..."
-                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      <span className="font-semibold text-on-surface">Capacidade estimada</span>
+                      <input
+                        value={form.estimatedCapacity}
+                        onChange={(event) => updateField('estimatedCapacity', event.target.value)}
+                        placeholder="Ex.: Ate 100 sacolas por semana"
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                       />
                     </label>
+                  )}
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="space-y-2 text-sm text-gray-500">
-                        <span className="font-semibold text-on-surface">Capacidade estimada</span>
-                        <input
-                          value={form.estimatedCapacity}
-                          onChange={(event) => updateField('estimatedCapacity', event.target.value)}
-                          placeholder="Ex.: Ate 100 sacolas por semana"
-                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm text-gray-500">
-                        <span className="font-semibold text-on-surface">Acessibilidade</span>
-                        <input
-                          value={form.accessibilityDetails}
-                          onChange={(event) =>
-                            updateField('accessibilityDetails', event.target.value)
-                          }
-                          placeholder="Ex.: Rampa, elevador, apoio no desembarque"
-                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                        />
-                      </label>
-                    </div>
-                  </>
-                )}
-
-                {profile.role === 'NGO' && (
-                  <>
-                    <label className="space-y-2 text-sm text-gray-500">
+                  {profile.role === 'NGO' && (
+                    <label className="space-y-2 text-sm text-gray-500 md:col-span-2">
                       <span className="font-semibold text-on-surface">Regioes atendidas</span>
                       <textarea
                         rows={4}
@@ -841,18 +996,60 @@ export function OperationalProfileForm() {
                         className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                       />
                     </label>
+                  )}
+                </div>
 
-                    <label className="space-y-2 text-sm text-gray-500">
-                      <span className="font-semibold text-on-surface">Observacoes operacionais</span>
-                      <textarea
-                        rows={4}
-                        value={form.operationalNotes}
-                        onChange={(event) => updateField('operationalNotes', event.target.value)}
-                        placeholder="Contexto de triagem, campanhas atendidas e particularidades da operacao."
-                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                      />
-                    </label>
-                  </>
+                <div className="space-y-4 rounded-[1.75rem] border border-gray-100 bg-surface p-5">
+                  <div>
+                    <p className="text-sm font-semibold text-primary-deeper">Acessibilidade</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Marque os recursos disponiveis e complemente com observacoes, se precisar.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {ACCESSIBILITY_OPTIONS.map((option) => {
+                      const checked = form.accessibilityFeatures.includes(option.value);
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => toggleAccessibilityFeature(option.value)}
+                          className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+                            checked
+                              ? 'border-primary bg-primary-light text-primary-deeper'
+                              : 'border-gray-200 bg-white text-gray-500'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold">{option.label}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Detalhe adicional</span>
+                    <input
+                      value={form.accessibilityDetails}
+                      onChange={(event) => updateField('accessibilityDetails', event.target.value)}
+                      placeholder="Ex.: Apoio no desembarque, campainha acessivel, elevador proximo."
+                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+                </div>
+
+                {profile.role === 'NGO' && (
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Observacoes operacionais</span>
+                    <textarea
+                      rows={4}
+                      value={form.operationalNotes}
+                      onChange={(event) => updateField('operationalNotes', event.target.value)}
+                      placeholder="Contexto de triagem, campanhas atendidas e particularidades da operacao."
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
                 )}
 
                 <div className="rounded-[1.5rem] border border-dashed border-primary/25 bg-primary-light/30 p-4 text-sm text-gray-500">

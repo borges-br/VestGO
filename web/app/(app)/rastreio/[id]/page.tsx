@@ -60,8 +60,8 @@ export default async function RastreioDetalhePage({
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-5 text-center">
         <Package size={40} className="mb-4 text-gray-200" />
         <p className="font-semibold text-gray-400">Doacao nao encontrada</p>
-        <Link href={role !== 'DONOR' ? '/operacoes' : '/rastreio'} className="mt-4 text-sm font-semibold text-primary hover:underline">
-          {role !== 'DONOR' ? 'Voltar para operacoes' : 'Voltar ao rastreio'}
+        <Link href="/rastreio" className="mt-4 text-sm font-semibold text-primary hover:underline">
+          {role !== 'DONOR' ? 'Voltar ao rastreio operacional' : 'Voltar ao rastreio'}
         </Link>
       </div>
     );
@@ -74,7 +74,7 @@ export default async function RastreioDetalhePage({
   const isCancelled = donation.status === 'CANCELLED';
   const showCelebrate = searchParams?.celebrate === '1';
   const isOperationalRole = role !== 'DONOR';
-  const backHref = isOperationalRole ? '/operacoes' : '/rastreio';
+  const backHref = '/rastreio';
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -85,7 +85,7 @@ export default async function RastreioDetalhePage({
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 transition-colors hover:text-primary"
           >
             <ArrowLeft size={14} />
-            {isOperationalRole ? 'Voltar para operacoes' : 'Voltar ao rastreio'}
+            {isOperationalRole ? 'Voltar ao rastreio operacional' : 'Voltar ao rastreio'}
           </Link>
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
             Detalhes
