@@ -1,0 +1,4 @@
+ALTER TABLE "pickup_requests"
+ADD COLUMN IF NOT EXISTS "requestedDate" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "timeWindowStart" TEXT,
+ADD COLUMN IF NOT EXISTS "timeWindowEnd" TEXT;
