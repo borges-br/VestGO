@@ -92,6 +92,28 @@ Perfis de `COLLECTION_POINT` e `NGO` usam os estados:
 
 O estado depende do checklist operacional e aparece nas areas de perfil e dashboard.
 
+### Revisao pendente de alteracoes publicas
+
+Perfis operacionais `ACTIVE` e `VERIFIED` nao publicam mais alteracoes criticas imediatamente.
+
+Fluxo atual:
+
+1. o perfil publicado continua visivel com a ultima versao aprovada
+2. ao editar campos publicos criticos, o sistema cria uma revisao pendente
+3. o proprio usuario enxerga seus dados pendentes no formulario e no resumo do perfil
+4. o admin aprova ou rejeita a revisao em `/admin/perfis`
+5. apenas apos aprovacao a versao publica e atualizada
+
+Campos priorizados nesta governanca:
+
+- endereco e localizacao
+- telefone
+- avatar e capa
+- horario de funcionamento
+- acessibilidade
+- regras do local
+- observacoes publicas
+
 ## Geolocalizacao e endereco
 
 Latitude e longitude nao sao mais digitadas manualmente por usuarios operacionais.
@@ -244,9 +266,20 @@ Detalhes tecnicos:
 
 - a entidade nova e `PickupRequest`
 - cada solicitacao referencia uma `OperationalPartnership` `ACTIVE`
+- a solicitacao pode incluir data prevista e faixa de horario
+- `notes` e `responseNotes` guardam o contexto adicional do pedido e da resposta
 - a ONG nao consegue abrir outra retirada pendente para a mesma parceria
 - o ponto de coleta responde no proprio dashboard de `/inicio`
 - `/operacoes` continua como fila operacional compartilhada para execucao detalhada
+
+### Estrutura operacional adicional
+
+Perfis operacionais tambem passaram a ter:
+
+- horario estruturado por dia da semana
+- excecoes simples de horario em texto complementar
+- acessibilidade estruturada com opcoes selecionaveis
+- detalhe complementar opcional para acessibilidade
 
 ## Dashboards operacionais
 
@@ -266,6 +299,7 @@ Capacidades atuais:
 - contador real de notificacoes nao lidas
 - marcacao individual como lida
 - marcacao em lote como lida
+- persistencia estavel do estado lido mesmo com refetch, foco e polling
 - integracao com a UI ja existente, sem redesign amplo
 
 ### Eventos que ja disparam notificacao
@@ -350,6 +384,8 @@ npm run build
 ```
 
 Se houver novas migrations pendentes, aplique-as antes de subir a stack para que os campos de endereco estruturado, a tabela de notificacoes e o modelo `PickupRequest` existam no banco real.
+
+Nesta fase, tambem passam a existir campos de revisao pendente de perfil aprovado, horario estruturado e acessibilidade estruturada no schema Prisma, entao a migration mais recente e obrigatoria para validar o fluxo completo.
 
 Para subir a stack completa, use os arquivos `docker-compose*.yml` do repositorio conforme o ambiente.
 
