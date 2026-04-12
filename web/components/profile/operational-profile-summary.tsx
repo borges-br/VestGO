@@ -239,6 +239,11 @@ export function OperationalProfileSummary({
 
   const title = profile.organizationName ?? profile.name;
   const subtitle = profile.role === 'NGO' ? 'ONG Parceira' : 'Ponto de Coleta';
+  const initials = title
+    .split(' ')
+    .map((segment) => segment[0])
+    .slice(0, 2)
+    .join('');
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -256,8 +261,20 @@ export function OperationalProfileSummary({
             </div>
 
             <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-primary text-white shadow-sm">
-                <Building2 size={34} />
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.75rem] bg-primary text-white shadow-sm">
+                {profile.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt={title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  initials ? (
+                    <span className="text-2xl font-bold">{initials}</span>
+                  ) : (
+                    <Building2 size={34} />
+                  )
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-3xl font-bold tracking-tight sm:text-4xl">{title}</p>

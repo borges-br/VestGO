@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import Link from 'next/link';
+import { VestgoLogo } from '@/components/branding/vestgo-logo';
 import {
   ArrowRight,
   BadgeCheck,
@@ -91,10 +92,11 @@ export default async function LandingPage() {
       <header className="sticky top-0 z-30 border-b border-white/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-shell items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-deeper text-sm font-bold text-white shadow-sm">
+            <VestgoLogo className="h-12 w-[180px]" />
+            <div className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-primary-deeper text-sm font-bold text-white shadow-sm">
               VG
             </div>
-            <div>
+            <div className="hidden">
               <p className="text-lg font-bold tracking-tight text-primary-deeper">VestGO</p>
               <p className="hidden text-[11px] uppercase tracking-[0.24em] text-gray-400 sm:block">
                 Doação com propósito

@@ -84,9 +84,12 @@ export function MapaPageContent() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const isLoggedIn = !!session;
+  const currentRole = session?.user?.role ?? null;
   const isSelectionMode = searchParams.get('mode') === 'select-point';
   const returnTo = searchParams.get('returnTo') ?? '/doar';
   const initialSelectedPointId = searchParams.get('selectedPointId');
+  const canSeeNgoLocations =
+    currentRole === 'NGO' || currentRole === 'COLLECTION_POINT' || currentRole === 'ADMIN';
 
   const [points, setPoints] = useState<CollectionPoint[]>([]);
   const [selectedPointId, setSelectedPointId] = useState<string | null>(
@@ -157,6 +160,7 @@ export function MapaPageContent() {
           limit: 30,
           search: nextSearch,
           forDonation: isSelectionMode,
+          role: isSelectionMode || !canSeeNgoLocations ? 'COLLECTION_POINT' : undefined,
         });
 
         if (requestId !== lastFetchRequestIdRef.current) {

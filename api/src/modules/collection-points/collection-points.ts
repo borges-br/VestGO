@@ -35,11 +35,8 @@ const publicPartnerSelect = {
   id: true,
   name: true,
   organizationName: true,
-  address: true,
-  addressNumber: true,
-  addressComplement: true,
-  city: true,
-  state: true,
+  avatarUrl: true,
+  serviceRegions: true,
   role: true,
 } satisfies Prisma.UserSelect;
 
@@ -117,11 +114,8 @@ function mapPublicPartner(
     id: partner.id,
     name: partner.name,
     organizationName: partner.organizationName,
-    address: partner.address,
-    addressNumber: partner.addressNumber,
-    addressComplement: partner.addressComplement,
-    city: partner.city,
-    state: partner.state,
+    avatarUrl: partner.avatarUrl,
+    serviceRegions: partner.serviceRegions,
     role: partner.role,
   };
 }

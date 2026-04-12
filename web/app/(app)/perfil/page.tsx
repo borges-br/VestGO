@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Bell,
   ChevronRight,
@@ -23,6 +23,8 @@ import { OperationalProfileSummary } from '@/components/profile/operational-prof
 import {
   getMyProfile,
   getUserDonations,
+  updateMyProfile,
+  uploadProfileAsset,
   type DonationRecord,
   type MyProfile,
 } from '@/lib/api';
@@ -43,13 +45,15 @@ const menuItems = [
 ];
 
 export default function PerfilPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [loadingImpact, setLoadingImpact] = useState(true);
   const [impactError, setImpactError] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadOperationalProfile = useCallback(async () => {
     if (!session?.user?.accessToken || session.user.role === 'DONOR') {
@@ -130,11 +134,55 @@ export default function PerfilPage() {
   const userName = session?.user?.name ?? 'Usuario';
   const userEmail = session?.user?.email ?? '';
   const userRole = session?.user?.role ?? 'DONOR';
+  const userAvatar = session?.user?.image ?? null;
   const initials = userName
     .split(' ')
     .map((name) => name[0])
     .slice(0, 2)
     .join('');
+
+  async function handleDonorAvatarUpload(file: File | null | undefined) {
+    if (!file || !session?.user?.accessToken) {
+      return;
+    }
+
+    setAvatarUploading(true);
+    setProfileError(null);
+
+    try {
+      const uploaded = await uploadProfileAsset(
+        {
+          file,
+          target: 'avatar',
+        },
+        session.user.accessToken,
+      );
+
+      const updated = await updateMyProfile(
+        {
+          name: userName,
+          email: userEmail,
+          avatarUrl: uploaded.url,
+        },
+        session.user.accessToken,
+      );
+
+      await updateSession({
+        name: updated.name,
+        email: updated.email,
+        image: updated.avatarUrl ?? null,
+      });
+      setProfile(updated);
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel atualizar seu avatar agora.',
+      );
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -153,9 +201,9 @@ export default function PerfilPage() {
 
             <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-primary text-white shadow-sm">
-                {session?.user?.image ? (
+                {userAvatar ? (
                   <img
-                    src={session.user.image}
+                    src={userAvatar}
                     alt={userName}
                     className="h-full w-full rounded-[1.75rem] object-cover"
                   />
@@ -178,6 +226,26 @@ export default function PerfilPage() {
                     {snapshot.streak.value} meses de participacao
                   </span>
                 </div>
+              </div>
+
+              <div className="sm:ml-auto">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(event) =>
+                    void handleDonorAvatarUpload(event.target.files?.[0] ?? null)
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {avatarUploading ? 'Enviando avatar...' : 'Atualizar avatar'}
+                </button>
               </div>
             </div>
 

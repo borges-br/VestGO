@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signIn } from 'next-auth/react';
 import { MapPin, User, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { VestgoLogo } from '@/components/branding/vestgo-logo';
 import { Input } from '@/components/ui/input';
 
 type Tab = 'login' | 'register';
@@ -135,8 +136,10 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#f2f4f5] flex flex-col">
       <div className="max-w-sm mx-auto w-full flex-1 flex flex-col px-5 py-10">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary-deeper tracking-tight">VestGO</h1>
-          <p className="text-sm text-gray-400 mt-1">
+          <div className="mx-auto flex justify-center">
+            <VestgoLogo className="h-14 w-[210px]" fallbackTextClassName="text-left" />
+          </div>
+          <p className="text-sm text-gray-400 mt-3">
             Organizacao e transparencia nas suas doacoes.
           </p>
         </div>
