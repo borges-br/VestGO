@@ -32,7 +32,8 @@ VestGO/
 - `/mapa` pode ser usado publicamente; nesse caso o shell autenticado e suprimido
 - a navegacao principal e role-aware:
   - `DONOR`: `/inicio`, `/mapa`, `/doar`, `/rastreio`
-  - `COLLECTION_POINT` / `NGO` / `ADMIN`: `/inicio`, `/mapa`, `/operacoes`, `/rastreio`
+  - `COLLECTION_POINT` / `NGO`: `/inicio`, `/mapa`, `/operacoes`, `/rastreio`
+  - `ADMIN`: `/inicio`, `/admin/perfis`, `/operacoes`, `/mapa`
 - o shell autenticado agora tambem fornece o contexto real de notificacoes via `NotificationsProvider`
 
 ### Sessao, refresh e logout controlado
@@ -101,7 +102,7 @@ Sem abrir uma nova area pesada nesta fase, `/inicio` foi expandido como dashboar
 
 - `COLLECTION_POINT`: estado do perfil, parceria ativa, pendencias de retirada e acoes de aprovar/rejeitar
 - `NGO`: estado do perfil, parceria ativa, historico de retiradas e acao de solicitar retirada
-- `ADMIN`: visao sintetica de governanca/operacao
+- `ADMIN`: visao sintetica de governanca com aprovacoes iniciais, revisoes pendentes e alertas relevantes
 
 `/operacoes` continua sendo a fila operacional compartilhada para execucao detalhada.
 
@@ -115,6 +116,15 @@ Agora:
 - `/operacoes` continua sendo a fila de trabalho acionavel
 
 Isso elimina a ambiguidade anterior em que os dois itens pareciam levar ao mesmo lugar.
+
+### Governanca inicial e revisoes publicas
+
+O fluxo administrativo agora diferencia dois tipos de pendencia:
+
+- aprovacao inicial de novos perfis operacionais (`publicProfileState = PENDING`)
+- revisoes publicas pendentes em perfis ja publicados
+
+`/admin/perfis` deixou de filtrar revisoes pendentes por padrao, para que novos perfis aparecam corretamente na fila de aprovacao inicial.
 
 ### Mapa e descoberta publica
 
@@ -237,6 +247,13 @@ Nesta fase o perfil operacional passou a ter estruturas mais fortes para exibica
 - `openingHoursExceptions` para observacoes simples de excecao
 - `accessibilityFeatures` (`String[]`) como lista estruturada
 - `accessibilityDetails` como complemento opcional
+
+No frontend, a UX de horario continua estruturada, mas agora com presets rapidos para aplicar em lote:
+
+- segunda a sexta
+- segunda a sabado
+- todos os dias
+- limpar grade
 
 `openingHours` continua existindo como resumo legivel/compativel, derivado da estrutura principal.
 

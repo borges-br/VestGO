@@ -14,6 +14,7 @@ import {
   toErrorResponse,
 } from '../../shared/errors';
 import { geocodeAddress } from '../../shared/geocoding';
+import { createAdminNotifications } from '../../shared/notifications';
 import {
   buildOpeningHoursSummary,
   getOperationalProfileChecklist,
@@ -623,6 +624,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         nonAcceptedItems: body.nonAcceptedItems,
         serviceRegions: body.serviceRegions,
       };
+      let nextDirectPublicProfileState: PublicProfileState | null = null;
 
       if (!storeAsPendingRevision) {
         Object.assign(directUpdateData, {
@@ -648,7 +650,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         });
 
         if (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) {
-          directUpdateData.publicProfileState = getOperationalProfileState(
+          nextDirectPublicProfileState = getOperationalProfileState(
             existingUser.role,
             {
               ...body,
@@ -658,6 +660,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
             },
             existingUser.publicProfileState,
           );
+          directUpdateData.publicProfileState = nextDirectPublicProfileState;
         }
       } else {
         if (changedGovernedFields.length > 0) {
@@ -686,6 +689,47 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         data: directUpdateData,
         select: editableProfileSelect,
       });
+
+      if (
+        !storeAsPendingRevision &&
+        (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) &&
+        nextDirectPublicProfileState === PublicProfileState.PENDING &&
+        existingUser.publicProfileState !== PublicProfileState.PENDING
+      ) {
+        await createAdminNotifications(fastify, [
+          {
+            type: 'PROFILE_APPROVAL_REQUIRED' as const,
+            title: 'Novo perfil aguardando aprovacao',
+            body: `${updatedUser.organizationName ?? updatedUser.name} concluiu o cadastro inicial e aguarda aprovacao administrativa.`,
+            href: '/admin/perfis',
+            payload: {
+              userId: updatedUser.id,
+              role: updatedUser.role,
+              publicProfileState: updatedUser.publicProfileState,
+            },
+          },
+        ]);
+      }
+
+      if (
+        storeAsPendingRevision &&
+        changedGovernedFields.length > 0 &&
+        existingUser.pendingPublicRevisionStatus !== PublicProfileRevisionStatus.PENDING
+      ) {
+        await createAdminNotifications(fastify, [
+          {
+            type: 'PROFILE_REVISION_PENDING' as const,
+            title: 'Revisao publica pendente',
+            body: `${updatedUser.organizationName ?? updatedUser.name} enviou alteracoes publicas para revisao (${changedGovernedFields.join(', ')}).`,
+            href: '/admin/perfis',
+            payload: {
+              userId: updatedUser.id,
+              role: updatedUser.role,
+              fields: changedGovernedFields,
+            },
+          },
+        ]);
+      }
 
       return reply.send(mapEditableProfile(updatedUser));
     } catch (err) {

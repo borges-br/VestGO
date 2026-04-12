@@ -53,8 +53,11 @@ Capacidades relevantes ja ativas:
 - `/rastreio` operacional separado de `/operacoes`, sem redirecionar ambos para a mesma fila
 - retirada com data prevista, faixa de horario e observacoes
 - horario de funcionamento estruturado por dia da semana
+- presets rapidos de horario para aplicar faixas em lote antes do ajuste fino por dia
 - acessibilidade estruturada por opcoes selecionaveis + detalhe complementar
 - revisao pendente para mudancas publicas criticas em perfis aprovados
+- governanca inicial com fila de novos perfis pendentes para aprovacao do admin
+- notificacoes de governanca para novos perfis aguardando aprovacao e revisoes publicas pendentes
 
 ## Stack
 
@@ -92,6 +95,8 @@ Perfis de `COLLECTION_POINT` e `NGO` usam os estados:
 
 O estado depende do checklist operacional e aparece nas areas de perfil e dashboard.
 
+Perfis novos de `COLLECTION_POINT` e `NGO` que concluem o checklist inicial entram em `PENDING` e passam a aparecer para aprovacao administrativa na governanca.
+
 ### Revisao pendente de alteracoes publicas
 
 Perfis operacionais `ACTIVE` e `VERIFIED` nao publicam mais alteracoes criticas imediatamente.
@@ -103,6 +108,11 @@ Fluxo atual:
 3. o proprio usuario enxerga seus dados pendentes no formulario e no resumo do perfil
 4. o admin aprova ou rejeita a revisao em `/admin/perfis`
 5. apenas apos aprovacao a versao publica e atualizada
+
+O admin tambem recebe notificacoes in-app quando:
+
+- um novo perfil operacional conclui o cadastro inicial e fica aguardando aprovacao
+- um perfil ja publicado envia uma revisao publica pendente
 
 Campos priorizados nesta governanca:
 

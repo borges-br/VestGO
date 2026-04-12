@@ -39,6 +39,15 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Outros',
 };
 
+const ACCESSIBILITY_LABELS: Record<string, string> = {
+  RAMP_ACCESS: 'Acesso por rampa',
+  ACCESSIBLE_RESTROOM: 'Banheiro acessivel',
+  ACCESSIBLE_PARKING: 'Estacionamento acessivel',
+  PRIORITY_SERVICE: 'Atendimento preferencial',
+  GROUND_FLOOR: 'Acesso terreo',
+  SIGN_LANGUAGE_SUPPORT: 'Suporte em Libras',
+};
+
 type Props = {
   profile: MyProfile | null;
   loading: boolean;
@@ -558,6 +567,11 @@ export function OperationalProfileSummary({
                   <p className="mt-3 text-sm leading-7 text-gray-500">
                     {profile.openingHours ?? 'Horario ainda nao informado.'}
                   </p>
+                  {profile.openingHoursExceptions && (
+                    <p className="mt-3 text-sm leading-7 text-gray-500">
+                      Excecoes: {profile.openingHoursExceptions}
+                    </p>
+                  )}
                   {profile.accessibilityDetails && (
                     <p className="mt-3 text-sm leading-7 text-gray-500">
                       Acessibilidade: {profile.accessibilityDetails}
@@ -582,6 +596,37 @@ export function OperationalProfileSummary({
                       <span className="text-sm text-gray-500">Regioes ainda nao informadas.</span>
                     )}
                   </div>
+                  <p className="mt-3 text-sm leading-7 text-gray-500">
+                    {profile.openingHours ?? 'Horario/base de atendimento ainda nao informado.'}
+                  </p>
+                  {profile.openingHoursExceptions && (
+                    <p className="mt-2 text-sm leading-7 text-gray-500">
+                      Excecoes: {profile.openingHoursExceptions}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {(profile.accessibilityFeatures.length > 0 || profile.accessibilityDetails) && (
+                <div className="rounded-[1.5rem] bg-surface px-4 py-4">
+                  <p className="text-sm font-semibold text-primary-deeper">Acessibilidade</p>
+                  {profile.accessibilityFeatures.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {profile.accessibilityFeatures.map((feature) => (
+                        <span
+                          key={feature}
+                          className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary"
+                        >
+                          {ACCESSIBILITY_LABELS[feature] ?? feature}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {profile.accessibilityDetails && (
+                    <p className="mt-3 text-sm leading-7 text-gray-500">
+                      {profile.accessibilityDetails}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

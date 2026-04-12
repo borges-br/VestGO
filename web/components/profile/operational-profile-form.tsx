@@ -88,6 +88,15 @@ const ACCESSIBILITY_OPTIONS = [
   { value: 'SIGN_LANGUAGE_SUPPORT', label: 'Suporte em Libras' },
 ] as const;
 
+const SCHEDULE_PRESETS = [
+  { id: 'WEEKDAYS', label: 'Segunda a sexta' },
+  { id: 'WEEKDAYS_SATURDAY', label: 'Segunda a sabado' },
+  { id: 'ALL_DAYS', label: 'Todos os dias' },
+  { id: 'CLEAR', label: 'Limpar horarios' },
+] as const;
+
+type SchedulePresetId = (typeof SCHEDULE_PRESETS)[number]['id'];
+
 function sanitizeCallbackUrl(value: string | null, fallback: string) {
   if (!value || !value.startsWith('/')) {
     return fallback;
@@ -285,6 +294,8 @@ export function OperationalProfileForm() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [presetOpenTime, setPresetOpenTime] = useState('09:00');
+  const [presetCloseTime, setPresetCloseTime] = useState('18:00');
 
   const addressBlurTimeoutRef = useRef<number | null>(null);
 
@@ -412,6 +423,53 @@ export function OperationalProfileForm() {
               }
             : entry,
         ),
+      };
+    });
+  }
+
+  function applySchedulePreset(presetId: SchedulePresetId) {
+    setForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const activeDays =
+        presetId === 'WEEKDAYS'
+          ? ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']
+          : presetId === 'WEEKDAYS_SATURDAY'
+            ? ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+            : presetId === 'ALL_DAYS'
+              ? WEEKDAY_OPTIONS.map((item) => item.day)
+              : [];
+
+      return {
+        ...current,
+        openingSchedule: current.openingSchedule.map((entry) => {
+          if (presetId === 'CLEAR') {
+            return {
+              ...entry,
+              isOpen: false,
+              open: '',
+              close: '',
+            };
+          }
+
+          if (activeDays.includes(entry.day)) {
+            return {
+              ...entry,
+              isOpen: true,
+              open: presetOpenTime,
+              close: presetCloseTime,
+            };
+          }
+
+          return {
+            ...entry,
+            isOpen: false,
+            open: '',
+            close: '',
+          };
+        }),
       };
     });
   }
@@ -912,6 +970,48 @@ export function OperationalProfileForm() {
                     <p className="mt-1 text-sm text-gray-500">
                       Estruture dias e faixas de horario para publicar o local com mais clareza.
                     </p>
+                  </div>
+
+                  <div className="rounded-[1.25rem] bg-white px-4 py-4">
+                    <p className="text-sm font-semibold text-primary-deeper">Aplicacao rapida</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Defina um horario base e aplique em lote. Depois voce pode ajustar dia a dia se precisar.
+                    </p>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                      <label className="space-y-2 text-sm text-gray-500">
+                        <span className="font-semibold text-on-surface">Horario base de abertura</span>
+                        <input
+                          type="time"
+                          value={presetOpenTime}
+                          onChange={(event) => setPresetOpenTime(event.target.value)}
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                        />
+                      </label>
+
+                      <label className="space-y-2 text-sm text-gray-500">
+                        <span className="font-semibold text-on-surface">Horario base de fechamento</span>
+                        <input
+                          type="time"
+                          value={presetCloseTime}
+                          onChange={(event) => setPresetCloseTime(event.target.value)}
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {SCHEDULE_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applySchedulePreset(preset.id)}
+                          className="rounded-full border border-gray-200 bg-surface px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary-deeper transition-colors hover:border-primary hover:bg-primary-light"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="space-y-3">

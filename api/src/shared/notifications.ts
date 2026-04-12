@@ -2,6 +2,7 @@ import {
   DonationStatus,
   NotificationType,
   Prisma,
+  UserRole,
 } from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 
@@ -179,6 +180,38 @@ export async function createNotifications(
   await fastify.prisma.notification.createMany({
     data,
   });
+}
+
+export async function createAdminNotifications(
+  fastify: FastifyInstance,
+  notifications: Omit<NotificationInput, 'userId'>[],
+) {
+  if (notifications.length === 0) {
+    return;
+  }
+
+  const admins = await fastify.prisma.user.findMany({
+    where: {
+      role: UserRole.ADMIN,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (admins.length === 0) {
+    return;
+  }
+
+  await createNotifications(
+    fastify,
+    admins.flatMap((admin) =>
+      notifications.map((notification) => ({
+        ...notification,
+        userId: admin.id,
+      })),
+    ),
+  );
 }
 
 export async function loadDonorGamificationDonations(
