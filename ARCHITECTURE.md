@@ -35,6 +35,18 @@ VestGO/
   - `COLLECTION_POINT` / `NGO` / `ADMIN`: `/inicio`, `/mapa`, `/operacoes`, `/rastreio`
 - o shell autenticado agora tambem fornece o contexto real de notificacoes via `NotificationsProvider`
 
+### Sessao, refresh e logout controlado
+
+O frontend continua usando Auth.js com sessao JWT, mas agora com sincronizacao real com o backend:
+
+- o login salva `accessToken`, `refreshToken` e expiracao do access token do backend
+- o callback `jwt` do Auth.js tenta refresh automatico quando o token esta perto de expirar
+- se o refresh falhar, a sessao recebe `RefreshAccessTokenError`
+- `AppShell` reage a esse erro e faz sign-out controlado, redirecionando para `/login?sessionExpired=1`
+- o `SessionProvider` usa refetch em foco e intervalo leve para manter a sessao coerente
+
+Isso evita o estado anterior em que o usuario parecia autenticado no frontend, mas o backend ja respondia `401` por access token expirado.
+
 ### Paginas relevantes
 
 - `/inicio`: branch minima por papel
@@ -93,6 +105,17 @@ Sem abrir uma nova area pesada nesta fase, `/inicio` foi expandido como dashboar
 
 `/operacoes` continua sendo a fila operacional compartilhada para execucao detalhada.
 
+### Distincao entre rastreio e operacoes
+
+Para papeis operacionais, `/rastreio` deixou de redirecionar para `/operacoes`.
+
+Agora:
+
+- `/rastreio` funciona como visao operacional read-only de timeline e acompanhamento
+- `/operacoes` continua sendo a fila de trabalho acionavel
+
+Isso elimina a ambiguidade anterior em que os dois itens pareciam levar ao mesmo lugar.
+
 ### Mapa e descoberta publica
 
 `web/components/map/mapa-page-content.tsx` agora trabalha com duas camadas separadas:
@@ -125,6 +148,12 @@ Nao ha websocket nesta fase. O consumo atual usa refetch controlado:
 - foco da janela
 - `visibilitychange`
 - polling leve
+
+O provider tambem protege o estado local contra respostas fora de ordem:
+
+- request versioning
+- reconciliacao apos mutation
+- protecao para que `mark as read` e `read-all` nao sejam sobrescritos por refetch antigo
 
 ## Backend
 
@@ -165,6 +194,7 @@ Nao ha websocket nesta fase. O consumo atual usa refetch controlado:
 - `PATCH /notifications/read-all`
 - `GET /admin/profiles`
 - `PATCH /admin/profiles/:id/status`
+- `PATCH /admin/profiles/:id/revision`
 
 ## Modelo de papeis
 
@@ -198,6 +228,38 @@ Arquivos centrais:
 - `api/src/modules/profiles/profile-shared.ts`
 - `api/src/modules/profiles/profiles.ts`
 - `web/components/profile/operational-profile-form.tsx`
+
+### Dados operacionais estruturados
+
+Nesta fase o perfil operacional passou a ter estruturas mais fortes para exibicao e governanca:
+
+- `openingSchedule` (`Json`) com dias da semana, abertura e fechamento
+- `openingHoursExceptions` para observacoes simples de excecao
+- `accessibilityFeatures` (`String[]`) como lista estruturada
+- `accessibilityDetails` como complemento opcional
+
+`openingHours` continua existindo como resumo legivel/compativel, derivado da estrutura principal.
+
+### Revisao pendente de alteracoes publicas
+
+Para perfis `ACTIVE` e `VERIFIED`, campos publicos criticos nao sao mais sobrescritos imediatamente.
+
+O backend usa os campos do proprio `User` para guardar a revisao pendente:
+
+- `pendingPublicRevision`
+- `pendingPublicRevisionStatus`
+- `pendingPublicRevisionFields`
+- `pendingPublicRevisionSubmittedAt`
+- `pendingPublicRevisionReviewedAt`
+- `pendingPublicRevisionReviewNotes`
+
+Comportamento atual:
+
+- `PATCH /profiles/me` grava alteracoes criticas em revisao pendente
+- `GET /profiles/me` faz overlay privado dessa revisao para que o usuario veja o que enviou
+- endpoints publicos continuam lendo apenas os campos publicados
+- `PATCH /admin/profiles/:id/revision` aprova ou rejeita a revisao
+- somente na aprovacao o payload pendente e promovido para os campos publicos do perfil
 
 ## Geocoding e sugestoes de endereco
 
@@ -325,6 +387,9 @@ Nova entidade operacional minima para retirada:
 - `collectionPointId`
 - `ngoId`
 - `status`: `PENDING`, `APPROVED`, `REJECTED`
+- `requestedDate`
+- `timeWindowStart`
+- `timeWindowEnd`
 - `notes`
 - `responseNotes`
 - `respondedAt`
@@ -335,8 +400,9 @@ Fluxo atual:
 
 1. `NGO` cria uma solicitacao de retirada para uma parceria `ACTIVE`
 2. `COLLECTION_POINT` aprova ou rejeita
-3. a mesma parceria nao pode manter mais de uma retirada `PENDING`
-4. a solicitacao alimenta dashboard e notificacoes de ambos os papeis
+3. a solicitacao pode carregar data prevista e janela de horario
+4. a mesma parceria nao pode manter mais de uma retirada `PENDING`
+5. a solicitacao alimenta dashboard e notificacoes de ambos os papeis
 
 ### Notification
 
@@ -435,6 +501,7 @@ Resolvido:
 - recentralizacao inconsistente do Leaflet apos geolocalizacao
 - scroll vertical excessivo e cortes visuais no layout do mapa
 - corrida entre `signIn`, cookie de sessao e navegacao manual no login
+- expiracao silenciosa do access token do backend enquanto a sessao web ainda parecia valida
 - duplicidade de escolha de perfil no cadastro
 - possibilidade de ONG ser tratada como destino doador
 - falta de estado explicito para ponto sem ONG ativa
@@ -445,6 +512,8 @@ Resolvido:
 - falha de preenchimento do logradouro ao selecionar sugestoes
 - corrida entre mutation/refetch que fazia notificacoes voltarem para nao lidas
 - ausencia de um modelo minimo de retirada entre ONG e ponto parceiro
+- falta de estrutura para horario de funcionamento e acessibilidade
+- sobrescrita imediata de perfis publicos aprovados sem revisao administrativa
 
 Preparado para a proxima fase:
 
