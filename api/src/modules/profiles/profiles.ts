@@ -1,6 +1,8 @@
 import {
   OperationalPartnershipStatus,
   Prisma,
+  PublicProfileRevisionStatus,
+  PublicProfileState,
   UserRole,
 } from '@prisma/client';
 import { FastifyInstance } from 'fastify';
@@ -11,14 +13,16 @@ import {
   NotFoundError,
   toErrorResponse,
 } from '../../shared/errors';
+import { geocodeAddress } from '../../shared/geocoding';
 import {
-  geocodeAddress,
-} from '../../shared/geocoding';
-import {
+  buildOpeningHoursSummary,
   getOperationalProfileChecklist,
   getOperationalProfileState,
+  normalizeOpeningSchedule,
   profileWriteSchema,
   sanitizeProfileWriteInput,
+  type OpeningScheduleEntry,
+  type ProfileWriteInput,
 } from './profile-shared';
 
 const editableProfileSelect = {
@@ -42,9 +46,12 @@ const editableProfileSelect = {
   latitude: true,
   longitude: true,
   openingHours: true,
+  openingSchedule: true,
+  openingHoursExceptions: true,
   publicNotes: true,
   operationalNotes: true,
   accessibilityDetails: true,
+  accessibilityFeatures: true,
   verificationNotes: true,
   estimatedCapacity: true,
   serviceRegions: true,
@@ -53,6 +60,12 @@ const editableProfileSelect = {
   acceptedCategories: true,
   publicProfileState: true,
   verifiedAt: true,
+  pendingPublicRevision: true,
+  pendingPublicRevisionStatus: true,
+  pendingPublicRevisionFields: true,
+  pendingPublicRevisionSubmittedAt: true,
+  pendingPublicRevisionReviewedAt: true,
+  pendingPublicRevisionReviewNotes: true,
   createdAt: true,
   updatedAt: true,
   _count: {
@@ -84,7 +97,103 @@ const editableProfileSelect = {
 
 type EditableProfileRecord = Prisma.UserGetPayload<{ select: typeof editableProfileSelect }>;
 
-function buildProfileStats(user: EditableProfileRecord) {
+type PendingPublicRevisionPayload = {
+  phone?: string | null;
+  avatarUrl?: string | null;
+  coverImageUrl?: string | null;
+  address?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  neighborhood?: string | null;
+  zipCode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  openingHours?: string | null;
+  openingSchedule?: OpeningScheduleEntry[];
+  openingHoursExceptions?: string | null;
+  publicNotes?: string | null;
+  accessibilityDetails?: string | null;
+  accessibilityFeatures?: string[];
+  rules?: string[];
+};
+
+type EditableProfileView = {
+  id: string;
+  role: UserRole;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  coverImageUrl: string | null;
+  organizationName: string | null;
+  description: string | null;
+  purpose: string | null;
+  address: string | null;
+  addressNumber: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  zipCode: string | null;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  openingHours: string | null;
+  openingSchedule: OpeningScheduleEntry[];
+  openingHoursExceptions: string | null;
+  publicNotes: string | null;
+  operationalNotes: string | null;
+  accessibilityDetails: string | null;
+  accessibilityFeatures: string[];
+  verificationNotes: string | null;
+  estimatedCapacity: string | null;
+  serviceRegions: string[];
+  rules: string[];
+  nonAcceptedItems: string[];
+  acceptedCategories: EditableProfileRecord['acceptedCategories'];
+  publicProfileState: PublicProfileState;
+  verifiedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: EditableProfileRecord['_count'];
+  outgoingOperationalPartnerships: EditableProfileRecord['outgoingOperationalPartnerships'];
+  incomingOperationalPartnerships: EditableProfileRecord['incomingOperationalPartnerships'];
+  pendingPublicRevision: {
+    status: PublicProfileRevisionStatus;
+    fields: string[];
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    reviewNotes: string | null;
+    payload: PendingPublicRevisionPayload | null;
+  } | null;
+};
+
+const GOVERNED_PUBLIC_FIELDS = [
+  'address',
+  'addressNumber',
+  'addressComplement',
+  'neighborhood',
+  'zipCode',
+  'city',
+  'state',
+  'latitude',
+  'longitude',
+  'phone',
+  'avatarUrl',
+  'coverImageUrl',
+  'openingHours',
+  'openingSchedule',
+  'openingHoursExceptions',
+  'rules',
+  'publicNotes',
+  'accessibilityDetails',
+  'accessibilityFeatures',
+] as const;
+
+type GovernedField = (typeof GOVERNED_PUBLIC_FIELDS)[number];
+
+function buildProfileStats(user: EditableProfileView) {
   if (user.role === UserRole.DONOR) {
     return {
       handledDonations: user._count.donations,
@@ -112,72 +221,265 @@ function buildProfileStats(user: EditableProfileRecord) {
   };
 }
 
+function normalizeAddressField(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : null;
+}
+
+function normalizeStringArray(value: string[] | null | undefined) {
+  return [...(value ?? [])].map((entry) => entry.trim()).filter(Boolean).sort();
+}
+
+function normalizeOpeningHoursValue(value: string | null | undefined) {
+  return normalizeAddressField(value);
+}
+
+function parsePendingPublicRevision(
+  value: Prisma.JsonValue | null,
+): PendingPublicRevisionPayload | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as PendingPublicRevisionPayload;
+}
+
+function normalizeScheduleForComparison(
+  value: OpeningScheduleEntry[] | Prisma.JsonValue | null | undefined,
+) {
+  if (!Array.isArray(value)) {
+    return normalizeOpeningSchedule([]);
+  }
+
+  const entries: OpeningScheduleEntry[] = [];
+
+  value.forEach((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return;
+    }
+
+    const candidate = entry as Record<string, unknown>;
+    if (typeof candidate.day !== 'string') {
+      return;
+    }
+
+    entries.push({
+      day: candidate.day as OpeningScheduleEntry['day'],
+      isOpen: candidate.isOpen === true,
+      open: typeof candidate.open === 'string' ? candidate.open : undefined,
+      close: typeof candidate.close === 'string' ? candidate.close : undefined,
+    });
+  });
+
+  return normalizeOpeningSchedule(entries);
+}
+
+function governedValuesDiffer(
+  field: GovernedField,
+  left: PendingPublicRevisionPayload,
+  right: PendingPublicRevisionPayload,
+) {
+  if (field === 'rules' || field === 'accessibilityFeatures') {
+    return JSON.stringify(normalizeStringArray(left[field])) !== JSON.stringify(normalizeStringArray(right[field]));
+  }
+
+  if (field === 'openingSchedule') {
+    return (
+      JSON.stringify(normalizeScheduleForComparison(left.openingSchedule)) !==
+      JSON.stringify(normalizeScheduleForComparison(right.openingSchedule))
+    );
+  }
+
+  if (field === 'latitude' || field === 'longitude') {
+    return (left[field] ?? null) !== (right[field] ?? null);
+  }
+
+  return normalizeAddressField(left[field] as string | null | undefined) !== normalizeAddressField(
+    right[field] as string | null | undefined,
+  );
+}
+
+function buildGovernedPayload(
+  body: ProfileWriteInput,
+  latitude: number | null,
+  longitude: number | null,
+  openingHours: string | undefined,
+): PendingPublicRevisionPayload {
+  return {
+    phone: body.phone ?? null,
+    avatarUrl: body.avatarUrl ?? null,
+    coverImageUrl: body.coverImageUrl ?? null,
+    address: body.address ?? null,
+    addressNumber: body.addressNumber ?? null,
+    addressComplement: body.addressComplement ?? null,
+    neighborhood: body.neighborhood ?? null,
+    zipCode: body.zipCode ?? null,
+    city: body.city ?? null,
+    state: body.state ?? null,
+    latitude,
+    longitude,
+    openingHours: openingHours ?? null,
+    openingSchedule: normalizeOpeningSchedule(body.openingSchedule),
+    openingHoursExceptions: body.openingHoursExceptions ?? null,
+    publicNotes: body.publicNotes ?? null,
+    accessibilityDetails: body.accessibilityDetails ?? null,
+    accessibilityFeatures: body.accessibilityFeatures ?? [],
+    rules: body.rules ?? [],
+  };
+}
+
+function buildPublishedGovernedPayload(user: EditableProfileRecord): PendingPublicRevisionPayload {
+  return {
+    phone: user.phone ?? null,
+    avatarUrl: user.avatarUrl ?? null,
+    coverImageUrl: user.coverImageUrl ?? null,
+    address: user.address ?? null,
+    addressNumber: user.addressNumber ?? null,
+    addressComplement: user.addressComplement ?? null,
+    neighborhood: user.neighborhood ?? null,
+    zipCode: user.zipCode ?? null,
+    city: user.city ?? null,
+    state: user.state ?? null,
+    latitude: user.latitude ?? null,
+    longitude: user.longitude ?? null,
+    openingHours: user.openingHours ?? null,
+    openingSchedule: normalizeScheduleForComparison(user.openingSchedule),
+    openingHoursExceptions: user.openingHoursExceptions ?? null,
+    publicNotes: user.publicNotes ?? null,
+    accessibilityDetails: user.accessibilityDetails ?? null,
+    accessibilityFeatures: user.accessibilityFeatures ?? [],
+    rules: user.rules ?? [],
+  };
+}
+
+function getChangedGovernedFields(
+  published: PendingPublicRevisionPayload,
+  next: PendingPublicRevisionPayload,
+) {
+  return GOVERNED_PUBLIC_FIELDS.filter((field) => governedValuesDiffer(field, published, next));
+}
+
+function overlayPendingRevision(user: EditableProfileRecord): EditableProfileView {
+  const pendingPayload = parsePendingPublicRevision(user.pendingPublicRevision);
+  const activePendingRevision =
+    pendingPayload && user.pendingPublicRevisionStatus
+      ? {
+          status: user.pendingPublicRevisionStatus,
+          fields: user.pendingPublicRevisionFields,
+          submittedAt: user.pendingPublicRevisionSubmittedAt?.toISOString() ?? null,
+          reviewedAt: user.pendingPublicRevisionReviewedAt?.toISOString() ?? null,
+          reviewNotes: user.pendingPublicRevisionReviewNotes ?? null,
+          payload: pendingPayload,
+        }
+      : null;
+
+  const effective = activePendingRevision?.payload ?? null;
+
+  return {
+    ...user,
+    phone: effective?.phone ?? user.phone,
+    avatarUrl: effective?.avatarUrl ?? user.avatarUrl,
+    coverImageUrl: effective?.coverImageUrl ?? user.coverImageUrl,
+    address: effective?.address ?? user.address,
+    addressNumber: effective?.addressNumber ?? user.addressNumber,
+    addressComplement: effective?.addressComplement ?? user.addressComplement,
+    neighborhood: effective?.neighborhood ?? user.neighborhood,
+    zipCode: effective?.zipCode ?? user.zipCode,
+    city: effective?.city ?? user.city,
+    state: effective?.state ?? user.state,
+    latitude: effective?.latitude ?? user.latitude,
+    longitude: effective?.longitude ?? user.longitude,
+    openingHours: effective?.openingHours ?? user.openingHours,
+    openingSchedule: normalizeScheduleForComparison(
+      effective?.openingSchedule ?? user.openingSchedule,
+    ),
+    openingHoursExceptions:
+      effective?.openingHoursExceptions ?? user.openingHoursExceptions ?? null,
+    publicNotes: effective?.publicNotes ?? user.publicNotes,
+    accessibilityDetails:
+      effective?.accessibilityDetails ?? user.accessibilityDetails,
+    accessibilityFeatures:
+      effective?.accessibilityFeatures ?? user.accessibilityFeatures ?? [],
+    rules: effective?.rules ?? user.rules ?? [],
+    pendingPublicRevision: activePendingRevision,
+  };
+}
+
 function mapEditableProfile(user: EditableProfileRecord) {
-  const checklist = getOperationalProfileChecklist(user.role, {
-    organizationName: user.organizationName ?? undefined,
-    description: user.description ?? undefined,
-    purpose: user.purpose ?? undefined,
-    address: user.address ?? undefined,
-    addressNumber: user.addressNumber ?? undefined,
-    addressComplement: user.addressComplement ?? undefined,
-    city: user.city ?? undefined,
-    state: user.state ?? undefined,
-    zipCode: user.zipCode ?? undefined,
-    neighborhood: user.neighborhood ?? undefined,
-    openingHours: user.openingHours ?? undefined,
-    phone: user.phone ?? undefined,
-    acceptedCategories: user.acceptedCategories,
-    serviceRegions: user.serviceRegions,
-    latitude: user.latitude ?? undefined,
-    longitude: user.longitude ?? undefined,
+  const view = overlayPendingRevision(user);
+  const checklist = getOperationalProfileChecklist(view.role, {
+    organizationName: view.organizationName ?? undefined,
+    description: view.description ?? undefined,
+    purpose: view.purpose ?? undefined,
+    address: view.address ?? undefined,
+    addressNumber: view.addressNumber ?? undefined,
+    addressComplement: view.addressComplement ?? undefined,
+    city: view.city ?? undefined,
+    state: view.state ?? undefined,
+    zipCode: view.zipCode ?? undefined,
+    neighborhood: view.neighborhood ?? undefined,
+    openingHours: view.openingHours ?? undefined,
+    openingSchedule: view.openingSchedule,
+    phone: view.phone ?? undefined,
+    acceptedCategories: view.acceptedCategories,
+    serviceRegions: view.serviceRegions,
+    latitude: view.latitude ?? undefined,
+    longitude: view.longitude ?? undefined,
   });
 
   return {
-    id: user.id,
-    role: user.role,
-    name: user.name,
-    email: user.email,
-    phone: user.phone,
-    avatarUrl: user.avatarUrl,
-    coverImageUrl: user.coverImageUrl,
-    organizationName: user.organizationName,
-    description: user.description,
-    purpose: user.purpose,
-    address: user.address,
-    addressNumber: user.addressNumber,
-    addressComplement: user.addressComplement,
-    neighborhood: user.neighborhood,
-    zipCode: user.zipCode,
-    city: user.city,
-    state: user.state,
-    latitude: user.latitude,
-    longitude: user.longitude,
-    openingHours: user.openingHours,
-    publicNotes: user.publicNotes,
-    operationalNotes: user.operationalNotes,
-    accessibilityDetails: user.accessibilityDetails,
-    verificationNotes: user.verificationNotes,
-    estimatedCapacity: user.estimatedCapacity,
-    serviceRegions: user.serviceRegions,
-    rules: user.rules,
-    nonAcceptedItems: user.nonAcceptedItems,
-    acceptedCategories: user.acceptedCategories,
-    publicProfileState: user.publicProfileState,
-    verifiedAt: user.verifiedAt?.toISOString() ?? null,
-    createdAt: user.createdAt.toISOString(),
-    updatedAt: user.updatedAt.toISOString(),
+    id: view.id,
+    role: view.role,
+    name: view.name,
+    email: view.email,
+    phone: view.phone,
+    avatarUrl: view.avatarUrl,
+    coverImageUrl: view.coverImageUrl,
+    organizationName: view.organizationName,
+    description: view.description,
+    purpose: view.purpose,
+    address: view.address,
+    addressNumber: view.addressNumber,
+    addressComplement: view.addressComplement,
+    neighborhood: view.neighborhood,
+    zipCode: view.zipCode,
+    city: view.city,
+    state: view.state,
+    latitude: view.latitude,
+    longitude: view.longitude,
+    openingHours: view.openingHours,
+    openingSchedule: view.openingSchedule,
+    openingHoursExceptions: view.openingHoursExceptions,
+    publicNotes: view.publicNotes,
+    operationalNotes: view.operationalNotes,
+    accessibilityDetails: view.accessibilityDetails,
+    accessibilityFeatures: view.accessibilityFeatures,
+    verificationNotes: view.verificationNotes,
+    estimatedCapacity: view.estimatedCapacity,
+    serviceRegions: view.serviceRegions,
+    rules: view.rules,
+    nonAcceptedItems: view.nonAcceptedItems,
+    acceptedCategories: view.acceptedCategories,
+    publicProfileState: view.publicProfileState,
+    verifiedAt: view.verifiedAt?.toISOString() ?? null,
+    createdAt: view.createdAt.toISOString(),
+    updatedAt: view.updatedAt.toISOString(),
+    pendingPublicRevision: view.pendingPublicRevision,
     profileCompletion: {
       completedItems: checklist.filter((entry) => entry.complete).length,
       totalItems: checklist.length,
       missingFields: checklist.filter((entry) => !entry.complete).map((entry) => entry.label),
     },
-    stats: buildProfileStats(user),
+    stats: buildProfileStats(view),
   };
 }
 
-function normalizeAddressField(value: string | null | undefined) {
-  const normalized = value?.trim();
-  return normalized && normalized.length > 0 ? normalized : null;
+function shouldGovernPublicChanges(user: EditableProfileRecord) {
+  return (
+    (user.role === UserRole.COLLECTION_POINT || user.role === UserRole.NGO) &&
+    (user.publicProfileState === PublicProfileState.ACTIVE ||
+      user.publicProfileState === PublicProfileState.VERIFIED)
+  );
 }
 
 export default async function profileRoutes(fastify: FastifyInstance) {
@@ -207,21 +509,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
       const body = sanitizeProfileWriteInput(profileWriteSchema.parse(request.body));
       const existingUser = await fastify.prisma.user.findUnique({
         where: { id: request.user.id },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          publicProfileState: true,
-          address: true,
-          addressNumber: true,
-          addressComplement: true,
-          neighborhood: true,
-          zipCode: true,
-          city: true,
-          state: true,
-          latitude: true,
-          longitude: true,
-        },
+        select: editableProfileSelect,
       });
 
       if (!existingUser) {
@@ -239,24 +527,39 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const addressChanged =
-        normalizeAddressField(existingUser.address) !== normalizeAddressField(body.address) ||
-        normalizeAddressField(existingUser.addressNumber) !==
-          normalizeAddressField(body.addressNumber) ||
-        normalizeAddressField(existingUser.addressComplement) !==
-          normalizeAddressField(body.addressComplement) ||
-        normalizeAddressField(existingUser.neighborhood) !==
-          normalizeAddressField(body.neighborhood) ||
-        normalizeAddressField(existingUser.zipCode) !== normalizeAddressField(body.zipCode) ||
-        normalizeAddressField(existingUser.city) !== normalizeAddressField(body.city) ||
-        normalizeAddressField(existingUser.state) !== normalizeAddressField(body.state);
+      const nextOpeningHours =
+        buildOpeningHoursSummary(body.openingSchedule, body.openingHoursExceptions) ??
+        body.openingHours;
 
-      let resolvedLatitude = existingUser.latitude;
-      let resolvedLongitude = existingUser.longitude;
+      const nextGovernedCandidate = buildGovernedPayload(
+        body,
+        existingUser.latitude ?? null,
+        existingUser.longitude ?? null,
+        nextOpeningHours,
+      );
+      const publishedGovernedPayload = buildPublishedGovernedPayload(existingUser);
+      const addressChanged =
+        normalizeAddressField(publishedGovernedPayload.address) !==
+          normalizeAddressField(nextGovernedCandidate.address) ||
+        normalizeAddressField(publishedGovernedPayload.addressNumber) !==
+          normalizeAddressField(nextGovernedCandidate.addressNumber) ||
+        normalizeAddressField(publishedGovernedPayload.addressComplement) !==
+          normalizeAddressField(nextGovernedCandidate.addressComplement) ||
+        normalizeAddressField(publishedGovernedPayload.neighborhood) !==
+          normalizeAddressField(nextGovernedCandidate.neighborhood) ||
+        normalizeAddressField(publishedGovernedPayload.zipCode) !==
+          normalizeAddressField(nextGovernedCandidate.zipCode) ||
+        normalizeAddressField(publishedGovernedPayload.city) !==
+          normalizeAddressField(nextGovernedCandidate.city) ||
+        normalizeAddressField(publishedGovernedPayload.state) !==
+          normalizeAddressField(nextGovernedCandidate.state);
+
+      let resolvedLatitude = publishedGovernedPayload.latitude;
+      let resolvedLongitude = publishedGovernedPayload.longitude;
 
       if (
         (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) &&
-        (addressChanged || existingUser.latitude == null || existingUser.longitude == null)
+        (addressChanged || resolvedLatitude == null || resolvedLongitude == null)
       ) {
         const geocoding = await geocodeAddress(body);
 
@@ -288,54 +591,99 @@ export default async function profileRoutes(fastify: FastifyInstance) {
             'Geocoding indisponivel ao salvar perfil operacional.',
           );
 
-          throw new AppError(
-            geocoding.message,
-            503,
-            'GEOCODING_UNAVAILABLE',
-          );
+          throw new AppError(geocoding.message, 503, 'GEOCODING_UNAVAILABLE');
         } else if (addressChanged) {
           resolvedLatitude = null;
           resolvedLongitude = null;
         }
       }
 
-      const nextProfileState = getOperationalProfileState(existingUser.role, {
-        ...body,
-        latitude: resolvedLatitude ?? undefined,
-        longitude: resolvedLongitude ?? undefined,
-      }, existingUser.publicProfileState);
+      const nextGovernedPayload = buildGovernedPayload(
+        body,
+        resolvedLatitude ?? null,
+        resolvedLongitude ?? null,
+        nextOpeningHours,
+      );
+
+      const changedGovernedFields = getChangedGovernedFields(
+        publishedGovernedPayload,
+        nextGovernedPayload,
+      );
+      const storeAsPendingRevision = shouldGovernPublicChanges(existingUser);
+
+      const directUpdateData: Prisma.UserUpdateInput = {
+        name: body.name,
+        email: body.email,
+        organizationName: body.organizationName,
+        description: body.description,
+        purpose: body.purpose,
+        operationalNotes: body.operationalNotes,
+        estimatedCapacity: body.estimatedCapacity,
+        acceptedCategories: body.acceptedCategories,
+        nonAcceptedItems: body.nonAcceptedItems,
+        serviceRegions: body.serviceRegions,
+      };
+
+      if (!storeAsPendingRevision) {
+        Object.assign(directUpdateData, {
+          phone: nextGovernedPayload.phone,
+          avatarUrl: nextGovernedPayload.avatarUrl,
+          coverImageUrl: nextGovernedPayload.coverImageUrl,
+          address: nextGovernedPayload.address,
+          addressNumber: nextGovernedPayload.addressNumber,
+          addressComplement: nextGovernedPayload.addressComplement,
+          neighborhood: nextGovernedPayload.neighborhood,
+          zipCode: nextGovernedPayload.zipCode,
+          city: nextGovernedPayload.city,
+          state: nextGovernedPayload.state,
+          latitude: nextGovernedPayload.latitude,
+          longitude: nextGovernedPayload.longitude,
+          openingHours: nextGovernedPayload.openingHours,
+          openingSchedule: nextGovernedPayload.openingSchedule as unknown as Prisma.InputJsonValue,
+          openingHoursExceptions: nextGovernedPayload.openingHoursExceptions,
+          publicNotes: nextGovernedPayload.publicNotes,
+          accessibilityDetails: nextGovernedPayload.accessibilityDetails,
+          accessibilityFeatures: nextGovernedPayload.accessibilityFeatures,
+          rules: nextGovernedPayload.rules,
+        });
+
+        if (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) {
+          directUpdateData.publicProfileState = getOperationalProfileState(
+            existingUser.role,
+            {
+              ...body,
+              openingHours: nextOpeningHours,
+              latitude: resolvedLatitude ?? undefined,
+              longitude: resolvedLongitude ?? undefined,
+            },
+            existingUser.publicProfileState,
+          );
+        }
+      } else {
+        if (changedGovernedFields.length > 0) {
+          Object.assign(directUpdateData, {
+            pendingPublicRevision: nextGovernedPayload as unknown as Prisma.InputJsonValue,
+            pendingPublicRevisionStatus: PublicProfileRevisionStatus.PENDING,
+            pendingPublicRevisionFields: changedGovernedFields,
+            pendingPublicRevisionSubmittedAt: new Date(),
+            pendingPublicRevisionReviewedAt: null,
+            pendingPublicRevisionReviewNotes: null,
+          });
+        } else {
+          Object.assign(directUpdateData, {
+            pendingPublicRevision: Prisma.JsonNull,
+            pendingPublicRevisionStatus: null,
+            pendingPublicRevisionFields: [],
+            pendingPublicRevisionSubmittedAt: null,
+            pendingPublicRevisionReviewedAt: null,
+            pendingPublicRevisionReviewNotes: null,
+          });
+        }
+      }
 
       const updatedUser = await fastify.prisma.user.update({
         where: { id: existingUser.id },
-        data: {
-          name: body.name,
-          email: body.email,
-          phone: body.phone,
-          organizationName: body.organizationName,
-          description: body.description,
-          purpose: body.purpose,
-          address: body.address,
-          addressNumber: body.addressNumber,
-          addressComplement: body.addressComplement,
-          neighborhood: body.neighborhood,
-          zipCode: body.zipCode,
-          city: body.city,
-          state: body.state,
-          latitude: resolvedLatitude,
-          longitude: resolvedLongitude,
-          openingHours: body.openingHours,
-          publicNotes: body.publicNotes,
-          operationalNotes: body.operationalNotes,
-          accessibilityDetails: body.accessibilityDetails,
-          estimatedCapacity: body.estimatedCapacity,
-          avatarUrl: body.avatarUrl,
-          coverImageUrl: body.coverImageUrl,
-          acceptedCategories: body.acceptedCategories,
-          nonAcceptedItems: body.nonAcceptedItems,
-          rules: body.rules,
-          serviceRegions: body.serviceRegions,
-          publicProfileState: nextProfileState,
-        },
+        data: directUpdateData,
         select: editableProfileSelect,
       });
 

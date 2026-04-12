@@ -274,6 +274,27 @@ export function OperationalProfileSummary({
               </div>
             )}
 
+            {profile.pendingPublicRevision && (
+              <div
+                className={`mt-4 rounded-[1.5rem] border px-4 py-3 text-sm ${
+                  profile.pendingPublicRevision.status === 'PENDING'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-rose-200 bg-rose-50 text-rose-800'
+                }`}
+              >
+                <p className="font-semibold">
+                  {profile.pendingPublicRevision.status === 'PENDING'
+                    ? 'Alteracoes publicas em revisao'
+                    : 'Ultima revisao foi rejeitada'}
+                </p>
+                <p className="mt-2 leading-7">
+                  {profile.pendingPublicRevision.status === 'PENDING'
+                    ? 'O perfil publicado segue estavel enquanto endereco, telefone, imagens, horario, acessibilidade, regras e observacoes aguardam avaliacao administrativa.'
+                    : 'Revise os dados do perfil operacional e reenvie quando estiver pronto.'}
+                </p>
+              </div>
+            )}
+
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-[1.5rem] bg-white/10 p-4">
                 <p className="text-3xl font-bold">{profile.stats.handledDonations}</p>

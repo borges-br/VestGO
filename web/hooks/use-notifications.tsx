@@ -92,6 +92,14 @@ export function NotificationsProvider({
 
       setNotifications(response.data.map(mapApiNotification));
       setUnreadCount(response.meta.unreadCount);
+    } catch {
+      if (
+        mountedRef.current &&
+        requestId === refreshRequestIdRef.current &&
+        pendingMutationsRef.current === 0
+      ) {
+        setNotifications((current) => current);
+      }
     } finally {
       if (mountedRef.current && requestId === refreshRequestIdRef.current) {
         setLoading(false);
@@ -165,6 +173,7 @@ export function NotificationsProvider({
       );
 
       if (!shouldRequest) {
+        pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
         return;
       }
 

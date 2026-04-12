@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import { auth } from '@/lib/auth';
 import { getCollectionPoint } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
 
@@ -27,11 +28,21 @@ const PROFILE_STATE_LABELS = {
   VERIFIED: 'Verificado',
 } as const;
 
+const ACCESSIBILITY_LABELS: Record<string, string> = {
+  RAMP_ACCESS: 'Acesso por rampa',
+  ACCESSIBLE_RESTROOM: 'Banheiro acessivel',
+  ACCESSIBLE_PARKING: 'Estacionamento acessivel',
+  PRIORITY_SERVICE: 'Atendimento preferencial',
+  GROUND_FLOOR: 'Acesso terreo',
+  SIGN_LANGUAGE_SUPPORT: 'Suporte em Libras',
+};
+
 interface Props {
   params: { id: string };
 }
 
 export default async function CollectionPointDetailPage({ params }: Props) {
+  const session = await auth();
   let point;
 
   try {
@@ -42,6 +53,11 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
   const title = point.organizationName ?? point.name;
   const isNgo = point.role === 'NGO';
+  const currentRole = session?.user?.role ?? null;
+  const isDonor = currentRole === 'DONOR';
+  const isOperationalViewer =
+    currentRole === 'COLLECTION_POINT' || currentRole === 'NGO' || currentRole === 'ADMIN';
+  const donationShortcutHref = `/doar?selectedPointId=${point.id}&selectionApplied=1&step=2`;
   const googleMapsUrl =
     point.latitude && point.longitude
       ? `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`
@@ -177,6 +193,22 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   </div>
                 )}
 
+                {point.accessibilityFeatures && point.accessibilityFeatures.length > 0 && (
+                  <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
+                    <p className="text-sm font-semibold text-primary-deeper">Recursos disponiveis</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {point.accessibilityFeatures.map((feature) => (
+                        <span
+                          key={feature}
+                          className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-primary"
+                        >
+                          {ACCESSIBILITY_LABELS[feature] ?? feature}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {point.publicNotes && (
                   <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
                     <p className="text-sm font-semibold text-primary-deeper">Observacoes</p>
@@ -276,9 +308,23 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   <p className="font-semibold">{point.donationEligibility.label}</p>
                   <p className="mt-2 leading-7">{point.donationEligibility.message}</p>
                 </div>
+              ) : isOperationalViewer ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-center text-sm text-slate-700">
+                  <p className="font-semibold">Fluxo doador indisponivel para este perfil</p>
+                  <p className="mt-2 leading-7">
+                    Perfis operacionais e administracao podem acompanhar parceiros e operacoes, mas nao iniciam doacoes por este CTA.
+                  </p>
+                </div>
+              ) : isDonor ? (
+                <Link
+                  href={donationShortcutHref}
+                  className="block rounded-2xl bg-primary px-5 py-4 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+                >
+                  Iniciar doacao
+                </Link>
               ) : (
                 <Link
-                  href="/login?callbackUrl=%2Fdoar"
+                  href={`/login?callbackUrl=${encodeURIComponent(donationShortcutHref)}`}
                   className="block rounded-2xl bg-primary px-5 py-4 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
                 >
                   Iniciar doacao

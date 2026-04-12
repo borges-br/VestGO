@@ -39,6 +39,9 @@ const pickupPartnershipSelect = {
 const pickupRequestSelect = {
   id: true,
   status: true,
+  requestedDate: true,
+  timeWindowStart: true,
+  timeWindowEnd: true,
   notes: true,
   responseNotes: true,
   respondedAt: true,
@@ -58,7 +61,38 @@ const listPickupRequestsQuerySchema = z.object({
 
 const createPickupRequestSchema = z.object({
   operationalPartnershipId: z.string().trim().min(1),
+  requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  timeWindowStart: z
+    .string()
+    .trim()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .optional(),
+  timeWindowEnd: z
+    .string()
+    .trim()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .optional(),
   notes: z.string().trim().max(280).optional(),
+}).superRefine((value, ctx) => {
+  if ((value.timeWindowStart && !value.timeWindowEnd) || (!value.timeWindowStart && value.timeWindowEnd)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Informe inicio e fim da faixa de horario.',
+      path: ['timeWindowEnd'],
+    });
+  }
+
+  if (
+    value.timeWindowStart &&
+    value.timeWindowEnd &&
+    value.timeWindowStart >= value.timeWindowEnd
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'O horario final precisa ser posterior ao horario inicial.',
+      path: ['timeWindowEnd'],
+    });
+  }
 });
 
 const updatePickupRequestStatusSchema = z.object({
@@ -106,6 +140,9 @@ function mapPickupRequest(record: PickupRequestRecord) {
   return {
     id: record.id,
     status: record.status,
+    requestedDate: record.requestedDate?.toISOString() ?? null,
+    timeWindowStart: record.timeWindowStart,
+    timeWindowEnd: record.timeWindowEnd,
     notes: record.notes,
     responseNotes: record.responseNotes,
     respondedAt: record.respondedAt?.toISOString() ?? null,
@@ -243,6 +280,9 @@ export default async function pickupRequestRoutes(fastify: FastifyInstance) {
           collectionPointId: partnership.collectionPointId,
           ngoId: partnership.ngoId,
           status: PickupRequestStatus.PENDING,
+          requestedDate: body.requestedDate ? new Date(`${body.requestedDate}T12:00:00.000Z`) : null,
+          timeWindowStart: body.timeWindowStart,
+          timeWindowEnd: body.timeWindowEnd,
           notes: body.notes,
         },
         select: pickupRequestSelect,
@@ -253,7 +293,7 @@ export default async function pickupRequestRoutes(fastify: FastifyInstance) {
           userId: pickupRequest.collectionPoint.id,
           type: 'PICKUP_REQUEST_RECEIVED' as const,
           title: 'Nova solicitacao de retirada',
-          body: `${pickupRequest.ngo.organizationName ?? pickupRequest.ngo.name} solicitou retirada para ${pickupRequest.collectionPoint.organizationName ?? pickupRequest.collectionPoint.name}.`,
+          body: `${pickupRequest.ngo.organizationName ?? pickupRequest.ngo.name} solicitou retirada${pickupRequest.requestedDate ? ` para ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(pickupRequest.requestedDate)}` : ''}${pickupRequest.timeWindowStart && pickupRequest.timeWindowEnd ? `, entre ${pickupRequest.timeWindowStart} e ${pickupRequest.timeWindowEnd}` : ''}.`,
           href: '/inicio',
           payload: {
             pickupRequestId: pickupRequest.id,
@@ -265,7 +305,7 @@ export default async function pickupRequestRoutes(fastify: FastifyInstance) {
           userId: pickupRequest.ngo.id,
           type: 'PICKUP_REQUEST_CREATED' as const,
           title: 'Solicitacao de retirada enviada',
-          body: `A solicitacao para ${pickupRequest.collectionPoint.organizationName ?? pickupRequest.collectionPoint.name} foi enviada e aguarda aprovacao.`,
+          body: `A solicitacao para ${pickupRequest.collectionPoint.organizationName ?? pickupRequest.collectionPoint.name} foi enviada${pickupRequest.requestedDate ? ` com previsao para ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(pickupRequest.requestedDate)}` : ''} e aguarda aprovacao.`,
           href: '/inicio',
           payload: {
             pickupRequestId: pickupRequest.id,

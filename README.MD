@@ -14,6 +14,7 @@ O projeto ja esta funcional e, nesta etapa, consolida:
 - notificacoes in-app reais e persistidas
 - solicitacoes de retirada entre ONG e ponto de coleta
 - dashboards operacionais dedicados em `/inicio`
+- hardening critico de sessao, notificacoes e governanca de perfil aprovado
 
 Capacidades relevantes ja ativas:
 
@@ -45,6 +46,15 @@ Capacidades relevantes ja ativas:
 - correcoes de concorrencia no frontend para manter notificacoes como lidas apos refetch/polling
 - solicitacao de retirada com fluxo `NGO -> COLLECTION_POINT`
 - dashboards de `COLLECTION_POINT` e `NGO` com contexto operacional e painel de retiradas
+- refresh automatico do access token do backend dentro da sessao Auth.js
+- logout controlado quando o refresh falha, evitando sessao "fantasma" com `401`
+- leitura individual e em lote de notificacoes sem regressao por refetch/polling
+- CTA de doacao escondido para `NGO`, `COLLECTION_POINT` e `ADMIN` em contexto publico
+- `/rastreio` operacional separado de `/operacoes`, sem redirecionar ambos para a mesma fila
+- retirada com data prevista, faixa de horario e observacoes
+- horario de funcionamento estruturado por dia da semana
+- acessibilidade estruturada por opcoes selecionaveis + detalhe complementar
+- revisao pendente para mudancas publicas criticas em perfis aprovados
 
 ## Stack
 

@@ -44,6 +44,26 @@ function formatPickupDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatRequestedWindow(pickupRequest: PickupRequestRecord) {
+  const segments: string[] = [];
+
+  if (pickupRequest.requestedDate) {
+    segments.push(
+      new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(pickupRequest.requestedDate)),
+    );
+  }
+
+  if (pickupRequest.timeWindowStart && pickupRequest.timeWindowEnd) {
+    segments.push(`${pickupRequest.timeWindowStart} - ${pickupRequest.timeWindowEnd}`);
+  }
+
+  return segments.length > 0 ? segments.join(' | ') : null;
+}
+
 export function PickupRequestsPanel({
   role,
   accessToken,
@@ -57,7 +77,11 @@ export function PickupRequestsPanel({
 }) {
   const [pickupRequests, setPickupRequests] = useState(initialPickupRequests);
   const [selectedPartnershipId, setSelectedPartnershipId] = useState('');
+  const [requestedDate, setRequestedDate] = useState('');
+  const [timeWindowStart, setTimeWindowStart] = useState('');
+  const [timeWindowEnd, setTimeWindowEnd] = useState('');
   const [notes, setNotes] = useState('');
+  const [responseNotesById, setResponseNotesById] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,12 +149,18 @@ export function PickupRequestsPanel({
       const created = await createPickupRequest(
         {
           operationalPartnershipId: selectedPartnershipId,
+          requestedDate: requestedDate || undefined,
+          timeWindowStart: timeWindowStart || undefined,
+          timeWindowEnd: timeWindowEnd || undefined,
           notes: notes.trim() || undefined,
         },
         accessToken,
       );
 
       setPickupRequests((current) => [created, ...current]);
+      setRequestedDate('');
+      setTimeWindowStart('');
+      setTimeWindowEnd('');
       setNotes('');
       setNotice('Solicitacao de retirada enviada para o ponto parceiro.');
     } catch (requestError) {
@@ -159,7 +189,10 @@ export function PickupRequestsPanel({
     try {
       const updated = await updatePickupRequestStatus(
         pickupRequestId,
-        { status },
+        {
+          status,
+          responseNotes: responseNotesById[pickupRequestId]?.trim() || undefined,
+        },
         accessToken,
       );
 
@@ -168,6 +201,11 @@ export function PickupRequestsPanel({
           pickupRequest.id === updated.id ? updated : pickupRequest,
         ),
       );
+      setResponseNotesById((current) => {
+        const next = { ...current };
+        delete next[pickupRequestId];
+        return next;
+      });
       setNotice(
         status === 'APPROVED'
           ? 'Solicitacao aprovada. A ONG ja pode seguir com a retirada.'
@@ -258,6 +296,43 @@ export function PickupRequestsPanel({
 
             <label className="block text-sm text-gray-500">
               <span className="mb-2 block font-semibold text-on-surface">
+                Data prevista
+              </span>
+              <input
+                type="date"
+                value={requestedDate}
+                onChange={(event) => setRequestedDate(event.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+              />
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm text-gray-500">
+                <span className="mb-2 block font-semibold text-on-surface">
+                  Inicio da faixa
+                </span>
+                <input
+                  type="time"
+                  value={timeWindowStart}
+                  onChange={(event) => setTimeWindowStart(event.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                />
+              </label>
+              <label className="block text-sm text-gray-500">
+                <span className="mb-2 block font-semibold text-on-surface">
+                  Fim da faixa
+                </span>
+                <input
+                  type="time"
+                  value={timeWindowEnd}
+                  onChange={(event) => setTimeWindowEnd(event.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                />
+              </label>
+            </div>
+
+            <label className="block text-sm text-gray-500">
+              <span className="mb-2 block font-semibold text-on-surface">
                 Observacao opcional
               </span>
               <textarea
@@ -345,6 +420,9 @@ export function PickupRequestsPanel({
 
                 <div className="mt-3 space-y-2 text-sm text-gray-500">
                   <p>Solicitada em {formatPickupDate(pickupRequest.createdAt)}</p>
+                  {formatRequestedWindow(pickupRequest) && (
+                    <p>Janela sugerida: {formatRequestedWindow(pickupRequest)}</p>
+                  )}
                   {pickupRequest.notes && <p>Observacao: {pickupRequest.notes}</p>}
                   {pickupRequest.responseNotes && (
                     <p>Resposta do ponto: {pickupRequest.responseNotes}</p>
@@ -352,35 +430,50 @@ export function PickupRequestsPanel({
                 </div>
 
                 {role === 'COLLECTION_POINT' && pickupRequest.status === 'PENDING' && (
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    <button
-                      type="button"
-                      onClick={() => void handleDecision(pickupRequest.id, 'APPROVED')}
-                      disabled={actingId === pickupRequest.id}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-surface disabled:text-gray-300"
-                    >
-                      {actingId === pickupRequest.id ? (
-                        <>
-                          <Loader2 size={15} className="animate-spin" />
-                          Processando...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 size={15} />
-                          Aprovar
-                        </>
-                      )}
-                    </button>
+                  <div className="mt-4 space-y-3">
+                    <textarea
+                      rows={2}
+                      value={responseNotesById[pickupRequest.id] ?? ''}
+                      onChange={(event) =>
+                        setResponseNotesById((current) => ({
+                          ...current,
+                          [pickupRequest.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Observacao opcional para a ONG."
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
 
-                    <button
-                      type="button"
-                      onClick={() => void handleDecision(pickupRequest.id, 'REJECTED')}
-                      disabled={actingId === pickupRequest.id}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
-                    >
-                      <XCircle size={15} />
-                      Rejeitar
-                    </button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => void handleDecision(pickupRequest.id, 'APPROVED')}
+                        disabled={actingId === pickupRequest.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-surface disabled:text-gray-300"
+                      >
+                        {actingId === pickupRequest.id ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" />
+                            Processando...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={15} />
+                            Aprovar
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleDecision(pickupRequest.id, 'REJECTED')}
+                        disabled={actingId === pickupRequest.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
+                      >
+                        <XCircle size={15} />
+                        Rejeitar
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

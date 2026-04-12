@@ -62,6 +62,11 @@ enum PickupRequestStatus {
   REJECTED
 }
 
+enum PublicProfileRevisionStatus {
+  PENDING
+  REJECTED
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String
@@ -87,9 +92,12 @@ model User {
   latitude             Float?
   longitude            Float?
   openingHours         String?
+  openingSchedule      Json?
+  openingHoursExceptions String?
   publicNotes          String?
   operationalNotes     String?
   accessibilityDetails String?
+  accessibilityFeatures String[] @default([])
   verificationNotes    String?
   estimatedCapacity    String?
   serviceRegions       String[]
@@ -98,6 +106,12 @@ model User {
   acceptedCategories   ItemCategory[]
   publicProfileState   PublicProfileState @default(DRAFT)
   verifiedAt           DateTime?
+  pendingPublicRevision             Json?
+  pendingPublicRevisionStatus       PublicProfileRevisionStatus?
+  pendingPublicRevisionFields       String[] @default([])
+  pendingPublicRevisionSubmittedAt  DateTime?
+  pendingPublicRevisionReviewedAt   DateTime?
+  pendingPublicRevisionReviewNotes  String?
 
   donations                       Donation[]               @relation("DonorDonations")
   collectedAt                     Donation[]               @relation("CollectionPointDonations")
@@ -224,6 +238,9 @@ model PickupRequest {
   ngo                      User              @relation("NgoPickupRequests", fields: [ngoId], references: [id], onDelete: Cascade)
   ngoId                    String
   status                   PickupRequestStatus @default(PENDING)
+  requestedDate            DateTime?
+  timeWindowStart          String?
+  timeWindowEnd            String?
   notes                    String?
   responseNotes            String?
   respondedAt              DateTime?
