@@ -116,6 +116,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <p className="mt-0.5 text-xs text-gray-400">
                       {item.label === 'Operacoes'
                         ? 'Fila dedicada para pontos, ONGs e administracao'
+                        : item.label === 'Governanca'
+                          ? 'Aprovacoes iniciais e revisoes publicas pendentes'
                         : item.label === 'Perfil'
                           ? 'Acesse seu historico e dados principais'
                           : item.label === 'Configuracoes'

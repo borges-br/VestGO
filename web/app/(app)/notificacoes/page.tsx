@@ -43,6 +43,16 @@ const TYPE_CONFIG: Record<NotificationType, { icon: typeof Bell; bg: string; col
     bg: 'bg-teal-50',
     color: 'text-teal-600',
   },
+  PROFILE_APPROVAL_REQUIRED: {
+    icon: Settings,
+    bg: 'bg-amber-50',
+    color: 'text-amber-700',
+  },
+  PROFILE_REVISION_PENDING: {
+    icon: Settings,
+    bg: 'bg-purple-50',
+    color: 'text-purple-700',
+  },
 };
 
 function timeAgo(date: Date): string {

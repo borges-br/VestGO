@@ -52,7 +52,7 @@ export default function AdminPerfisPage() {
   const [filterRole, setFilterRole] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterRevisionStatus, setFilterRevisionStatus] =
-    useState<PublicProfileRevisionStatus | ''>('PENDING');
+    useState<PublicProfileRevisionStatus | ''>('');
   const [actingRevisionId, setActingRevisionId] = useState<string | null>(null);
 
   const fetchProfiles = useCallback(async () => {

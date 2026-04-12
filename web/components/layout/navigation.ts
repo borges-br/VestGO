@@ -80,6 +80,37 @@ const OPERATIONAL_PRIMARY_NAV_ITEMS: NavigationItem[] = [
   },
 ];
 
+const ADMIN_PRIMARY_NAV_ITEMS: NavigationItem[] = [
+  {
+    href: '/inicio',
+    label: 'Inicio',
+    mobileLabel: 'Inicio',
+    icon: Home,
+    exact: true,
+  },
+  {
+    href: '/admin/perfis',
+    label: 'Governanca',
+    mobileLabel: 'Governanca',
+    icon: Shield,
+    matchers: ['/admin/perfis'],
+  },
+  {
+    href: '/operacoes',
+    label: 'Operacoes',
+    mobileLabel: 'Fila',
+    icon: ClipboardList,
+    exact: true,
+  },
+  {
+    href: '/mapa',
+    label: 'Mapa publico',
+    mobileLabel: 'Mapa',
+    icon: Map,
+    matchers: ['/mapa', '/pontos'],
+  },
+];
+
 export const UTILITY_NAV_ITEMS: NavigationItem[] = [
   {
     href: '/perfil',
@@ -110,20 +141,23 @@ export function getUtilityNavItems(role: string) {
     return UTILITY_NAV_ITEMS;
   }
 
-  const items: NavigationItem[] = [
-    {
-      href: '/operacoes',
-      label: 'Operacoes',
-      icon: ClipboardList,
-      exact: true,
-    },
-    ...UTILITY_NAV_ITEMS,
-  ];
+  const items: NavigationItem[] =
+    role === 'ADMIN'
+      ? [...UTILITY_NAV_ITEMS]
+      : [
+          {
+            href: '/operacoes',
+            label: 'Operacoes',
+            icon: ClipboardList,
+            exact: true,
+          },
+          ...UTILITY_NAV_ITEMS,
+        ];
 
   if (role === 'ADMIN') {
     items.unshift({
       href: '/admin/perfis',
-      label: 'Administracao',
+      label: 'Governanca',
       icon: Shield,
       exact: false, // matches child routes too
     });
@@ -140,7 +174,11 @@ export const ROLE_LABELS: Record<string, string> = {
 };
 
 export function getPrimaryNavItems(role: string) {
-  if (role === 'COLLECTION_POINT' || role === 'NGO' || role === 'ADMIN') {
+  if (role === 'ADMIN') {
+    return ADMIN_PRIMARY_NAV_ITEMS;
+  }
+
+  if (role === 'COLLECTION_POINT' || role === 'NGO') {
     return OPERATIONAL_PRIMARY_NAV_ITEMS;
   }
 
