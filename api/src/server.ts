@@ -14,9 +14,11 @@ import adminProfileRoutes from './modules/admin/admin-profiles';
 import notificationRoutes from './modules/notifications/notifications';
 import partnershipRoutes from './modules/partnerships/partnerships';
 import pickupRequestRoutes from './modules/pickup-requests/pickup-requests';
+import uploadRoutes from './modules/uploads/uploads';
 import authPlugin from './plugins/auth';
 import prismaPlugin from './plugins/prisma';
 import redisPlugin from './plugins/redis';
+import storagePlugin from './plugins/storage';
 
 dotenv.config();
 
@@ -64,6 +66,7 @@ app.register(jwt, {
 
 app.register(prismaPlugin);
 app.register(redisPlugin);
+app.register(storagePlugin);
 app.register(authPlugin);
 
 app.register(healthRoutes, { prefix: '/health' });
@@ -76,6 +79,7 @@ app.register(profileRoutes, { prefix: '/profiles' });
 app.register(adminProfileRoutes, { prefix: '/admin/profiles' });
 app.register(partnershipRoutes, { prefix: '/partnerships' });
 app.register(pickupRequestRoutes, { prefix: '/pickup-requests' });
+app.register(uploadRoutes, { prefix: '/uploads' });
 
 const start = async () => {
   try {

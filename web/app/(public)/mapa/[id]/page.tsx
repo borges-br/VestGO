@@ -57,9 +57,11 @@ export default async function CollectionPointDetailPage({ params }: Props) {
   const isDonor = currentRole === 'DONOR';
   const isOperationalViewer =
     currentRole === 'COLLECTION_POINT' || currentRole === 'NGO' || currentRole === 'ADMIN';
+  const hideSensitiveNgoLocation = isNgo && (!session || isDonor);
+  const partnerNgo = !isNgo ? point.donationEligibility?.activeNgo ?? null : null;
   const donationShortcutHref = `/doar?selectedPointId=${point.id}&selectionApplied=1&step=2`;
   const googleMapsUrl =
-    point.latitude && point.longitude
+    !hideSensitiveNgoLocation && point.latitude && point.longitude
       ? `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`
       : null;
 
@@ -107,6 +109,26 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   </span>
                 </div>
 
+                <div className="mt-6 flex items-center gap-4">
+                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/10">
+                    {point.avatarUrl ? (
+                      <img
+                        src={point.avatarUrl}
+                        alt={title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-lg font-bold text-white">
+                        {title
+                          .split(' ')
+                          .map((segment) => segment[0])
+                          .slice(0, 2)
+                          .join('')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 <h2 className="mt-6 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
                   {title}
                 </h2>
@@ -134,16 +156,22 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   <div className="flex items-start gap-3">
                     <MapPin size={16} className="mt-1 text-primary" />
                     <span>
-                      {formatAddressSummary(point) ?? 'Endereco nao informado'}
+                      {hideSensitiveNgoLocation
+                        ? point.serviceRegions && point.serviceRegions.length > 0
+                          ? `Atuacao regional: ${point.serviceRegions.join(', ')}`
+                          : 'Localizacao precisa protegida para viewers publicos e doadores.'
+                        : formatAddressSummary(point) ?? 'Endereco nao informado'}
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <Phone size={16} className="mt-1 text-primary" />
-                    <span>{point.phone ?? 'Telefone nao informado'}</span>
-                  </div>
+                  {!hideSensitiveNgoLocation && (
+                    <div className="flex items-start gap-3">
+                      <Phone size={16} className="mt-1 text-primary" />
+                      <span>{point.phone ?? 'Telefone nao informado'}</span>
+                    </div>
+                  )}
 
-                  {point.openingHours && (
+                  {!hideSensitiveNgoLocation && point.openingHours && (
                     <div className="flex items-start gap-3">
                       <Clock3 size={16} className="mt-1 text-primary" />
                       <span>{point.openingHours}</span>
@@ -181,6 +209,49 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   >
                     <p className="text-sm font-semibold">{point.donationEligibility.label}</p>
                     <p className="mt-2 text-sm leading-7">{point.donationEligibility.message}</p>
+                  </div>
+                )}
+
+                {partnerNgo && (
+                  <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
+                    <p className="text-sm font-semibold text-primary-deeper">ONG parceira ativa</p>
+                    <div className="mt-3 flex items-center gap-3">
+                      {partnerNgo.avatarUrl ? (
+                        <img
+                          src={partnerNgo.avatarUrl}
+                          alt={partnerNgo.organizationName ?? partnerNgo.name}
+                          className="h-12 w-12 rounded-2xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-sm font-bold text-primary">
+                          {(partnerNgo.organizationName ?? partnerNgo.name)
+                            .split(' ')
+                            .map((segment) => segment[0])
+                            .slice(0, 2)
+                            .join('')}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-primary-deeper">
+                          {partnerNgo.organizationName ?? partnerNgo.name}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          Parceria ativa para triagem e encaminhamento das doacoes.
+                        </p>
+                      </div>
+                    </div>
+                    {partnerNgo.serviceRegions && partnerNgo.serviceRegions.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {partnerNgo.serviceRegions.slice(0, 4).map((region) => (
+                          <span
+                            key={region}
+                            className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-primary"
+                          >
+                            {region}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -300,7 +371,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                 <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-center text-sm text-indigo-800">
                   <p className="font-semibold">ONG parceira</p>
                   <p className="mt-2 leading-7">
-                    ONGs aparecem no mapa publico, mas nao sao selecionadas diretamente como destino no fluxo doador.
+                    A ONG continua publica como entidade parceira, mas sua localizacao precisa nao e exibida para doadores e viewers anonimos.
                   </p>
                 </div>
               ) : point.donationEligibility?.canDonateHere === false ? (

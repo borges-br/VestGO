@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   getMyProfile,
+  uploadProfileAsset,
   updateMyProfile,
   type MyProfile,
   type OpeningScheduleDay,
@@ -279,7 +280,7 @@ function buildPayload(role: string, form: FormState) {
 export function OperationalProfileForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
 
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
@@ -296,8 +297,11 @@ export function OperationalProfileForm() {
   } | null>(null);
   const [presetOpenTime, setPresetOpenTime] = useState('09:00');
   const [presetCloseTime, setPresetCloseTime] = useState('18:00');
+  const [uploadingTarget, setUploadingTarget] = useState<'avatar' | 'cover' | null>(null);
 
   const addressBlurTimeoutRef = useRef<number | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   const setupMode = searchParams.get('setup') === '1';
   const role = session?.user?.role ?? '';
@@ -491,6 +495,49 @@ export function OperationalProfileForm() {
     });
   }
 
+  async function handleUploadAsset(
+    target: 'avatar' | 'cover',
+    file: File | null | undefined,
+  ) {
+    if (!file || !session?.user?.accessToken) {
+      return;
+    }
+
+    setUploadingTarget(target);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const uploaded = await uploadProfileAsset(
+        {
+          file,
+          target,
+        },
+        session.user.accessToken,
+      );
+
+      if (target === 'avatar') {
+        updateField('avatarUrl', uploaded.url);
+      } else {
+        updateField('coverImageUrl', uploaded.url);
+      }
+
+      setSuccess(
+        target === 'avatar'
+          ? 'Imagem de avatar enviada com sucesso.'
+          : 'Imagem de capa enviada com sucesso.',
+      );
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : 'Nao foi possivel enviar a imagem agora.',
+      );
+    } finally {
+      setUploadingTarget(null);
+    }
+  }
+
   function handleAddressFocus() {
     if (addressBlurTimeoutRef.current) {
       window.clearTimeout(addressBlurTimeoutRef.current);
@@ -582,6 +629,12 @@ export function OperationalProfileForm() {
         buildPayload(profile.role, form),
         session.user.accessToken,
       );
+
+      await updateSession({
+        name: updated.name,
+        email: updated.email,
+        image: updated.avatarUrl ?? null,
+      });
 
       setProfile(updated);
       setForm(buildInitialState(updated));
@@ -798,24 +851,112 @@ export function OperationalProfileForm() {
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Foto/Avatar (URL)</span>
+                  <div className="space-y-3 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-on-surface">Foto / avatar</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Upload principal do perfil. JPG, PNG ou WEBP ate 5MB.
+                        </p>
+                      </div>
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white text-sm font-bold text-primary shadow-sm">
+                        {form.avatarUrl ? (
+                          <img
+                            src={form.avatarUrl}
+                            alt={profile.organizationName ?? profile.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          (profile.organizationName ?? profile.name)
+                            .split(' ')
+                            .map((segment) => segment[0])
+                            .slice(0, 2)
+                            .join('')
+                        )}
+                      </div>
+                    </div>
+
                     <input
-                      value={form.avatarUrl}
-                      onChange={(event) => updateField('avatarUrl', event.target.value)}
-                      placeholder="https://..."
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(event) =>
+                        void handleUploadAsset('avatar', event.target.files?.[0] ?? null)
+                      }
                     />
-                  </label>
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Capa (URL)</span>
+
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={uploadingTarget === 'avatar'}
+                      className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {uploadingTarget === 'avatar' ? 'Enviando imagem...' : 'Enviar avatar'}
+                    </button>
+
+                    <label className="block space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">URL manual opcional</span>
+                      <input
+                        value={form.avatarUrl}
+                        onChange={(event) => updateField('avatarUrl', event.target.value)}
+                        placeholder="https://..."
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-3 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">Capa publica</p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Usada no detalhe publico do parceiro e no contexto institucional.
+                      </p>
+                    </div>
+
+                    <div className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white">
+                      {form.coverImageUrl ? (
+                        <img
+                          src={form.coverImageUrl}
+                          alt={`Capa de ${profile.organizationName ?? profile.name}`}
+                          className="h-32 w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-32 w-full items-center justify-center bg-primary-light text-sm font-semibold text-primary">
+                          Nenhuma capa enviada
+                        </div>
+                      )}
+                    </div>
+
                     <input
-                      value={form.coverImageUrl}
-                      onChange={(event) => updateField('coverImageUrl', event.target.value)}
-                      placeholder="https://..."
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      ref={coverInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(event) =>
+                        void handleUploadAsset('cover', event.target.files?.[0] ?? null)
+                      }
                     />
-                  </label>
+
+                    <button
+                      type="button"
+                      onClick={() => coverInputRef.current?.click()}
+                      disabled={uploadingTarget === 'cover'}
+                      className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {uploadingTarget === 'cover' ? 'Enviando imagem...' : 'Enviar capa'}
+                    </button>
+
+                    <label className="block space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">URL manual opcional</span>
+                      <input
+                        value={form.coverImageUrl}
+                        onChange={(event) => updateField('coverImageUrl', event.target.value)}
+                        placeholder="https://..."
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </label>
+                  </div>
                 </div>
               </section>
             )}

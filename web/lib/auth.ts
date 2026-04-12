@@ -24,6 +24,7 @@ declare module 'next-auth' {
     accessToken: string;
     refreshToken: string;
     accessTokenExpiresAt: number;
+    image?: string | null;
   }
 }
 
@@ -33,6 +34,9 @@ type AppAuthUser = {
   accessToken: string;
   refreshToken: string;
   accessTokenExpiresAt: number;
+  image?: string | null;
+  name?: string | null;
+  email?: string | null;
 };
 
 type AppAuthToken = JWT &
@@ -167,6 +171,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             name: data.user.name,
             email: data.user.email,
             role: data.user.role,
+            image: data.user.avatarUrl ?? null,
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
             accessTokenExpiresAt: getAccessTokenExpiresAt(data.accessToken),
@@ -192,18 +197,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       return `${baseUrl}/inicio`;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       const mutableToken = token as AppAuthToken;
       const appUser = user as AppAuthUser | undefined;
 
       if (appUser) {
         mutableToken.id = appUser.id;
+        mutableToken.name = appUser.name ?? mutableToken.name;
+        mutableToken.email = appUser.email ?? mutableToken.email;
+        mutableToken.picture = appUser.image ?? undefined;
         mutableToken.role = appUser.role;
         mutableToken.accessToken = appUser.accessToken;
         mutableToken.refreshToken = appUser.refreshToken;
         mutableToken.accessTokenExpiresAt = appUser.accessTokenExpiresAt;
         mutableToken.error = undefined;
         return mutableToken;
+      }
+
+      if (trigger === 'update' && session?.user) {
+        if (typeof session.user.name === 'string') {
+          mutableToken.name = session.user.name;
+        }
+
+        if (typeof session.user.email === 'string') {
+          mutableToken.email = session.user.email;
+        }
+
+        if ('image' in session.user) {
+          mutableToken.picture = session.user.image ?? undefined;
+        }
       }
 
       if (!mutableToken.accessToken) {
@@ -220,6 +242,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const appToken = token as AppAuthToken;
 
       session.user.id = appToken.id ?? '';
+      session.user.name = typeof appToken.name === 'string' ? appToken.name : session.user.name;
+      session.user.email =
+        typeof appToken.email === 'string' ? appToken.email : session.user.email;
+      session.user.image =
+        typeof appToken.picture === 'string' ? appToken.picture : session.user.image ?? null;
       session.user.role = appToken.role ?? 'DONOR';
       session.user.accessToken = appToken.accessToken ?? '';
       session.user.accessTokenExpiresAt = appToken.accessTokenExpiresAt ?? 0;

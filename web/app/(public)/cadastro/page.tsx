@@ -13,6 +13,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import { VestgoLogo } from '@/components/branding/vestgo-logo';
 
 type Perfil = 'DONOR' | 'COLLECTION_POINT' | 'NGO';
 type Step = 'perfil' | 'form' | 'success';
@@ -209,6 +210,9 @@ function CadastroForm() {
             </Link>
           )}
           <div>
+            <div className="mb-2">
+              <VestgoLogo className="h-10 w-[170px]" fallbackTextClassName="text-left" />
+            </div>
             <h1 className="text-2xl font-bold text-primary-deeper">Criar conta</h1>
             <p className="text-xs text-gray-400 mt-0.5">
               {step === 'perfil'

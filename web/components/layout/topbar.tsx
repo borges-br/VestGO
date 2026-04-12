@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import type { AppNotification } from '@/hooks/use-notifications';
+import { VestgoMark } from '@/components/branding/vestgo-mark';
 import {
   ROLE_LABELS,
   getPrimaryNavItems,
@@ -23,11 +24,11 @@ function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return 'agora';
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `há ${minutes}min`;
+  if (minutes < 60) return `ha ${minutes}min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `há ${hours}h`;
+  if (hours < 24) return `ha ${hours}h`;
   const days = Math.floor(hours / 24);
-  return `há ${days}d`;
+  return `ha ${days}d`;
 }
 
 export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: TopBarProps) {
@@ -39,6 +40,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
 
   const userName = session?.user?.name ?? 'VestGO';
   const userRole = session?.user?.role ?? 'DONOR';
+  const userImage = session?.user?.image ?? null;
   const primaryNavItems = getPrimaryNavItems(userRole);
   const firstName = userName.split(' ')[0];
   const initials = userName
@@ -70,15 +72,13 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
       <div className="mx-auto flex h-topbar max-w-shell items-center gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-[1.1]">
           <Link href="/inicio" className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-deeper text-sm font-bold text-white shadow-sm">
-              VG
-            </div>
+            <VestgoMark className="h-11 w-11" />
             <div className="min-w-0">
               <p className="truncate text-lg font-bold tracking-tight text-primary-deeper">
                 VestGO
               </p>
               <p className="hidden text-[11px] uppercase tracking-[0.28em] text-gray-400 lg:block">
-                Doações rastreáveis
+                Doacoes rastreaveis
               </p>
             </div>
           </Link>
@@ -112,7 +112,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
           <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setDropdownOpen((value) => !value)}
-              aria-label="Abrir notificações"
+              aria-label="Abrir notificacoes"
               aria-expanded={dropdownOpen}
               className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary"
             >
@@ -127,7 +127,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
             {dropdownOpen && (
               <div className="absolute right-0 top-full mt-2 w-[19rem] overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-panel">
                 <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                  <p className="text-sm font-bold text-on-surface">Notificações</p>
+                  <p className="text-sm font-bold text-on-surface">Notificacoes</p>
                   {unreadCount > 0 && (
                     <span className="rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-semibold text-primary">
                       {unreadCount} novas
@@ -137,7 +137,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
 
                 <div className="divide-y divide-gray-50">
                   {notifPreview.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-gray-400">Nenhuma notificação</p>
+                    <p className="py-6 text-center text-sm text-gray-400">Nenhuma notificacao</p>
                   ) : (
                     notifPreview.map((notification) => (
                       <button
@@ -180,7 +180,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
                     onClick={() => setDropdownOpen(false)}
                     className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary-light"
                   >
-                    Ver todas as notificações
+                    Ver todas as notificacoes
                     <ChevronRight size={13} />
                   </Link>
                 </div>
@@ -190,7 +190,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
 
           <button
             onClick={onMenuOpen}
-            aria-label="Abrir menu de conta e configurações"
+            aria-label="Abrir menu de conta e configuracoes"
             className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary"
           >
             <Settings2 size={18} />
@@ -200,8 +200,12 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
             href="/perfil"
             className="hidden items-center gap-3 rounded-2xl border border-gray-200 bg-white py-1.5 pl-2 pr-3 shadow-sm transition-colors hover:border-primary/30 sm:flex"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-light text-sm font-semibold text-primary">
-              {initials}
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-primary-light text-sm font-semibold text-primary">
+              {userImage ? (
+                <img src={userImage} alt={userName} className="h-full w-full object-cover" />
+              ) : (
+                initials
+              )}
             </div>
             <div className="hidden leading-tight lg:block">
               <p className="text-sm font-semibold text-on-surface">{firstName}</p>

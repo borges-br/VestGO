@@ -96,12 +96,25 @@ export type DonationPoint = {
   id: string;
   name: string;
   organizationName: string | null;
-  address: string | null;
+  role: string;
+  avatarUrl?: string | null;
+  address?: string | null;
   addressNumber?: string | null;
   addressComplement?: string | null;
-  city: string | null;
-  state: string | null;
-  role: string;
+  neighborhood?: string | null;
+  zipCode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  phone?: string | null;
+  openingHours?: string | null;
+  serviceRegions?: string[];
+};
+
+export type UploadedAsset = {
+  key: string;
+  url: string;
+  contentType: string;
+  size: number;
 };
 
 export type DonationItem = {
@@ -444,6 +457,43 @@ async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T>
   }
 
   return res.json() as Promise<T>;
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error('Nao foi possivel ler o arquivo selecionado.'));
+    };
+
+    reader.onerror = () => reject(new Error('Falha ao processar o arquivo selecionado.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadProfileAsset(
+  input: { file: File; target: 'avatar' | 'cover' },
+  accessToken: string,
+): Promise<UploadedAsset> {
+  const dataBase64 = await readFileAsDataUrl(input.file);
+  const response = await apiFetch<{ data: UploadedAsset }>('/uploads', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: input.file.name,
+      contentType: input.file.type,
+      target: input.target,
+      dataBase64,
+    }),
+    accessToken,
+  });
+
+  return response.data;
 }
 
 export async function getNearbyPoints(params: {
