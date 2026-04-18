@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\natha\\.codex\\worktrees\\4c68\\VestGO\\web", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\natha\\.codex\\worktrees\\4c68\\VestGO\\api", "run", "dev"],
+      "port": 3001
+    }
+  ]
+}
