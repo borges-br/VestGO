@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(///wsl$/Ubuntu-24.04/home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web/**)",
+      "Read(///wsl$/Ubuntu-24.04/home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web/public/**)",
+      "Read(///wsl$/Ubuntu-24.04/home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web/app/**)",
+      "Read(///wsl$/Ubuntu-24.04/home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/**)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(wsl -d Ubuntu-24.04 bash -lc \"cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web && npx tsc --noEmit 2>&1 | head -80\")",
+      "Bash(wsl.exe --cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web -- bash -lc 'npx tsc --noEmit 2>&1 | head -80')",
+      "Bash(wsl.exe --list --verbose)",
+      "Bash(wsl.exe -d Ubuntu-24.04 --cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web -- bash -lc 'pwd && ls package.json 2>&1')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'ls /home/borges/projects/VestGO/.claude/worktrees/ 2>&1 | head')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web && npx tsc --noEmit 2>&1')",
+      "Bash(cd /tmp)",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web && which node && which npx && node --version')",
+      "Read(//c//**)",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/web && node --version && npm --version')",
+      "Bash(node ./node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(node ./node_modules/eslint/bin/eslint.js .)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -c 'cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852 && git status --short 2>&1')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -c 'git config --global --add safe.directory /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852 2>&1; cd /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852 && git status --short 2>&1 | head -30')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -c 'cat /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/.git 2>&1')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -c 'GIT_DIR=/home/borges/projects/VestGO/.git GIT_WORK_TREE=/home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852 git -C /home/borges/projects/VestGO status --short 2>&1 | head -30')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -c ' *)",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -c 'ls /home/borges/projects/VestGO/.git/worktrees/ 2>&1; echo \"---\"; cat /home/borges/projects/VestGO/.git/worktrees/sad-boyd-2de852/gitdir 2>&1')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'git -C /home/borges/projects/VestGO status --short 2>&1 | head -20')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'git -C /home/borges/projects/VestGO branch 2>&1 | head -20; echo \"---\"; git -C /home/borges/projects/VestGO worktree list 2>&1')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'ls -la /home/borges/projects/VestGO/.git/worktrees/sad-boyd-2de852/ 2>&1; echo \"---\"; cat /home/borges/projects/VestGO/.git/worktrees/sad-boyd-2de852/gitdir; echo \"\"; echo \"---\"; cat /home/borges/projects/VestGO/.git/worktrees/sad-boyd-2de852/HEAD')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc ' *)",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'cat /home/borges/projects/VestGO/.git/worktrees/VestGO1/gitdir')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'ls -la /home/borges/projects/VestGO/.claude/worktrees/sad-boyd-2de852/.git /home/borges/projects/VestGO/.git/worktrees/sad-boyd-2de852/gitdir')",
+      "Bash(wsl.exe -d Ubuntu-24.04 -- bash -lc 'whoami && id')",
+      "Bash(wsl.exe -d *)"
+    ]
+  }
+}
