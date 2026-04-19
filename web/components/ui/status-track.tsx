@@ -1,17 +1,37 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import type { LucideIcon } from 'lucide-react';
+import {
+  Boxes,
+  HeartHandshake,
+  Package,
+  ShieldCheck,
+  Truck,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type TrackStatus = 'done' | 'active' | 'pending';
+
+export type TrackIconName = 'Users' | 'Boxes' | 'Truck' | 'HeartHandshake' | 'Package' | 'ShieldCheck';
+
+const ICON_MAP: Record<TrackIconName, LucideIcon> = {
+  Users,
+  Boxes,
+  Truck,
+  HeartHandshake,
+  Package,
+  ShieldCheck,
+};
 
 export interface TrackStep {
   id: string;
   label: string;
   description?: string;
   caption?: string;
-  icon?: LucideIcon;
+  /** Pass an icon name string — component references cannot cross the server/client boundary. */
+  iconName?: TrackIconName;
   status?: TrackStatus;
   role?: 'donor' | 'point' | 'ngo' | 'admin' | 'impact';
 }
@@ -50,7 +70,7 @@ export function StatusTrack({
       )}
     >
       {steps.map((step, index) => {
-        const Icon = step.icon;
+        const Icon = step.iconName ? ICON_MAP[step.iconName] : undefined;
         const status = step.status ?? (index === 0 ? 'done' : index === 1 ? 'active' : 'pending');
         const isLast = index === steps.length - 1;
 
