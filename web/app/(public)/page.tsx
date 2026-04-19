@@ -4,13 +4,11 @@ import Link from 'next/link';
 import {
   ArrowRight,
   BadgeCheck,
-  Boxes,
   HeartHandshake,
   MapPin,
   ShieldCheck,
   Sparkles,
   Truck,
-  Users,
 } from 'lucide-react';
 import { VestgoHero } from '@/components/ui/vestgo-hero';
 import { MotionSection } from '@/components/ui/motion-section';
@@ -24,7 +22,7 @@ const journeySteps: TrackStep[] = [
     description: 'Separa peças, escolhe um ponto parceiro e gera um código rastreável.',
     caption: 'Doador',
     role: 'donor',
-    icon: Users,
+    iconName: 'Users',
     status: 'done',
   },
   {
@@ -33,7 +31,7 @@ const journeySteps: TrackStep[] = [
     description: 'A rede confirma a chegada e organiza a triagem com visibilidade.',
     caption: 'Ponto parceiro',
     role: 'point',
-    icon: Boxes,
+    iconName: 'Boxes',
     status: 'done',
   },
   {
@@ -42,7 +40,7 @@ const journeySteps: TrackStep[] = [
     description: 'Instituição verificada assume a guarda e segue para a distribuição.',
     caption: 'ONG',
     role: 'ngo',
-    icon: Truck,
+    iconName: 'Truck',
     status: 'active',
   },
   {
@@ -51,7 +49,7 @@ const journeySteps: TrackStep[] = [
     description: 'A peça chega até quem precisa, e o doador acompanha o fechamento.',
     caption: 'Impacto',
     role: 'impact',
-    icon: HeartHandshake,
+    iconName: 'HeartHandshake',
     status: 'pending',
   },
 ];
