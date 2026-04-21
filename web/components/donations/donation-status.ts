@@ -56,7 +56,7 @@ export const DONATION_STATUS_CONFIG: Record<
   },
   DISTRIBUTED: {
     label: 'Distribuida',
-    description: 'Doacao distribuida para atendimento social. Obrigado pelo impacto.',
+    description: 'Doação distribuída para atendimento social. Obrigado por movimentar a solidariedade.',
     color: 'text-emerald-600',
     bg: 'bg-emerald-50',
     icon: CheckCircle,

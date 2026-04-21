@@ -1467,7 +1467,7 @@ export function OperationalProfileForm() {
             )}
 
             <div className="rounded-[2rem] bg-white p-6 shadow-card">
-              <p className="text-sm font-semibold text-primary-deeper">Impacto operacional</p>
+              <p className="text-sm font-semibold text-primary-deeper">Solidariedade operacional</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="rounded-[1.5rem] bg-surface px-4 py-4">
                   <p className="text-2xl font-bold text-primary-deeper">

@@ -152,7 +152,7 @@ export default async function RastreioDetalhePage({
               >
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-muted">
-                    Meu impacto
+                    Minha solidariedade
                   </p>
                   <p className="mt-2 text-sm font-semibold">Ver perfil completo</p>
                 </div>

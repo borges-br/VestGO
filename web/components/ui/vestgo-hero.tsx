@@ -60,7 +60,7 @@ export function VestgoHero({ signedIn = false }: VestgoHeroProps) {
           </div>
           <nav className="hidden items-center gap-6 text-sm font-medium text-white/70 md:flex">
             <a href="#jornada" className="transition-colors hover:text-white">Jornada</a>
-            <a href="#impacto" className="transition-colors hover:text-white">Impacto</a>
+            <a href="#solidariedade" className="transition-colors hover:text-white">Solidariedade</a>
             <a href="#confianca" className="transition-colors hover:text-white">Confiança</a>
           </nav>
           <div className="flex items-center gap-2">

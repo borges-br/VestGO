@@ -68,7 +68,7 @@ const quickActions = [
   },
   {
     href: '/perfil',
-    label: 'Meu impacto',
+    label: 'Minha solidariedade',
     description: 'Resumo pessoal',
     icon: HeartHandshake,
     tone: 'bg-amber-50 text-amber-600',
@@ -488,7 +488,7 @@ function OperationalHome({
                     Ainda nao ha parceiros publicos nessa busca.
                   </p>
                   <p className="mt-2 text-sm leading-7 text-gray-500">
-                    O mapa agora usa dados reais e vai refletir apenas perfis aptos, com coordenadas persistidas.
+                    Assim que um ponto ou ONG verificado surgir por aqui, ele aparece nessa lista e no mapa.
                   </p>
                 </div>
               )}
@@ -937,7 +937,7 @@ export default async function InicioPage() {
                 Central do doador
               </span>
               <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                dados reais ativos
+                Rede solidária
               </span>
             </div>
 
@@ -945,8 +945,8 @@ export default async function InicioPage() {
               <div>
                 <p className="text-3xl font-bold tracking-tight sm:text-4xl">Ola, {firstName}.</p>
                 <p className="mt-3 max-w-2xl text-base leading-8 text-primary-muted">
-                  Seu dashboard agora reflete doacoes reais registradas, o estado atual da sua
-                  jornada e o progresso de impacto acumulado no VestGO.
+                  Acompanhe a sua jornada — cada doação registrada, os pontos conquistados e o quanto
+                  a sua solidariedade já cresceu na rede.
                 </p>
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -1137,7 +1137,7 @@ export default async function InicioPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Historico resumido
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Impacto recente</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Solidariedade recente</h2>
               </div>
               <Link href="/rastreio" className="text-sm font-semibold text-primary">
                 Ver tudo

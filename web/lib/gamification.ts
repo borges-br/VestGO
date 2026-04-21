@@ -70,7 +70,7 @@ const POINT_MILESTONES = [
   { label: 'Primeiro marco solidario', target: 120 },
   { label: 'Constancia em evolucao', target: 300 },
   { label: 'Guardiao da recorrencia', target: 500 },
-  { label: 'Impacto recorrente', target: 800 },
+  { label: 'Solidariedade recorrente', target: 800 },
   { label: 'Referencia comunitaria', target: 1200 },
 ];
 
@@ -125,11 +125,11 @@ function getMonthlyStreak(donations: DonationRecord[]) {
 
 function getLevelTitle(points: number) {
   if (points >= 1200) {
-    return 'Constancia que gera impacto';
+    return 'Constancia que multiplica a solidariedade';
   }
 
   if (points >= 800) {
-    return 'Impacto recorrente em consolidacao';
+    return 'Solidariedade recorrente em consolidacao';
   }
 
   if (points >= 300) {
@@ -137,7 +137,7 @@ function getLevelTitle(points: number) {
   }
 
   if (points >= 120) {
-    return 'Primeiros marcos de impacto';
+    return 'Primeiros marcos solidarios';
   }
 
   return 'Primeiros passos solidarios';
@@ -241,7 +241,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
       },
       {
         id: 'local-impact',
-        label: 'Impacto local',
+        label: 'Solidariedade local',
         description: 'Uso recorrente da rede parceira em mais de um ponto da comunidade.',
         tone: 'amber',
         earned: usedDropOffPoints >= 2,
