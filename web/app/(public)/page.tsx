@@ -45,9 +45,9 @@ const journeySteps: TrackStep[] = [
   },
   {
     id: 'impact',
-    label: 'Impacto entregue',
+    label: 'Solidariedade entregue',
     description: 'A peça chega até quem precisa, e o doador acompanha o fechamento.',
-    caption: 'Impacto',
+    caption: 'Solidariedade',
     role: 'impact',
     iconName: 'HeartHandshake',
     status: 'pending',

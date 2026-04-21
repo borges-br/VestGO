@@ -198,7 +198,7 @@ export function BadgeCollectionCard({
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
             Conquistas
           </p>
-          <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Badges do seu impacto</h2>
+          <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Badges da sua solidariedade</h2>
         </div>
         <Sparkles size={20} className="text-primary" />
       </div>
@@ -327,7 +327,7 @@ export function ImpactHistoryCard({
           <div className="rounded-[1.75rem] bg-surface p-5">
             <p className="text-sm font-semibold text-primary-deeper">Seu historico ainda vai comecar.</p>
             <p className="mt-2 text-sm leading-7 text-gray-500">
-              As proximas doacoes reais registradas aparecem aqui com pontos e contexto de impacto.
+              As próximas doações registradas vão aparecer aqui, com pontos ganhos e o contexto solidário.
             </p>
           </div>
         )}
@@ -378,7 +378,7 @@ export function PostDonationRewardCard({
       </div>
 
       <Link href={href} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
-        Ver meu impacto
+        Ver minha solidariedade
         <ArrowRight size={15} />
       </Link>
     </div>

@@ -192,10 +192,10 @@ export default function PerfilPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
                 <Sparkles size={14} />
-                Meu impacto
+                Minha solidariedade
               </span>
               <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                baseado em doacoes reais
+                Jornada de doações
               </span>
             </div>
 
@@ -252,7 +252,8 @@ export default function PerfilPage() {
             <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-white">{snapshot.levelTitle}</p>
               <p className="mt-2 text-sm leading-7 text-primary-muted">
-                Seu perfil agora e alimentado pelo mesmo historico persistido usado no wizard, no rastreio e no dashboard.
+                Cada doação sua entra automaticamente nesta linha do tempo — da escolha do ponto
+                à entrega para a ONG parceira.
               </p>
             </div>
 
