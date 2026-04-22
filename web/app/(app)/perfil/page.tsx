@@ -2,23 +2,20 @@
 
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
+  Camera,
   ChevronRight,
   Edit3,
+  Flame,
   HelpCircle,
   LogOut,
+  Package,
   Shield,
   Sparkles,
-  Trophy,
 } from 'lucide-react';
-import {
-  BadgeCollectionCard,
-  ImpactHistoryCard,
-  ImpactProgressCard,
-  RankingPreviewCard,
-} from '@/components/gamification/impact-widgets';
+import { AwardBadge, type AwardBadgeTier, type AwardBadgeType } from '@/components/ui/award-badge';
 import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
 import {
   getMyProfile,
@@ -28,7 +25,8 @@ import {
   type DonationRecord,
   type MyProfile,
 } from '@/lib/api';
-import { buildImpactSnapshot, donorImpactSnapshot } from '@/lib/gamification';
+import { buildImpactSnapshot } from '@/lib/gamification';
+import { cn } from '@/lib/utils';
 
 const ROLE_LABELS: Record<string, string> = {
   DONOR: 'Doador',
@@ -38,11 +36,109 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const menuItems = [
-  { icon: Edit3, label: 'Configuracoes da conta', href: '/configuracoes' },
-  { icon: Shield, label: 'Privacidade e seguranca', href: '/perfil/privacidade' },
-  { icon: Bell, label: 'Notificacoes', href: '/notificacoes' },
-  { icon: HelpCircle, label: 'Suporte / FAQ', href: '/suporte' },
+  { icon: Edit3, label: 'Configurações da conta', href: '/configuracoes' },
+  { icon: Shield, label: 'Privacidade e segurança', href: '/perfil/privacidade' },
+  { icon: Bell, label: 'Notificações', href: '/notificacoes' },
+  { icon: HelpCircle, label: 'Suporte e FAQ', href: '/suporte' },
 ];
+
+type BadgeEntry = {
+  type: AwardBadgeType;
+  tier: AwardBadgeTier;
+  earned: boolean;
+  earnedAt?: string;
+  progressLabel?: string;
+  subtitle?: string;
+};
+
+function pickTier(value: number, thresholds: [number, number, number]): AwardBadgeTier {
+  if (value >= thresholds[2]) return 'ouro';
+  if (value >= thresholds[1]) return 'prata';
+  return 'bronze';
+}
+
+function formatMonthLabel(input: string) {
+  return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric' })
+    .format(new Date(input))
+    .replace('.', '');
+}
+
+function buildBadges(donations: DonationRecord[]): BadgeEntry[] {
+  const ordered = [...donations].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+  const completed = donations.filter(
+    (d) => d.status === 'DELIVERED' || d.status === 'DISTRIBUTED',
+  );
+  const usedPoints = new Set(
+    donations.map((d) => d.dropOffPoint?.id).filter(Boolean) as string[],
+  ).size;
+  const monthSet = new Set(
+    donations.map((d) => {
+      const date = new Date(d.createdAt);
+      return `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+    }),
+  );
+  const monthsActive = monthSet.size;
+
+  const first = ordered[0];
+
+  return [
+    {
+      type: 'primeira-doacao',
+      tier: pickTier(donations.length, [1, 5, 20]),
+      earned: donations.length >= 1,
+      earnedAt: first ? formatMonthLabel(first.createdAt) : undefined,
+      subtitle:
+        donations.length >= 20
+          ? '20+ doações registradas'
+          : donations.length >= 5
+            ? '5+ doações registradas'
+            : 'Jornada iniciada',
+      progressLabel: donations.length === 0 ? 'Faça sua primeira doação' : undefined,
+    },
+    {
+      type: 'constancia',
+      tier: pickTier(monthsActive, [2, 4, 6]),
+      earned: monthsActive >= 2,
+      subtitle: `${monthsActive} ${monthsActive === 1 ? 'mês ativo' : 'meses ativos'}`,
+      progressLabel: monthsActive < 2 ? `${monthsActive}/2 meses ativos` : undefined,
+    },
+    {
+      type: 'mes-solidario',
+      tier: pickTier(completed.length, [1, 5, 15]),
+      earned: completed.length >= 1,
+      subtitle:
+        completed.length >= 15
+          ? '15+ entregas concluídas'
+          : completed.length >= 5
+            ? '5+ entregas concluídas'
+            : 'Primeira entrega concluída',
+      progressLabel:
+        completed.length < 1 ? 'Complete uma entrega' : undefined,
+    },
+    {
+      type: 'rede-ativa',
+      tier: pickTier(usedPoints, [2, 4, 6]),
+      earned: usedPoints >= 2,
+      subtitle: `${usedPoints} ${usedPoints === 1 ? 'ponto parceiro' : 'pontos parceiros'}`,
+      progressLabel: usedPoints < 2 ? `${usedPoints}/2 pontos parceiros` : undefined,
+    },
+    {
+      type: 'heroi-solidario',
+      tier: pickTier(donations.length, [10, 30, 100]),
+      earned: donations.length >= 10,
+      subtitle:
+        donations.length >= 100
+          ? 'Lenda solidária'
+          : donations.length >= 30
+            ? 'Referência da rede'
+            : 'Destaque do período',
+      progressLabel:
+        donations.length < 10 ? `${donations.length}/10 doações` : undefined,
+    },
+  ];
+}
 
 export default function PerfilPage() {
   const { data: session, status, update: updateSession } = useSession();
@@ -68,7 +164,7 @@ export default function PerfilPage() {
       const nextProfile = await getMyProfile(session.user.accessToken);
       setProfile(nextProfile);
     } catch {
-      setProfileError('Nao foi possivel carregar o perfil operacional agora.');
+      setProfileError('Não foi possível carregar o perfil operacional agora.');
     } finally {
       setLoadingProfile(false);
     }
@@ -90,7 +186,7 @@ export default function PerfilPage() {
           const response = await getUserDonations(session.user.accessToken, { limit: 50 });
           setDonations(response.data);
         } catch {
-          setImpactError('Nao foi possivel carregar seu historico agora.');
+          setImpactError('Não foi possível carregar seu histórico agora.');
         } finally {
           setLoadingImpact(false);
           setLoadingProfile(false);
@@ -108,10 +204,23 @@ export default function PerfilPage() {
     }
   }, [loadOperationalProfile, session?.user?.accessToken, status]);
 
+  const snapshot = useMemo(() => buildImpactSnapshot(donations), [donations]);
+  const badges = useMemo(() => buildBadges(donations), [donations]);
+  const completed = useMemo(
+    () =>
+      donations.filter((d) => d.status === 'DELIVERED' || d.status === 'DISTRIBUTED').length,
+    [donations],
+  );
+  const itemsTotal = useMemo(
+    () => donations.reduce((sum, d) => sum + d.itemCount, 0),
+    [donations],
+  );
+  const recentDonations = useMemo(() => donations.slice(0, 5), [donations]);
+
   if (status === 'loading') {
     return (
-      <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-shell rounded-[2rem] bg-white p-6 shadow-card">
+      <div className="px-4 pb-6 pt-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-shell">
           <p className="text-sm text-gray-500">Carregando perfil...</p>
         </div>
       </div>
@@ -130,8 +239,7 @@ export default function PerfilPage() {
     );
   }
 
-  const snapshot = buildImpactSnapshot(donations);
-  const userName = session?.user?.name ?? 'Usuario';
+  const userName = session?.user?.name ?? 'Usuário';
   const userEmail = session?.user?.email ?? '';
   const userRole = session?.user?.role ?? 'DONOR';
   const userAvatar = session?.user?.image ?? null;
@@ -142,28 +250,19 @@ export default function PerfilPage() {
     .join('');
 
   async function handleDonorAvatarUpload(file: File | null | undefined) {
-    if (!file || !session?.user?.accessToken) {
-      return;
-    }
+    if (!file || !session?.user?.accessToken) return;
 
     setAvatarUploading(true);
     setProfileError(null);
 
     try {
       const uploaded = await uploadProfileAsset(
-        {
-          file,
-          target: 'avatar',
-        },
+        { file, target: 'avatar' },
         session.user.accessToken,
       );
 
       const updated = await updateMyProfile(
-        {
-          name: userName,
-          email: userEmail,
-          avatarUrl: uploaded.url,
-        },
+        { name: userName, email: userEmail, avatarUrl: uploaded.url },
         session.user.accessToken,
       );
 
@@ -177,7 +276,7 @@ export default function PerfilPage() {
       setProfileError(
         error instanceof Error
           ? error.message
-          : 'Nao foi possivel atualizar seu avatar agora.',
+          : 'Não foi possível atualizar seu avatar agora.',
       );
     } finally {
       setAvatarUploading(false);
@@ -185,143 +284,267 @@ export default function PerfilPage() {
   }
 
   return (
-    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-shell space-y-4">
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
-          <div className="rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
-                <Sparkles size={14} />
-                Minha solidariedade
-              </span>
-              <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                Jornada de doações
-              </span>
-            </div>
+    <div className="relative overflow-hidden">
+      {/* Soft gradient wash, bleeds fluidly */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[480px] bg-[radial-gradient(ellipse_at_50%_0%,rgba(33,211,196,0.16),transparent_65%),linear-gradient(180deg,#f4faf8,#ffffff_70%)]"
+      />
 
-            <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-primary text-white shadow-sm">
+      <div className="relative px-4 pt-12 pb-14 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-shell flex-col gap-14">
+          {/* ──────────────────── HEADER ──────────────────── */}
+          <header className="flex flex-col items-center gap-6 text-center">
+            <div className="relative">
+              <div className="relative h-28 w-28 overflow-hidden rounded-[2rem] bg-primary-deeper shadow-xl shadow-primary/20 ring-4 ring-white">
                 {userAvatar ? (
-                  <img
-                    src={userAvatar}
-                    alt={userName}
-                    className="h-full w-full rounded-[1.75rem] object-cover"
-                  />
+                  <img src={userAvatar} alt={userName} className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-3xl font-bold">{initials}</span>
+                  <div className="flex h-full w-full items-center justify-center text-4xl font-bold text-white">
+                    {initials || '?'}
+                  </div>
                 )}
               </div>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => void handleDonorAvatarUpload(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-white text-primary-deeper shadow-md transition-transform hover:scale-105 disabled:opacity-60"
+                aria-label="Atualizar avatar"
+              >
+                <Camera size={14} />
+              </button>
+            </div>
 
-              <div className="min-w-0 flex-1">
-                <p className="text-3xl font-bold tracking-tight sm:text-4xl">{userName}</p>
-                <p className="mt-2 truncate text-sm text-primary-muted">{userEmail}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted">
-                    {ROLE_LABELS[userRole] ?? userRole}
-                  </span>
-                  <span className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted">
-                    {snapshot.points} pontos solidarios
-                  </span>
-                  <span className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted">
-                    {snapshot.streak.value} meses de participacao
-                  </span>
-                </div>
-              </div>
-
-              <div className="sm:ml-auto">
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={(event) =>
-                    void handleDonorAvatarUpload(event.target.files?.[0] ?? null)
-                  }
-                />
-                <button
-                  type="button"
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={avatarUploading}
-                  className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {avatarUploading ? 'Enviando avatar...' : 'Atualizar avatar'}
-                </button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-primary-deeper sm:text-4xl">
+                {userName}
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">{userEmail}</p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-gray-700">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <Sparkles size={14} className="text-primary" />
+                  {ROLE_LABELS[userRole] ?? userRole}
+                </span>
+                <span className="h-1 w-1 rounded-full bg-gray-300" />
+                <span>
+                  <span className="font-bold text-primary-deeper">
+                    {snapshot.points.toLocaleString('pt-BR')}
+                  </span>{' '}
+                  pontos
+                </span>
+                <span className="h-1 w-1 rounded-full bg-gray-300" />
+                <span className="inline-flex items-center gap-1.5">
+                  <Flame size={14} className="text-amber-500" />
+                  <span className="font-bold text-primary-deeper">{snapshot.streak.value}</span>
+                  {snapshot.streak.value === 1 ? 'mês seguido' : 'meses seguidos'}
+                </span>
               </div>
             </div>
 
-            <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-semibold text-white">{snapshot.levelTitle}</p>
-              <p className="mt-2 text-sm leading-7 text-primary-muted">
-                Cada doação sua entra automaticamente nesta linha do tempo — da escolha do ponto
-                à entrega para a ONG parceira.
+            {avatarUploading && (
+              <p className="text-xs text-gray-500">Enviando novo avatar…</p>
+            )}
+            {profileError && (
+              <p className="max-w-md rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">
+                {profileError}
+              </p>
+            )}
+          </header>
+
+          {/* ──────────────────── STATS STRIP ──────────────────── */}
+          <section aria-labelledby="stats-heading" className="relative">
+            <h2 id="stats-heading" className="sr-only">
+              Resumo
+            </h2>
+            <div className="mx-auto grid max-w-3xl grid-cols-3 gap-px overflow-hidden rounded-2xl bg-primary/10">
+              <Stat value={donations.length} label="doações" />
+              <Stat value={completed} label="concluídas" />
+              <Stat value={itemsTotal} label="itens" />
+            </div>
+            {impactError && (
+              <p className="mx-auto mt-3 max-w-md rounded-xl bg-amber-50 px-3 py-2 text-center text-xs text-amber-700">
+                {impactError}
+              </p>
+            )}
+          </section>
+
+          {/* ──────────────────── BADGES ──────────────────── */}
+          <section aria-labelledby="badges-heading">
+            <div className="mb-6 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
+                  Conquistas
+                </p>
+                <h2
+                  id="badges-heading"
+                  className="mt-1 text-2xl font-bold text-primary-deeper"
+                >
+                  Sua coleção solidária
+                </h2>
+              </div>
+              <p className="hidden text-xs text-gray-500 sm:block">
+                Passe o mouse nos medalhões para ver o brilho
               </p>
             </div>
 
-            {impactError && (
-              <div className="mt-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                {impactError}
-              </div>
-            )}
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {(loadingImpact ? donorImpactSnapshot : snapshot).stats.map((item) => (
-                <div key={item.label} className="rounded-[1.5rem] bg-white/10 p-4 backdrop-blur">
-                  <p className="text-3xl font-bold">{item.value}</p>
-                  <p className="mt-1 text-sm text-primary-muted">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <ImpactProgressCard snapshot={loadingImpact ? donorImpactSnapshot : snapshot} />
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-          <BadgeCollectionCard badges={loadingImpact ? donorImpactSnapshot.badges : snapshot.badges} />
-
-          <div className="space-y-4">
-            <RankingPreviewCard snapshot={loadingImpact ? donorImpactSnapshot : snapshot} />
-
-            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                    Conta e suporte
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Ajustes da sua conta</h2>
-                </div>
-                <Trophy size={20} className="text-primary" />
-              </div>
-
-              <div className="mt-5 overflow-hidden rounded-[1.75rem] border border-gray-100 bg-white">
-                {menuItems.map(({ icon: Icon, label, href }) => (
-                  <Link
-                    key={href + label}
-                    href={href}
-                    className="flex items-center gap-3 border-b border-gray-100 px-5 py-4 transition-colors last:border-b-0 hover:bg-surface"
+            {loadingImpact && donations.length === 0 ? (
+              <p className="text-sm text-gray-500">Carregando conquistas…</p>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                {badges.map((badge) => (
+                  <div
+                    key={badge.type}
+                    className={cn(
+                      'flex flex-col items-center text-center transition-opacity',
+                      !badge.earned && 'opacity-50 grayscale-[55%]',
+                    )}
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-gray-500">
-                      <Icon size={16} />
-                    </div>
-                    <span className="flex-1 text-sm text-on-surface">{label}</span>
-                    <ChevronRight size={15} className="text-gray-300" />
-                  </Link>
+                    <AwardBadge
+                      type={badge.type}
+                      tier={badge.tier}
+                      subtitle={badge.subtitle}
+                      earnedAt={badge.earned ? badge.earnedAt : undefined}
+                    />
+                    {!badge.earned && badge.progressLabel && (
+                      <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                        {badge.progressLabel}
+                      </p>
+                    )}
+                  </div>
                 ))}
               </div>
+            )}
+          </section>
 
-              <button
-                onClick={() => signOut({ callbackUrl: '/login' })}
-                className="mt-5 flex w-full items-center justify-center gap-3 rounded-2xl bg-red-50 py-4 font-semibold text-red-500 transition-colors hover:bg-red-100"
+          {/* ──────────────────── RECENT TIMELINE ──────────────────── */}
+          <section aria-labelledby="history-heading">
+            <div className="mb-6 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
+                  Últimas entregas
+                </p>
+                <h2
+                  id="history-heading"
+                  className="mt-1 text-2xl font-bold text-primary-deeper"
+                >
+                  Sua linha do tempo
+                </h2>
+              </div>
+              <Link
+                href="/rastreio"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary-deeper"
               >
-                <LogOut size={18} />
-                Sair da conta
-              </button>
+                Ver tudo
+                <ChevronRight size={14} />
+              </Link>
             </div>
-          </div>
-        </section>
 
-        <ImpactHistoryCard snapshot={loadingImpact ? donorImpactSnapshot : snapshot} />
+            {recentDonations.length > 0 ? (
+              <ol className="relative space-y-3 pl-1">
+                <div
+                  aria-hidden
+                  className="absolute left-[15px] top-3 bottom-3 w-px bg-gradient-to-b from-primary/30 via-primary/15 to-transparent"
+                />
+                {recentDonations.map((donation) => (
+                  <li key={donation.id} className="relative">
+                    <Link
+                      href={`/rastreio/${donation.id}`}
+                      className="group flex items-start gap-4 rounded-2xl px-2 py-3 transition-colors hover:bg-white"
+                    >
+                      <div className="relative z-[1] flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow-sm">
+                        <Package size={13} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="truncate text-sm font-semibold text-primary-deeper">
+                            {donation.itemLabel}
+                          </p>
+                          <span className="flex-shrink-0 text-[11px] text-gray-400">
+                            {formatMonthLabel(donation.createdAt)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">
+                          {donation.dropOffPoint?.organizationName ??
+                            donation.dropOffPoint?.name ??
+                            'Destino em definição'}
+                        </p>
+                        <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide text-primary">
+                          +{donation.pointsAwarded} pts
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Assim que você registrar uma doação, ela aparece aqui.
+              </p>
+            )}
+          </section>
+
+          {/* ──────────────────── ACCOUNT MENU ──────────────────── */}
+          <section aria-labelledby="account-heading" className="max-w-2xl">
+            <div className="mb-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
+                Conta
+              </p>
+              <h2
+                id="account-heading"
+                className="mt-1 text-2xl font-bold text-primary-deeper"
+              >
+                Ajustes e suporte
+              </h2>
+            </div>
+
+            <div className="divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-white/70">
+              {menuItems.map(({ icon: Icon, label, href }) => (
+                <Link
+                  key={href + label}
+                  href={href}
+                  className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-surface/80"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-light text-primary">
+                    <Icon size={15} />
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-primary-deeper">
+                    {label}
+                  </span>
+                  <ChevronRight size={14} className="text-gray-300" />
+                </Link>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-white py-3.5 text-sm font-semibold text-red-500 transition-colors hover:bg-red-50"
+            >
+              <LogOut size={15} />
+              Sair da conta
+            </button>
+          </section>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1 bg-white py-5">
+      <span className="text-3xl font-bold text-primary-deeper">
+        {value.toLocaleString('pt-BR')}
+      </span>
+      <span className="text-xs text-gray-500">{label}</span>
     </div>
   );
 }
