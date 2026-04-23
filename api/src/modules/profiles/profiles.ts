@@ -373,6 +373,39 @@ function buildPublishedGovernedPayload(user: EditableProfileRecord): PendingPubl
   };
 }
 
+function buildEffectiveGovernedPayload(user: EditableProfileRecord): PendingPublicRevisionPayload {
+  const published = buildPublishedGovernedPayload(user);
+  const pendingPayload =
+    user.pendingPublicRevisionStatus === PublicProfileRevisionStatus.PENDING
+      ? parsePendingPublicRevision(user.pendingPublicRevision)
+      : null;
+
+  if (!pendingPayload) {
+    return published;
+  }
+
+  return {
+    ...published,
+    ...pendingPayload,
+  };
+}
+
+function addressValuesDiffer(
+  left: PendingPublicRevisionPayload,
+  right: PendingPublicRevisionPayload,
+) {
+  return (
+    normalizeAddressField(left.address) !== normalizeAddressField(right.address) ||
+    normalizeAddressField(left.addressNumber) !== normalizeAddressField(right.addressNumber) ||
+    normalizeAddressField(left.addressComplement) !==
+      normalizeAddressField(right.addressComplement) ||
+    normalizeAddressField(left.neighborhood) !== normalizeAddressField(right.neighborhood) ||
+    normalizeAddressField(left.zipCode) !== normalizeAddressField(right.zipCode) ||
+    normalizeAddressField(left.city) !== normalizeAddressField(right.city) ||
+    normalizeAddressField(left.state) !== normalizeAddressField(right.state)
+  );
+}
+
 function getChangedGovernedFields(
   published: PendingPublicRevisionPayload,
   next: PendingPublicRevisionPayload,
@@ -558,31 +591,21 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         buildOpeningHoursSummary(body.openingSchedule, body.openingHoursExceptions) ??
         body.openingHours;
 
+      const publishedGovernedPayload = buildPublishedGovernedPayload(existingUser);
+      const effectiveGovernedPayload = buildEffectiveGovernedPayload(existingUser);
       const nextGovernedCandidate = buildGovernedPayload(
         body,
-        existingUser.latitude ?? null,
-        existingUser.longitude ?? null,
+        effectiveGovernedPayload.latitude ?? null,
+        effectiveGovernedPayload.longitude ?? null,
         nextOpeningHours,
       );
-      const publishedGovernedPayload = buildPublishedGovernedPayload(existingUser);
-      const addressChanged =
-        normalizeAddressField(publishedGovernedPayload.address) !==
-          normalizeAddressField(nextGovernedCandidate.address) ||
-        normalizeAddressField(publishedGovernedPayload.addressNumber) !==
-          normalizeAddressField(nextGovernedCandidate.addressNumber) ||
-        normalizeAddressField(publishedGovernedPayload.addressComplement) !==
-          normalizeAddressField(nextGovernedCandidate.addressComplement) ||
-        normalizeAddressField(publishedGovernedPayload.neighborhood) !==
-          normalizeAddressField(nextGovernedCandidate.neighborhood) ||
-        normalizeAddressField(publishedGovernedPayload.zipCode) !==
-          normalizeAddressField(nextGovernedCandidate.zipCode) ||
-        normalizeAddressField(publishedGovernedPayload.city) !==
-          normalizeAddressField(nextGovernedCandidate.city) ||
-        normalizeAddressField(publishedGovernedPayload.state) !==
-          normalizeAddressField(nextGovernedCandidate.state);
+      const addressChanged = addressValuesDiffer(
+        effectiveGovernedPayload,
+        nextGovernedCandidate,
+      );
 
-      let resolvedLatitude = publishedGovernedPayload.latitude;
-      let resolvedLongitude = publishedGovernedPayload.longitude;
+      let resolvedLatitude = effectiveGovernedPayload.latitude;
+      let resolvedLongitude = effectiveGovernedPayload.longitude;
 
       if (
         (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) &&

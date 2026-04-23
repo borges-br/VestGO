@@ -3,13 +3,14 @@ import { z } from 'zod';
 import { AppError, UnauthorizedError, toErrorResponse } from '../../shared/errors';
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const UPLOAD_BODY_LIMIT_BYTES = 12 * 1024 * 1024;
 const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 const uploadBodySchema = z.object({
   filename: z.string().trim().min(1).max(180),
-  contentType: z.enum(ALLOWED_CONTENT_TYPES),
+  contentType: z.string().trim().min(1).max(80),
   target: z.enum(['avatar', 'cover', 'gallery']),
-  dataBase64: z.string().min(1),
+  dataBase64: z.string().min(1).max(UPLOAD_BODY_LIMIT_BYTES),
 });
 
 const getObjectParamsSchema = z.object({
@@ -24,6 +25,20 @@ const getObjectParamsSchema = z.object({
 function parseBase64Image(value: string) {
   const [, base64Value = value] = value.split(',', 2);
   return Buffer.from(base64Value, 'base64');
+}
+
+function normalizeDeclaredContentType(value: string): (typeof ALLOWED_CONTENT_TYPES)[number] | null {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === 'image/jpg') {
+    return 'image/jpeg';
+  }
+
+  if (ALLOWED_CONTENT_TYPES.includes(normalized as (typeof ALLOWED_CONTENT_TYPES)[number])) {
+    return normalized as (typeof ALLOWED_CONTENT_TYPES)[number];
+  }
+
+  return null;
 }
 
 function sniffImageContentType(buffer: Buffer): (typeof ALLOWED_CONTENT_TYPES)[number] | null {
@@ -66,15 +81,24 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
     '/',
     {
       preHandler: [fastify.authenticate],
-      bodyLimit: 8 * 1024 * 1024,
+      bodyLimit: UPLOAD_BODY_LIMIT_BYTES,
     },
     async (request, reply) => {
       try {
         const body = uploadBodySchema.parse(request.body);
         const user = request.user;
+        const declaredContentType = normalizeDeclaredContentType(body.contentType);
 
         if (!user?.id) {
           throw new UnauthorizedError('Sessao invalida para upload');
+        }
+
+        if (!declaredContentType) {
+          throw new AppError(
+            'Formato de imagem invalido. Use JPG, PNG ou WEBP.',
+            422,
+            'VALIDATION_ERROR',
+          );
         }
 
         if (
@@ -113,7 +137,7 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
           );
         }
 
-        if (detectedContentType !== body.contentType) {
+        if (detectedContentType !== declaredContentType) {
           throw new AppError(
             'O tipo do arquivo nao corresponde ao conteudo enviado. Reenvie a imagem original.',
             422,
@@ -145,7 +169,12 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
           });
         }
 
-        throw err;
+        request.log.error({ err }, 'Falha ao armazenar imagem enviada.');
+        return reply.code(503).send({
+          error: 'STORAGE_UNAVAILABLE',
+          message: 'Nao foi possivel salvar a imagem no storage agora. Tente novamente em instantes.',
+          statusCode: 503,
+        });
       }
     },
   );
