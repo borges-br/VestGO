@@ -31,6 +31,7 @@ const editableProfileSelect = {
   role: true,
   name: true,
   email: true,
+  birthDate: true,
   phone: true,
   avatarUrl: true,
   coverImageUrl: true,
@@ -60,6 +61,7 @@ const editableProfileSelect = {
   rules: true,
   nonAcceptedItems: true,
   acceptedCategories: true,
+  donationInterestCategories: true,
   publicProfileState: true,
   verifiedAt: true,
   pendingPublicRevision: true,
@@ -127,6 +129,7 @@ type EditableProfileView = {
   role: UserRole;
   name: string;
   email: string;
+  birthDate: Date | null;
   phone: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
@@ -156,6 +159,7 @@ type EditableProfileView = {
   rules: string[];
   nonAcceptedItems: string[];
   acceptedCategories: EditableProfileRecord['acceptedCategories'];
+  donationInterestCategories: EditableProfileRecord['donationInterestCategories'];
   publicProfileState: PublicProfileState;
   verifiedAt: Date | null;
   createdAt: Date;
@@ -467,6 +471,7 @@ function overlayPendingRevision(user: EditableProfileRecord): EditableProfileVie
 function mapEditableProfile(user: EditableProfileRecord) {
   const view = overlayPendingRevision(user);
   const checklist = getOperationalProfileChecklist(view.role, {
+    birthDate: view.birthDate?.toISOString().slice(0, 10) ?? undefined,
     organizationName: view.organizationName ?? undefined,
     description: view.description ?? undefined,
     purpose: view.purpose ?? undefined,
@@ -481,6 +486,7 @@ function mapEditableProfile(user: EditableProfileRecord) {
     openingSchedule: view.openingSchedule,
     phone: view.phone ?? undefined,
     acceptedCategories: view.acceptedCategories,
+    donationInterestCategories: view.donationInterestCategories,
     serviceRegions: view.serviceRegions,
     latitude: view.latitude ?? undefined,
     longitude: view.longitude ?? undefined,
@@ -491,6 +497,7 @@ function mapEditableProfile(user: EditableProfileRecord) {
     role: view.role,
     name: view.name,
     email: view.email,
+    birthDate: view.birthDate?.toISOString().slice(0, 10) ?? null,
     phone: view.phone,
     avatarUrl: view.avatarUrl,
     coverImageUrl: view.coverImageUrl,
@@ -520,6 +527,7 @@ function mapEditableProfile(user: EditableProfileRecord) {
     rules: view.rules,
     nonAcceptedItems: view.nonAcceptedItems,
     acceptedCategories: view.acceptedCategories,
+    donationInterestCategories: view.donationInterestCategories,
     publicProfileState: view.publicProfileState,
     verifiedAt: view.verifiedAt?.toISOString() ?? null,
     createdAt: view.createdAt.toISOString(),
@@ -540,6 +548,14 @@ function shouldGovernPublicChanges(user: EditableProfileRecord) {
     (user.publicProfileState === PublicProfileState.ACTIVE ||
       user.publicProfileState === PublicProfileState.VERIFIED)
   );
+}
+
+function parseBirthDate(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return new Date(`${value}T00:00:00.000Z`);
 }
 
 export default async function profileRoutes(fastify: FastifyInstance) {
@@ -664,12 +680,14 @@ export default async function profileRoutes(fastify: FastifyInstance) {
       const directUpdateData: Prisma.UserUpdateInput = {
         name: body.name,
         email: body.email,
+        birthDate: parseBirthDate(body.birthDate),
         organizationName: body.organizationName,
         description: body.description,
         purpose: body.purpose,
         operationalNotes: body.operationalNotes,
         estimatedCapacity: body.estimatedCapacity,
         acceptedCategories: body.acceptedCategories,
+        donationInterestCategories: body.donationInterestCategories,
         nonAcceptedItems: body.nonAcceptedItems,
         serviceRegions: body.serviceRegions,
       };

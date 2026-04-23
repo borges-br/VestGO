@@ -29,6 +29,14 @@ const optionalText = (max: number) =>
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined));
 
+const optionalDate = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Informe uma data valida no formato AAAA-MM-DD.')
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => (value && value.length > 0 ? value : undefined));
+
 const RELATIVE_ASSET_URL_PATTERN = /^\/api\/backend\/uploads\/[a-zA-Z0-9._%-]+$/;
 const MAX_PROFILE_GALLERY_IMAGES = 6;
 
@@ -132,6 +140,7 @@ export const openingScheduleSchema = z
 export const profileWriteSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email(),
+  birthDate: optionalDate,
   phone: optionalText(30),
   organizationName: optionalText(160),
   description: optionalText(1200),
@@ -156,6 +165,11 @@ export const profileWriteSchema = z.object({
   coverImageUrl: optionalUrl,
   galleryImageUrls: optionalAssetUrlArray(MAX_PROFILE_GALLERY_IMAGES),
   acceptedCategories: z.array(z.nativeEnum(ItemCategory)).max(10).optional().default([]),
+  donationInterestCategories: z
+    .array(z.nativeEnum(ItemCategory))
+    .max(10)
+    .optional()
+    .default([]),
   nonAcceptedItems: optionalStringArray(20, 80),
   rules: optionalStringArray(16, 140),
   serviceRegions: optionalStringArray(12, 80),
@@ -196,6 +210,7 @@ type CompletionPayload = Pick<
   | 'organizationName'
   | 'description'
   | 'purpose'
+  | 'birthDate'
   | 'address'
   | 'addressNumber'
   | 'addressComplement'
@@ -207,6 +222,7 @@ type CompletionPayload = Pick<
   | 'openingSchedule'
   | 'phone'
   | 'acceptedCategories'
+  | 'donationInterestCategories'
   | 'serviceRegions'
 > & {
   latitude?: number;
@@ -217,6 +233,25 @@ export function getOperationalProfileChecklist(
   role: UserRole,
   payload: CompletionPayload,
 ): CompletionEntry[] {
+  if (role === UserRole.DONOR) {
+    return [
+      {
+        key: 'birthDate',
+        label: 'Data de nascimento',
+        complete: hasValue(payload.birthDate),
+      },
+      { key: 'city', label: 'Cidade', complete: hasValue(payload.city) },
+      { key: 'state', label: 'Estado', complete: hasValue(payload.state) },
+      {
+        key: 'donationInterestCategories',
+        label: 'Interesses de doacao',
+        complete:
+          Array.isArray(payload.donationInterestCategories) &&
+          payload.donationInterestCategories.length > 0,
+      },
+    ];
+  }
+
   if (role === UserRole.COLLECTION_POINT) {
     return [
       {
@@ -320,6 +355,7 @@ export function sanitizeProfileWriteInput(input: ProfileWriteInput) {
     openingSchedule: input.openingSchedule ?? [],
     accessibilityFeatures: input.accessibilityFeatures ?? [],
     acceptedCategories: input.acceptedCategories ?? [],
+    donationInterestCategories: input.donationInterestCategories ?? [],
     galleryImageUrls: input.galleryImageUrls ?? [],
     nonAcceptedItems: input.nonAcceptedItems ?? [],
     rules: input.rules ?? [],

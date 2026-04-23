@@ -715,9 +715,11 @@ export function OperationalProfileForm() {
       );
 
       await updateSession({
-        name: updated.name,
-        email: updated.email,
-        image: updated.avatarUrl ?? null,
+        user: {
+          name: updated.name,
+          email: updated.email,
+          image: updated.avatarUrl ?? null,
+        },
       });
 
       setProfile(updated);

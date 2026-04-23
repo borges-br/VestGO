@@ -35,6 +35,14 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Administrador',
 };
 
+const DONATION_INTEREST_OPTIONS = [
+  { value: 'CLOTHING', label: 'Roupas' },
+  { value: 'SHOES', label: 'Calcados' },
+  { value: 'ACCESSORIES', label: 'Acessorios' },
+  { value: 'BAGS', label: 'Bolsas' },
+  { value: 'OTHER', label: 'Outros' },
+] as const;
+
 const menuItems = [
   { icon: Edit3, label: 'Configurações da conta', href: '/configuracoes' },
   { icon: Shield, label: 'Privacidade e segurança', href: '/perfil/privacidade' },
@@ -148,6 +156,14 @@ export default function PerfilPage() {
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [donorProfileSuccess, setDonorProfileSuccess] = useState<string | null>(null);
+  const [savingDonorProfile, setSavingDonorProfile] = useState(false);
+  const [donorProfileForm, setDonorProfileForm] = useState({
+    birthDate: '',
+    city: '',
+    state: '',
+    donationInterestCategories: [] as string[],
+  });
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -181,11 +197,18 @@ export default function PerfilPage() {
       if (session.user.role === 'DONOR') {
         setLoadingImpact(true);
         setImpactError(null);
+        setLoadingProfile(true);
+        setProfileError(null);
 
         try {
-          const response = await getUserDonations(session.user.accessToken, { limit: 50 });
+          const [response, nextProfile] = await Promise.all([
+            getUserDonations(session.user.accessToken, { limit: 50 }),
+            getMyProfile(session.user.accessToken),
+          ]);
           setDonations(response.data);
+          setProfile(nextProfile);
         } catch {
+          setProfileError('Nao foi possivel carregar seu perfil agora.');
           setImpactError('Não foi possível carregar seu histórico agora.');
         } finally {
           setLoadingImpact(false);
@@ -204,6 +227,19 @@ export default function PerfilPage() {
     }
   }, [loadOperationalProfile, session?.user?.accessToken, status]);
 
+  useEffect(() => {
+    if (session?.user?.role !== 'DONOR' || !profile) {
+      return;
+    }
+
+    setDonorProfileForm({
+      birthDate: profile.birthDate ?? '',
+      city: profile.city ?? '',
+      state: profile.state ?? '',
+      donationInterestCategories: profile.donationInterestCategories ?? [],
+    });
+  }, [profile, session?.user?.role]);
+
   const snapshot = useMemo(() => buildImpactSnapshot(donations), [donations]);
   const badges = useMemo(() => buildBadges(donations), [donations]);
   const completed = useMemo(
@@ -216,6 +252,7 @@ export default function PerfilPage() {
     [donations],
   );
   const recentDonations = useMemo(() => donations.slice(0, 5), [donations]);
+  const donorCompletion = profile?.profileCompletion;
 
   if (status === 'loading') {
     return (
@@ -242,7 +279,7 @@ export default function PerfilPage() {
   const userName = session?.user?.name ?? 'Usuário';
   const userEmail = session?.user?.email ?? '';
   const userRole = session?.user?.role ?? 'DONOR';
-  const userAvatar = session?.user?.image ?? null;
+  const userAvatar = session?.user?.image ?? profile?.avatarUrl ?? null;
   const initials = userName
     .split(' ')
     .map((name) => name[0])
@@ -267,11 +304,14 @@ export default function PerfilPage() {
       );
 
       await updateSession({
-        name: updated.name,
-        email: updated.email,
-        image: updated.avatarUrl ?? null,
+        user: {
+          name: updated.name,
+          email: updated.email,
+          image: updated.avatarUrl ?? null,
+        },
       });
       setProfile(updated);
+      setDonorProfileSuccess(null);
     } catch (error) {
       setProfileError(
         error instanceof Error
@@ -280,6 +320,56 @@ export default function PerfilPage() {
       );
     } finally {
       setAvatarUploading(false);
+    }
+  }
+
+  function toggleDonationInterest(category: string) {
+    setDonorProfileForm((current) => {
+      const exists = current.donationInterestCategories.includes(category);
+
+      return {
+        ...current,
+        donationInterestCategories: exists
+          ? current.donationInterestCategories.filter((item) => item !== category)
+          : [...current.donationInterestCategories, category],
+      };
+    });
+    setDonorProfileSuccess(null);
+    setProfileError(null);
+  }
+
+  async function handleSaveDonorProfile() {
+    if (!session?.user?.accessToken || !profile) {
+      return;
+    }
+
+    setSavingDonorProfile(true);
+    setProfileError(null);
+    setDonorProfileSuccess(null);
+
+    try {
+      const updated = await updateMyProfile(
+        {
+          name: profile.name,
+          email: profile.email,
+          birthDate: donorProfileForm.birthDate || undefined,
+          city: donorProfileForm.city || undefined,
+          state: donorProfileForm.state || undefined,
+          donationInterestCategories: donorProfileForm.donationInterestCategories,
+        },
+        session.user.accessToken,
+      );
+
+      setProfile(updated);
+      setDonorProfileSuccess('Perfil complementar salvo com sucesso.');
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel salvar seu perfil complementar agora.',
+      );
+    } finally {
+      setSavingDonorProfile(false);
     }
   }
 
@@ -377,6 +467,152 @@ export default function PerfilPage() {
           </section>
 
           {/* ──────────────────── BADGES ──────────────────── */}
+          <section aria-labelledby="profile-completion-heading" className="max-w-4xl">
+            <div className="rounded-[2rem] border border-gray-100 bg-white/80 p-6 shadow-card">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
+                    Perfil complementar
+                  </p>
+                  <h2
+                    id="profile-completion-heading"
+                    className="mt-1 text-2xl font-bold text-primary-deeper"
+                  >
+                    Complete seu perfil no seu ritmo
+                  </h2>
+                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                    Esses dados continuam opcionais. Eles ajudam o VestGO a melhorar
+                    personalizacao e descoberta local sem mexer no cadastro inicial.
+                  </p>
+                </div>
+
+                <div className="rounded-[1.5rem] bg-surface px-4 py-3 text-sm text-gray-600">
+                  <p className="font-semibold text-primary-deeper">
+                    {donorCompletion?.completedItems ?? 0} de {donorCompletion?.totalItems ?? 0}{' '}
+                    itens concluidos
+                  </p>
+                  {donorCompletion?.missingFields?.length ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Faltando: {donorCompletion.missingFields.join(', ')}.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Perfil complementar em dia.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <label className="space-y-2 text-sm text-gray-500">
+                  <span className="font-semibold text-on-surface">Data de nascimento</span>
+                  <input
+                    type="date"
+                    value={donorProfileForm.birthDate}
+                    onChange={(event) => {
+                      setDonorProfileForm((current) => ({
+                        ...current,
+                        birthDate: event.target.value,
+                      }));
+                      setDonorProfileSuccess(null);
+                      setProfileError(null);
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm text-gray-500">
+                  <span className="font-semibold text-on-surface">Cidade</span>
+                  <input
+                    value={donorProfileForm.city}
+                    onChange={(event) => {
+                      setDonorProfileForm((current) => ({
+                        ...current,
+                        city: event.target.value,
+                      }));
+                      setDonorProfileSuccess(null);
+                      setProfileError(null);
+                    }}
+                    placeholder="Ex.: Sorocaba"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm text-gray-500">
+                  <span className="font-semibold text-on-surface">Estado</span>
+                  <input
+                    value={donorProfileForm.state}
+                    onChange={(event) => {
+                      setDonorProfileForm((current) => ({
+                        ...current,
+                        state: event.target.value,
+                      }));
+                      setDonorProfileSuccess(null);
+                      setProfileError(null);
+                    }}
+                    placeholder="Ex.: SP"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6">
+                <p className="text-sm font-semibold text-primary-deeper">
+                  Interesses de doacao
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Escolha categorias que fazem sentido para o seu momento solidario.
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {DONATION_INTEREST_OPTIONS.map((option) => {
+                    const selected = donorProfileForm.donationInterestCategories.includes(
+                      option.value,
+                    );
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => toggleDonationInterest(option.value)}
+                        className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
+                          selected
+                            ? 'border-primary bg-primary-light text-primary-deeper'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-primary hover:text-primary'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {donorProfileSuccess && (
+                <p className="mt-5 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  {donorProfileSuccess}
+                </p>
+              )}
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveDonorProfile()}
+                  disabled={savingDonorProfile || loadingProfile}
+                  className="inline-flex items-center justify-center rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingDonorProfile ? 'Salvando perfil...' : 'Salvar perfil complementar'}
+                </button>
+                <Link
+                  href="/configuracoes"
+                  className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
+                >
+                  Ajustes da conta
+                </Link>
+              </div>
+            </div>
+          </section>
+
           <section aria-labelledby="badges-heading">
             <div className="mb-6 flex items-end justify-between gap-3">
               <div>

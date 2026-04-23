@@ -7,6 +7,8 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL}
       INTERNAL_API_URL: http://vestgo-api:3001
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}
+      MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}
       NEXTAUTH_URL: ${APP_PUBLIC_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       AUTH_SECRET: ${AUTH_SECRET}
@@ -53,6 +55,8 @@ services:
       GEOCODING_COUNTRY_CODES: ${GEOCODING_COUNTRY_CODES:-br}
       GEOCODING_TIMEOUT_MS: ${GEOCODING_TIMEOUT_MS:-5000}
       GEOCODING_EMAIL: ${GEOCODING_EMAIL:-}
+      GEOCODING_PROVIDER: ${GEOCODING_PROVIDER:-mapbox}
+      MAPBOX_SECRET_TOKEN: ${MAPBOX_SECRET_TOKEN:-}
       CORS_ORIGIN: ${CORS_ORIGIN}
       TRUST_PROXY: ${TRUST_PROXY:-true}
     depends_on:
@@ -124,7 +128,7 @@ services:
     volumes:
       - vestgo_minio_data:/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/minio/health/live"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -273,6 +273,7 @@ export type MyProfile = {
   role: string;
   name: string;
   email: string;
+  birthDate: string | null;
   phone: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
@@ -302,6 +303,7 @@ export type MyProfile = {
   rules: string[];
   nonAcceptedItems: string[];
   acceptedCategories: string[];
+  donationInterestCategories: string[];
   publicProfileState: PublicProfileState;
   verifiedAt: string | null;
   createdAt: string;
@@ -328,6 +330,7 @@ export type MyProfile = {
 export type UpdateMyProfileInput = {
   name: string;
   email: string;
+  birthDate?: string;
   phone?: string;
   avatarUrl?: string;
   coverImageUrl?: string;
@@ -351,6 +354,7 @@ export type UpdateMyProfileInput = {
   accessibilityFeatures?: string[];
   estimatedCapacity?: string;
   acceptedCategories?: string[];
+  donationInterestCategories?: string[];
   nonAcceptedItems?: string[];
   rules?: string[];
   serviceRegions?: string[];
@@ -389,6 +393,10 @@ export type AddressSuggestionsResponse = {
       label: string;
     } | null;
   };
+};
+
+export type ReverseGeocodingResponse = {
+  data: AddressSuggestion | null;
 };
 
 export type NotificationType =
@@ -626,6 +634,20 @@ export async function searchAddressSuggestions(
   }
 
   return apiFetch<AddressSuggestionsResponse>(`/addresses/suggestions?${qs.toString()}`, {
+    signal: options?.signal,
+  });
+}
+
+export async function reverseGeocodeAddress(
+  params: { latitude: number; longitude: number },
+  options?: { signal?: AbortSignal },
+): Promise<ReverseGeocodingResponse> {
+  const qs = new URLSearchParams({
+    lat: String(params.latitude),
+    lng: String(params.longitude),
+  });
+
+  return apiFetch<ReverseGeocodingResponse>(`/addresses/reverse?${qs.toString()}`, {
     signal: options?.signal,
   });
 }

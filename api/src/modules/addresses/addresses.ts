@@ -1,6 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { suggestAddresses } from '../../shared/geocoding';
+import {
+  reverseGeocodeCoordinates,
+  suggestAddresses,
+} from '../../shared/geocoding';
 
 const addressSuggestionsQuerySchema = z.object({
   q: z.string().trim().min(3).max(120),
@@ -8,6 +11,11 @@ const addressSuggestionsQuerySchema = z.object({
   lng: z.coerce.number().min(-180).max(180).optional(),
   limit: z.coerce.number().int().min(1).max(8).default(5),
   scope: z.enum(['profile', 'public']).default('profile'),
+});
+
+const reverseGeocodingQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
 });
 
 export default async function addressRoutes(fastify: FastifyInstance) {
@@ -59,6 +67,41 @@ export default async function addressRoutes(fastify: FastifyInstance) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
           message: 'Parametros invalidos para sugestoes de endereco',
+          issues: err.errors,
+        });
+      }
+
+      throw err;
+    }
+  });
+
+  fastify.get('/reverse', async (request, reply) => {
+    try {
+      const query = reverseGeocodingQuerySchema.parse(request.query);
+      const result = await reverseGeocodeCoordinates({
+        latitude: query.lat,
+        longitude: query.lng,
+      });
+
+      if (result.status === 'not_found') {
+        return reply.send({ data: null });
+      }
+
+      if (result.status === 'unavailable') {
+        return reply.code(503).send({
+          error: 'GEOCODING_UNAVAILABLE',
+          message: result.message,
+        });
+      }
+
+      return reply.send({
+        data: result.result,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.code(422).send({
+          error: 'VALIDATION_ERROR',
+          message: 'Parametros invalidos para reverse geocoding',
           issues: err.errors,
         });
       }

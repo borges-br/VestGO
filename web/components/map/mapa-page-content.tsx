@@ -13,7 +13,12 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { getCollectionPoint, getNearbyPoints, type CollectionPoint } from '@/lib/api';
+import {
+  getCollectionPoint,
+  getNearbyPoints,
+  reverseGeocodeAddress,
+  type CollectionPoint,
+} from '@/lib/api';
 import { useAddressSuggestions } from '@/hooks/use-address-suggestions';
 import { formatAddressSummary } from '@/lib/address';
 
@@ -115,6 +120,7 @@ export function MapaPageContent() {
   const selectedPointPreviewRef = useRef<CollectionPoint | null>(selectedPointPreview);
   const searchBlurTimeoutRef = useRef<number | null>(null);
   const skipNextPartnerSearchSyncRef = useRef(false);
+  const reverseGeocodeRequestIdRef = useRef(0);
 
   selectedPointIdRef.current = selectedPointId;
   selectedPointPreviewRef.current = selectedPointPreview;
@@ -212,6 +218,31 @@ export function MapaPageContent() {
     [canSeeNgoLocations, isSelectionMode, viewerAccessToken],
   );
 
+  const refreshLocationNotice = useCallback(async (latitude: number, longitude: number) => {
+    const requestId = reverseGeocodeRequestIdRef.current + 1;
+    reverseGeocodeRequestIdRef.current = requestId;
+
+    try {
+      const response = await reverseGeocodeAddress({ latitude, longitude });
+
+      if (requestId !== reverseGeocodeRequestIdRef.current || !response.data) {
+        return;
+      }
+
+      const city = response.data.city;
+      const state = response.data.state;
+      const fallbackLabel = response.data.label;
+      const locationLabel =
+        city && state ? `${city} - ${state}` : city ?? state ?? fallbackLabel;
+
+      if (locationLabel) {
+        setLocationNotice(`Mostrando parceiros proximos de ${locationLabel}.`);
+      }
+    } catch {
+      // The generic location notice is already enough when reverse geocoding fails.
+    }
+  }, []);
+
   const requestLocation = useCallback((source: 'auto' | 'manual') => {
     if (locationRequestActiveRef.current) {
       return;
@@ -236,6 +267,7 @@ export function MapaPageContent() {
         setHasResolvedInitialCenter(true);
         setIsLocating(false);
         locationRequestActiveRef.current = false;
+        void refreshLocationNotice(coords.latitude, coords.longitude);
       },
       () => {
         setLocated(false);
@@ -250,7 +282,7 @@ export function MapaPageContent() {
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 },
     );
-  }, []);
+  }, [refreshLocationNotice]);
 
   const handleLocate = useCallback(() => {
     requestLocation('manual');

@@ -46,6 +46,43 @@ type AppAuthToken = JWT &
 
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 60_000;
 
+type SessionUpdateUser = {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function resolveSessionUpdateUser(value: unknown): SessionUpdateUser | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const candidate = isRecord(value.user) ? value.user : value;
+  const update: SessionUpdateUser = {};
+  let hasKnownField = false;
+
+  if ('name' in candidate && (typeof candidate.name === 'string' || candidate.name === null)) {
+    update.name = candidate.name;
+    hasKnownField = true;
+  }
+
+  if ('email' in candidate && (typeof candidate.email === 'string' || candidate.email === null)) {
+    update.email = candidate.email;
+    hasKnownField = true;
+  }
+
+  if ('image' in candidate && (typeof candidate.image === 'string' || candidate.image === null)) {
+    update.image = candidate.image;
+    hasKnownField = true;
+  }
+
+  return hasKnownField ? update : null;
+}
+
 function decodeBase64Url(value: string) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
@@ -200,12 +237,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       const mutableToken = token as AppAuthToken;
       const appUser = user as AppAuthUser | undefined;
+      const sessionUpdate = trigger === 'update' ? resolveSessionUpdateUser(session) : null;
 
       if (appUser) {
         mutableToken.id = appUser.id;
         mutableToken.name = appUser.name ?? mutableToken.name;
         mutableToken.email = appUser.email ?? mutableToken.email;
-        mutableToken.picture = appUser.image ?? undefined;
+        mutableToken.picture = appUser.image ?? null;
         mutableToken.role = appUser.role;
         mutableToken.accessToken = appUser.accessToken;
         mutableToken.refreshToken = appUser.refreshToken;
@@ -214,17 +252,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return mutableToken;
       }
 
-      if (trigger === 'update' && session?.user) {
-        if (typeof session.user.name === 'string') {
-          mutableToken.name = session.user.name;
+      if (sessionUpdate) {
+        if (typeof sessionUpdate.name === 'string') {
+          mutableToken.name = sessionUpdate.name;
         }
 
-        if (typeof session.user.email === 'string') {
-          mutableToken.email = session.user.email;
+        if (typeof sessionUpdate.email === 'string') {
+          mutableToken.email = sessionUpdate.email;
         }
 
-        if ('image' in session.user) {
-          mutableToken.picture = session.user.image ?? undefined;
+        if ('image' in sessionUpdate) {
+          mutableToken.picture = sessionUpdate.image ?? null;
         }
       }
 
@@ -246,7 +284,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.email =
         typeof appToken.email === 'string' ? appToken.email : session.user.email;
       session.user.image =
-        typeof appToken.picture === 'string' ? appToken.picture : session.user.image ?? null;
+        typeof appToken.picture === 'string' || appToken.picture === null
+          ? appToken.picture
+          : session.user.image ?? null;
       session.user.role = appToken.role ?? 'DONOR';
       session.user.accessToken = appToken.accessToken ?? '';
       session.user.accessTokenExpiresAt = appToken.accessTokenExpiresAt ?? 0;
