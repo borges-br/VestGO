@@ -120,6 +120,21 @@ function buildPartnershipWhere(
   } satisfies Prisma.OperationalPartnershipWhereInput;
 }
 
+function isPublishedOperationalProfile(state: PublicProfileState) {
+  return state === PublicProfileState.ACTIVE || state === PublicProfileState.VERIFIED;
+}
+
+function isActivePartnershipConflict(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+    return false;
+  }
+
+  return (
+    error.code === 'P2002' &&
+    String(error.message).includes('operational_partnerships_one_active_collection_point_idx')
+  );
+}
+
 async function findActivePartnershipForCollectionPoint(
   fastify: FastifyInstance,
   collectionPointId: string,
@@ -353,6 +368,15 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
       }
 
       if (body.status === OperationalPartnershipStatus.ACTIVE) {
+        if (
+          !isPublishedOperationalProfile(partnership.collectionPoint.publicProfileState) ||
+          !isPublishedOperationalProfile(partnership.ngo.publicProfileState)
+        ) {
+          throw new ConflictError(
+            'A parceria so pode ser ativada quando ponto e ONG estiverem com perfis publicos ativos ou verificados.',
+          );
+        }
+
         const conflictingActive = await findActivePartnershipForCollectionPoint(
           fastify,
           partnership.collectionPointId,
@@ -417,6 +441,13 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
 
       return reply.send(mapPartnership(updated));
     } catch (err) {
+      if (isActivePartnershipConflict(err)) {
+        return reply.code(409).send({
+          error: 'CONFLICT',
+          message: 'Este ponto de coleta ja possui uma ONG parceira ativa configurada',
+        });
+      }
+
       if (err instanceof AppError) {
         return reply.code(err.statusCode).send(toErrorResponse(err));
       }

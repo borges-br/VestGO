@@ -7,11 +7,13 @@ import { useSession } from 'next-auth/react';
 import {
   ArrowLeft,
   CheckCircle2,
+  ImagePlus,
   Loader2,
   MapPin,
   Save,
   ShieldCheck,
   Store,
+  Trash2,
   Users,
 } from 'lucide-react';
 import {
@@ -32,6 +34,7 @@ type FormState = {
   phone: string;
   avatarUrl: string;
   coverImageUrl: string;
+  galleryImageUrls: string[];
   organizationName: string;
   description: string;
   purpose: string;
@@ -54,6 +57,8 @@ type FormState = {
   rulesText: string;
   serviceRegionsText: string;
 };
+
+const MAX_GALLERY_IMAGES = 6;
 
 const CATEGORY_OPTIONS = [
   { value: 'CLOTHING', label: 'Roupas' },
@@ -192,6 +197,7 @@ function buildInitialState(profile: MyProfile): FormState {
     phone: profile.phone ?? '',
     avatarUrl: profile.avatarUrl ?? '',
     coverImageUrl: profile.coverImageUrl ?? '',
+    galleryImageUrls: profile.galleryImageUrls ?? [],
     organizationName: profile.organizationName ?? '',
     description: profile.description ?? '',
     purpose: profile.purpose ?? '',
@@ -247,6 +253,7 @@ function buildPayload(role: string, form: FormState) {
     phone: form.phone || undefined,
     avatarUrl: form.avatarUrl || undefined,
     coverImageUrl: form.coverImageUrl || undefined,
+    galleryImageUrls: form.galleryImageUrls,
     organizationName: form.organizationName || undefined,
     description: form.description || undefined,
     purpose: role === 'NGO' ? form.purpose || undefined : undefined,
@@ -297,11 +304,12 @@ export function OperationalProfileForm() {
   } | null>(null);
   const [presetOpenTime, setPresetOpenTime] = useState('09:00');
   const [presetCloseTime, setPresetCloseTime] = useState('18:00');
-  const [uploadingTarget, setUploadingTarget] = useState<'avatar' | 'cover' | null>(null);
+  const [uploadingTarget, setUploadingTarget] = useState<'avatar' | 'cover' | 'gallery' | null>(null);
 
   const addressBlurTimeoutRef = useRef<number | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   const setupMode = searchParams.get('setup') === '1';
   const role = session?.user?.role ?? '';
@@ -496,11 +504,11 @@ export function OperationalProfileForm() {
   }
 
   async function handleUploadAsset(
-    target: 'avatar' | 'cover',
+    target: 'avatar' | 'cover' | 'gallery',
     file: File | null | undefined,
   ) {
     if (!file || !session?.user?.accessToken) {
-      return;
+      return false;
     }
 
     setUploadingTarget(target);
@@ -518,24 +526,100 @@ export function OperationalProfileForm() {
 
       if (target === 'avatar') {
         updateField('avatarUrl', uploaded.url);
-      } else {
+      } else if (target === 'cover') {
         updateField('coverImageUrl', uploaded.url);
+      } else {
+        setForm((current) => {
+          if (!current) {
+            return current;
+          }
+
+          if (current.galleryImageUrls.includes(uploaded.url)) {
+            return current;
+          }
+
+          return {
+            ...current,
+            galleryImageUrls: [...current.galleryImageUrls, uploaded.url].slice(
+              0,
+              MAX_GALLERY_IMAGES,
+            ),
+          };
+        });
       }
 
       setSuccess(
         target === 'avatar'
           ? 'Imagem de avatar enviada com sucesso.'
-          : 'Imagem de capa enviada com sucesso.',
+          : target === 'cover'
+            ? 'Imagem de capa enviada com sucesso.'
+            : 'Foto adicional enviada com sucesso.',
       );
+      return true;
     } catch (uploadError) {
       setError(
         uploadError instanceof Error
           ? uploadError.message
           : 'Nao foi possivel enviar a imagem agora.',
       );
+      return false;
     } finally {
       setUploadingTarget(null);
     }
+  }
+
+  async function handleUploadGallery(files: FileList | null) {
+    if (!files || files.length === 0 || !form) {
+      return;
+    }
+
+    const remainingSlots = MAX_GALLERY_IMAGES - form.galleryImageUrls.length;
+
+    if (remainingSlots <= 0) {
+      setError(`A galeria aceita no maximo ${MAX_GALLERY_IMAGES} fotos.`);
+      return;
+    }
+
+    const uploadQueue = Array.from(files).slice(0, remainingSlots);
+
+    setUploadingTarget('gallery');
+    setError(null);
+    setSuccess(null);
+
+    try {
+      for (const file of uploadQueue) {
+        const uploaded = await handleUploadAsset('gallery', file);
+
+        if (!uploaded) {
+          return;
+        }
+      }
+
+      setSuccess(
+        uploadQueue.length === 1
+          ? 'Foto adicional enviada com sucesso.'
+          : `${uploadQueue.length} fotos adicionais enviadas com sucesso.`,
+      );
+    } finally {
+      setUploadingTarget(null);
+
+      if (galleryInputRef.current) {
+        galleryInputRef.current.value = '';
+      }
+    }
+  }
+
+  function removeGalleryImage(imageUrl: string) {
+    setForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        galleryImageUrls: current.galleryImageUrls.filter((item) => item !== imageUrl),
+      };
+    });
   }
 
   function handleAddressFocus() {
@@ -894,16 +978,14 @@ export function OperationalProfileForm() {
                     >
                       {uploadingTarget === 'avatar' ? 'Enviando imagem...' : 'Enviar avatar'}
                     </button>
-
-                    <label className="block space-y-2 text-sm text-gray-500">
-                      <span className="font-semibold text-on-surface">URL manual opcional</span>
-                      <input
-                        value={form.avatarUrl}
-                        onChange={(event) => updateField('avatarUrl', event.target.value)}
-                        placeholder="https://..."
-                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                      />
-                    </label>
+                    <button
+                      type="button"
+                      onClick={() => updateField('avatarUrl', '')}
+                      disabled={!form.avatarUrl}
+                      className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
+                    >
+                      Remover avatar
+                    </button>
                   </div>
 
                   <div className="space-y-3 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
@@ -946,17 +1028,93 @@ export function OperationalProfileForm() {
                     >
                       {uploadingTarget === 'cover' ? 'Enviando imagem...' : 'Enviar capa'}
                     </button>
-
-                    <label className="block space-y-2 text-sm text-gray-500">
-                      <span className="font-semibold text-on-surface">URL manual opcional</span>
-                      <input
-                        value={form.coverImageUrl}
-                        onChange={(event) => updateField('coverImageUrl', event.target.value)}
-                        placeholder="https://..."
-                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                      />
-                    </label>
+                    <button
+                      type="button"
+                      onClick={() => updateField('coverImageUrl', '')}
+                      disabled={!form.coverImageUrl}
+                      className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
+                    >
+                      Remover capa
+                    </button>
                   </div>
+                </div>
+
+                <div className="space-y-4 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">Galeria publica</p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Fotos adicionais do espaco, fachada ou operacao. Ate {MAX_GALLERY_IMAGES}{' '}
+                        imagens em JPG, PNG ou WEBP.
+                      </p>
+                    </div>
+
+                    <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary-deeper shadow-sm">
+                      {form.galleryImageUrls.length}/{MAX_GALLERY_IMAGES}
+                    </div>
+                  </div>
+
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => void handleUploadGallery(event.target.files)}
+                  />
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      disabled={
+                        uploadingTarget === 'gallery' ||
+                        form.galleryImageUrls.length >= MAX_GALLERY_IMAGES
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <ImagePlus size={16} />
+                      {uploadingTarget === 'gallery' ? 'Enviando fotos...' : 'Adicionar fotos'}
+                    </button>
+                    <p className="text-xs leading-6 text-gray-500">
+                      A galeria publicada de perfis ativos/verificados entra em revisao antes de ir
+                      ao ar.
+                    </p>
+                  </div>
+
+                  {form.galleryImageUrls.length === 0 ? (
+                    <div className="rounded-[1.25rem] border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+                      Nenhuma foto adicional enviada ainda.
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {form.galleryImageUrls.map((imageUrl, index) => (
+                        <div
+                          key={imageUrl}
+                          className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white"
+                        >
+                          <img
+                            src={imageUrl}
+                            alt={`Foto adicional ${index + 1} de ${profile.organizationName ?? profile.name}`}
+                            className="h-40 w-full object-cover"
+                          />
+                          <div className="flex items-center justify-between gap-3 px-3 py-3">
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
+                              Foto {index + 1}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => removeGalleryImage(imageUrl)}
+                              className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
+                            >
+                              <Trash2 size={14} />
+                              Remover
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </section>
             )}

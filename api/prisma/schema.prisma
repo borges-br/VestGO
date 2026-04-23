@@ -77,6 +77,7 @@ model User {
   role          UserRole  @default(DONOR)
   avatarUrl     String?
   coverImageUrl String?
+  galleryImageUrls String[] @default([])
   phone         String?
   cpf           String?   @unique
 
@@ -102,10 +103,10 @@ model User {
   accessibilityFeatures String[] @default([])
   verificationNotes    String?
   estimatedCapacity    String?
-  serviceRegions       String[]
-  rules                String[]
-  nonAcceptedItems     String[]
-  acceptedCategories   ItemCategory[]
+  serviceRegions       String[] @default([])
+  rules                String[] @default([])
+  nonAcceptedItems     String[] @default([])
+  acceptedCategories   ItemCategory[] @default([])
   publicProfileState   PublicProfileState @default(DRAFT)
   verifiedAt           DateTime?
   pendingPublicRevision             Json?

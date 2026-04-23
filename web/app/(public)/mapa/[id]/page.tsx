@@ -43,25 +43,32 @@ interface Props {
 
 export default async function CollectionPointDetailPage({ params }: Props) {
   const session = await auth();
+  const currentRole = session?.user?.role ?? null;
+  const viewerAccessToken =
+    currentRole === 'COLLECTION_POINT' || currentRole === 'NGO' || currentRole === 'ADMIN'
+      ? session?.user?.accessToken
+      : undefined;
   let point;
 
   try {
-    point = await getCollectionPoint(params.id);
+    point = await getCollectionPoint(params.id, {
+      accessToken: viewerAccessToken,
+    });
   } catch {
     notFound();
   }
 
   const title = point.organizationName ?? point.name;
   const isNgo = point.role === 'NGO';
-  const currentRole = session?.user?.role ?? null;
   const isDonor = currentRole === 'DONOR';
   const isOperationalViewer =
     currentRole === 'COLLECTION_POINT' || currentRole === 'NGO' || currentRole === 'ADMIN';
   const hideSensitiveNgoLocation = isNgo && (!session || isDonor);
   const partnerNgo = !isNgo ? point.donationEligibility?.activeNgo ?? null : null;
+  const galleryImages = point.galleryImageUrls ?? [];
   const donationShortcutHref = `/doar?selectedPointId=${point.id}&selectionApplied=1&step=2`;
   const googleMapsUrl =
-    !hideSensitiveNgoLocation && point.latitude && point.longitude
+    !hideSensitiveNgoLocation && point.latitude != null && point.longitude != null
       ? `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`
       : null;
 
@@ -284,6 +291,22 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
                     <p className="text-sm font-semibold text-primary-deeper">Observacoes</p>
                     <p className="mt-2 text-sm leading-7 text-gray-500">{point.publicNotes}</p>
+                  </div>
+                )}
+
+                {galleryImages.length > 0 && (
+                  <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
+                    <p className="text-sm font-semibold text-primary-deeper">Galeria</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {galleryImages.map((imageUrl, index) => (
+                        <img
+                          key={imageUrl}
+                          src={imageUrl}
+                          alt={`Foto ${index + 1} de ${title}`}
+                          className="h-40 w-full rounded-[1.25rem] object-cover"
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

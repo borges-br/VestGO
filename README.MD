@@ -58,6 +58,7 @@ Capacidades relevantes ja ativas:
 - revisao pendente para mudancas publicas criticas em perfis aprovados
 - governanca inicial com fila de novos perfis pendentes para aprovacao do admin
 - notificacoes de governanca para novos perfis aguardando aprovacao e revisoes publicas pendentes
+- uploads via MinIO para avatar, capa e galeria publica simples de perfis operacionais
 
 ## Stack
 
@@ -119,6 +120,7 @@ Campos priorizados nesta governanca:
 - endereco e localizacao
 - telefone
 - avatar e capa
+- galeria publica adicional
 - horario de funcionamento
 - acessibilidade
 - regras do local
@@ -393,9 +395,11 @@ npm install
 npm run build
 ```
 
-Se houver novas migrations pendentes, aplique-as antes de subir a stack para que os campos de endereco estruturado, a tabela de notificacoes e o modelo `PickupRequest` existam no banco real.
+Se houver novas migrations pendentes, aplique-as antes de subir a stack para que os campos de endereco estruturado, notificacoes, galeria publica e o modelo `PickupRequest` existam no banco real.
 
-Nesta fase, tambem passam a existir campos de revisao pendente de perfil aprovado, horario estruturado e acessibilidade estruturada no schema Prisma, entao a migration mais recente e obrigatoria para validar o fluxo completo.
+Nesta fase, tambem passam a existir campos de revisao pendente de perfil aprovado, horario estruturado, acessibilidade estruturada e galeria publica governada no schema Prisma, entao a migration mais recente e obrigatoria para validar o fluxo completo.
+
+O fluxo local e de deploy agora deve usar migrations como fonte de verdade. Evite `prisma db push` como mecanismo padrao de sincronizacao para nao mascarar drift entre ambientes.
 
 Para subir a stack completa, use os arquivos `docker-compose*.yml` do repositorio conforme o ambiente.
 

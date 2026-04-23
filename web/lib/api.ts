@@ -20,10 +20,11 @@ export type CollectionPoint = {
   zipCode?: string | null;
   city: string | null;
   state: string | null;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   avatarUrl: string | null;
   coverImageUrl?: string | null;
+  galleryImageUrls?: string[];
   phone: string | null;
   description?: string | null;
   purpose?: string | null;
@@ -275,6 +276,7 @@ export type MyProfile = {
   phone: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
+  galleryImageUrls: string[];
   organizationName: string | null;
   description: string | null;
   purpose: string | null;
@@ -329,6 +331,7 @@ export type UpdateMyProfileInput = {
   phone?: string;
   avatarUrl?: string;
   coverImageUrl?: string;
+  galleryImageUrls?: string[];
   organizationName?: string;
   description?: string;
   purpose?: string;
@@ -478,7 +481,7 @@ function readFileAsDataUrl(file: File) {
 }
 
 export async function uploadProfileAsset(
-  input: { file: File; target: 'avatar' | 'cover' },
+  input: { file: File; target: 'avatar' | 'cover' | 'gallery' },
   accessToken: string,
 ): Promise<UploadedAsset> {
   const dataBase64 = await readFileAsDataUrl(input.file);
@@ -505,6 +508,7 @@ export async function getNearbyPoints(params: {
   limit?: number;
   search?: string;
   forDonation?: boolean;
+  accessToken?: string;
 }): Promise<NearbyResponse> {
   const qs = new URLSearchParams();
 
@@ -540,7 +544,9 @@ export async function getNearbyPoints(params: {
     qs.set('forDonation', 'true');
   }
 
-  return apiFetch<NearbyResponse>(`/collection-points?${qs}`);
+  return apiFetch<NearbyResponse>(`/collection-points?${qs}`, {
+    accessToken: params.accessToken,
+  });
 }
 
 export async function searchAddressSuggestions(
@@ -580,7 +586,7 @@ export async function searchAddressSuggestions(
 
 export async function getCollectionPoint(
   id: string,
-  options?: { forDonation?: boolean },
+  options?: { forDonation?: boolean; accessToken?: string },
 ): Promise<CollectionPoint> {
   const qs = new URLSearchParams();
 
@@ -589,7 +595,9 @@ export async function getCollectionPoint(
   }
 
   const suffix = qs.toString() ? `?${qs}` : '';
-  return apiFetch<CollectionPoint>(`/collection-points/${id}${suffix}`);
+  return apiFetch<CollectionPoint>(`/collection-points/${id}${suffix}`, {
+    accessToken: options?.accessToken,
+  });
 }
 
 export async function getMyProfile(accessToken: string): Promise<MyProfile> {

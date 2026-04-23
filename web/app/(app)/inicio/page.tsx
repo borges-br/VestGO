@@ -874,11 +874,13 @@ export default async function InicioPage() {
                 lng: profile.longitude,
                 radius: 20,
                 limit: 4,
+                accessToken,
               })
             : await getNearbyPoints({
                 search:
                   [profile.city, profile.state].filter(Boolean).join(' ').trim() || undefined,
                 limit: 4,
+                accessToken,
               });
 
         nearbyPoints = pointsResponse.data;

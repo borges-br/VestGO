@@ -8,7 +8,7 @@ services:
       - vestgo_web_node_modules:/app/node_modules
 
   vestgo-api:
-    command: sh -c "npx prisma db push && npm run dev"
+    command: sh -c "npx prisma migrate deploy && npm run dev"
     environment:
       NODE_ENV: development
     volumes:

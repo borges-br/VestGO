@@ -90,6 +90,7 @@ export function MapaPageContent() {
   const initialSelectedPointId = searchParams.get('selectedPointId');
   const canSeeNgoLocations =
     currentRole === 'NGO' || currentRole === 'COLLECTION_POINT' || currentRole === 'ADMIN';
+  const viewerAccessToken = canSeeNgoLocations ? session?.user?.accessToken : undefined;
 
   const [points, setPoints] = useState<CollectionPoint[]>([]);
   const [selectedPointId, setSelectedPointId] = useState<string | null>(
@@ -161,6 +162,7 @@ export function MapaPageContent() {
           search: nextSearch,
           forDonation: isSelectionMode,
           role: isSelectionMode || !canSeeNgoLocations ? 'COLLECTION_POINT' : undefined,
+          accessToken: viewerAccessToken,
         });
 
         if (requestId !== lastFetchRequestIdRef.current) {
@@ -207,7 +209,7 @@ export function MapaPageContent() {
         }
       }
     },
-    [isSelectionMode],
+    [canSeeNgoLocations, isSelectionMode, viewerAccessToken],
   );
 
   const requestLocation = useCallback((source: 'auto' | 'manual') => {
@@ -280,12 +282,20 @@ export function MapaPageContent() {
 
     setSelectedPointId(point.id);
     setSelectedPointPreview(point);
+
+    if (point.latitude == null || point.longitude == null) {
+      return;
+    }
+
+    const nextLatitude = point.latitude;
+    const nextLongitude = point.longitude;
+
     setCenter((current) => {
-      if (current[0] === point.latitude && current[1] === point.longitude) {
+      if (current[0] === nextLatitude && current[1] === nextLongitude) {
         return current;
       }
 
-      return [point.latitude, point.longitude];
+      return [nextLatitude, nextLongitude];
     });
   }, [isSelectionMode]);
 
@@ -376,6 +386,7 @@ export function MapaPageContent() {
       try {
         const point = await getCollectionPoint(pointIdToLoad, {
           forDonation: isSelectionMode,
+          accessToken: viewerAccessToken,
         });
 
         if (cancelled) return;
@@ -402,7 +413,7 @@ export function MapaPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [hasSelectedPointLoaded, isSelectionMode, selectedPointId]);
+  }, [hasSelectedPointLoaded, isSelectionMode, selectedPointId, viewerAccessToken]);
 
   useEffect(() => {
     if (!isSelectionMode || !selectedPointId) {
