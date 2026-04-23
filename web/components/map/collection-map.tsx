@@ -179,13 +179,17 @@ export function CollectionMap({
     }
 
     let cancelled = false;
+    const mappablePoints = points.filter(
+      (point): point is CollectionPoint & { latitude: number; longitude: number } =>
+        point.latitude != null && point.longitude != null,
+    );
 
     import('leaflet').then((L) => {
       if (cancelled || !mapInstanceRef.current) {
         return;
       }
 
-      const currentIds = new Set(points.map((point) => point.id));
+      const currentIds = new Set(mappablePoints.map((point) => point.id));
       markersRef.current.forEach((marker, id) => {
         if (!currentIds.has(id)) {
           marker.remove?.();
@@ -193,7 +197,7 @@ export function CollectionMap({
         }
       });
 
-      points.forEach((point) => {
+      mappablePoints.forEach((point) => {
         const icon = L.divIcon({
           className: '',
           ...buildMarkerIcon(point, point.id === selectedId, point.id === selectedId ? 38 : 32),

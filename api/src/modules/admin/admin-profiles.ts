@@ -61,6 +61,7 @@ const adminProfileSelect = {
   updatedAt: true,
   avatarUrl: true,
   coverImageUrl: true,
+  galleryImageUrls: true,
   openingHours: true,
   openingSchedule: true,
   openingHoursExceptions: true,
@@ -82,6 +83,7 @@ type PendingPublicRevisionPayload = {
   phone?: string | null;
   avatarUrl?: string | null;
   coverImageUrl?: string | null;
+  galleryImageUrls?: string[];
   address?: string | null;
   addressNumber?: string | null;
   addressComplement?: string | null;
@@ -106,6 +108,55 @@ function parsePendingRevisionPayload(value: Prisma.JsonValue | null) {
   }
 
   return value as PendingPublicRevisionPayload;
+}
+
+function buildOperationalStateInput(profile: AdminProfileRecord, overrides?: PendingPublicRevisionPayload) {
+  const openingSchedule = Array.isArray(overrides?.openingSchedule)
+    ? (overrides?.openingSchedule as OpeningScheduleEntry[])
+    : Array.isArray(profile.openingSchedule)
+      ? (profile.openingSchedule as OpeningScheduleEntry[])
+      : [];
+
+  return {
+    organizationName: profile.organizationName ?? undefined,
+    description: profile.description ?? undefined,
+    purpose: profile.purpose ?? undefined,
+    address: overrides?.address ?? profile.address ?? undefined,
+    addressNumber: overrides?.addressNumber ?? profile.addressNumber ?? undefined,
+    addressComplement: overrides?.addressComplement ?? profile.addressComplement ?? undefined,
+    city: overrides?.city ?? profile.city ?? undefined,
+    state: overrides?.state ?? profile.state ?? undefined,
+    zipCode: overrides?.zipCode ?? profile.zipCode ?? undefined,
+    neighborhood: overrides?.neighborhood ?? profile.neighborhood ?? undefined,
+    openingHours: overrides?.openingHours ?? profile.openingHours ?? undefined,
+    openingSchedule: normalizeOpeningSchedule(openingSchedule),
+    phone: overrides?.phone ?? profile.phone ?? undefined,
+    acceptedCategories: profile.acceptedCategories,
+    serviceRegions: profile.serviceRegions,
+    latitude: overrides?.latitude ?? profile.latitude ?? undefined,
+    longitude: overrides?.longitude ?? profile.longitude ?? undefined,
+  };
+}
+
+function ensureProfileCanBePublished(
+  profile: AdminProfileRecord,
+  targetStatus: PublicProfileState,
+) {
+  if (targetStatus !== PublicProfileState.ACTIVE && targetStatus !== PublicProfileState.VERIFIED) {
+    return;
+  }
+
+  const derivedState = getOperationalProfileState(
+    profile.role,
+    buildOperationalStateInput(profile),
+    profile.publicProfileState,
+  );
+
+  if (derivedState === PublicProfileState.DRAFT || derivedState === PublicProfileState.PENDING) {
+    throw new ConflictError(
+      'O perfil ainda nao cumpre o checklist minimo para publicacao. Revise endereco, categorias e geolocalizacao antes de ativar ou verificar.',
+    );
+  }
 }
 
 function mapAdminProfile(profile: AdminProfileRecord) {
@@ -219,6 +270,8 @@ export default async function adminProfileRoutes(fastify: FastifyInstance) {
         throw new NotFoundError('Perfil operacional');
       }
 
+      ensureProfileCanBePublished(profile, status);
+
       const verifiedAt =
         status === PublicProfileState.VERIFIED
           ? new Date()
@@ -293,32 +346,7 @@ export default async function adminProfileRoutes(fastify: FastifyInstance) {
 
       const mergedProfileState = getOperationalProfileState(
         profile.role,
-        {
-          organizationName: profile.organizationName ?? undefined,
-          description: profile.description ?? undefined,
-          purpose: profile.purpose ?? undefined,
-          address: pendingPayload.address ?? profile.address ?? undefined,
-          addressNumber: pendingPayload.addressNumber ?? profile.addressNumber ?? undefined,
-          addressComplement:
-            pendingPayload.addressComplement ?? profile.addressComplement ?? undefined,
-          city: pendingPayload.city ?? profile.city ?? undefined,
-          state: pendingPayload.state ?? profile.state ?? undefined,
-          zipCode: pendingPayload.zipCode ?? profile.zipCode ?? undefined,
-          neighborhood: pendingPayload.neighborhood ?? profile.neighborhood ?? undefined,
-          openingHours: pendingPayload.openingHours ?? profile.openingHours ?? undefined,
-          openingSchedule: normalizeOpeningSchedule(
-            Array.isArray(pendingPayload.openingSchedule)
-              ? (pendingPayload.openingSchedule as OpeningScheduleEntry[])
-              : Array.isArray(profile.openingSchedule)
-                ? (profile.openingSchedule as OpeningScheduleEntry[])
-                : [],
-          ),
-          phone: pendingPayload.phone ?? profile.phone ?? undefined,
-          acceptedCategories: profile.acceptedCategories,
-          serviceRegions: profile.serviceRegions,
-          latitude: pendingPayload.latitude ?? profile.latitude ?? undefined,
-          longitude: pendingPayload.longitude ?? profile.longitude ?? undefined,
-        },
+        buildOperationalStateInput(profile, pendingPayload),
         profile.publicProfileState,
       );
 
@@ -336,6 +364,7 @@ export default async function adminProfileRoutes(fastify: FastifyInstance) {
           phone: pendingPayload.phone ?? null,
           avatarUrl: pendingPayload.avatarUrl ?? null,
           coverImageUrl: pendingPayload.coverImageUrl ?? null,
+          galleryImageUrls: pendingPayload.galleryImageUrls ?? [],
           address: pendingPayload.address ?? null,
           addressNumber: pendingPayload.addressNumber ?? null,
           addressComplement: pendingPayload.addressComplement ?? null,

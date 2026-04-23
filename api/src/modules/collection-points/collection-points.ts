@@ -5,7 +5,7 @@ import {
   PublicProfileState,
   UserRole,
 } from '@prisma/client';
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AppError, NotFoundError, toErrorResponse } from '../../shared/errors';
 
@@ -56,6 +56,7 @@ const publicProfileSelect = {
   longitude: true,
   avatarUrl: true,
   coverImageUrl: true,
+  galleryImageUrls: true,
   phone: true,
   description: true,
   purpose: true,
@@ -104,6 +105,24 @@ const publicProfileSelect = {
 } satisfies Prisma.UserSelect;
 
 type PublicProfileRecord = Prisma.UserGetPayload<{ select: typeof publicProfileSelect }>;
+type PublicViewer = { id: string; role: string } | null;
+
+function canViewPreciseNgoData(viewer: PublicViewer) {
+  return (
+    viewer?.role === UserRole.COLLECTION_POINT ||
+    viewer?.role === UserRole.NGO ||
+    viewer?.role === UserRole.ADMIN
+  );
+}
+
+async function resolvePublicViewer(request: FastifyRequest): Promise<PublicViewer> {
+  try {
+    await request.jwtVerify();
+    return request.user;
+  } catch {
+    return null;
+  }
+}
 
 function mapPublicPartner(
   partner:
@@ -120,13 +139,15 @@ function mapPublicPartner(
   };
 }
 
-function mapPublicProfile(point: PublicProfileRecord) {
+function mapPublicProfile(point: PublicProfileRecord, viewer: PublicViewer) {
   const handledDonations =
     point.role === UserRole.NGO ? point._count.receivedAt : point._count.collectedAt;
   const activePartnerships =
     point.role === UserRole.NGO
       ? point.incomingOperationalPartnerships.length
       : point.outgoingOperationalPartnerships.length;
+  const hideSensitiveNgoLocation =
+    point.role === UserRole.NGO && !canViewPreciseNgoData(viewer);
   const activeNgo =
     point.role === UserRole.COLLECTION_POINT
       ? point.outgoingOperationalPartnerships[0]?.ngo ?? null
@@ -156,23 +177,29 @@ function mapPublicProfile(point: PublicProfileRecord) {
     role: point.role,
     name: point.name,
     organizationName: point.organizationName,
-    address: point.address,
-    addressNumber: point.addressNumber,
-    addressComplement: point.addressComplement,
-    neighborhood: point.neighborhood,
-    zipCode: point.zipCode,
+    address: hideSensitiveNgoLocation ? null : point.address,
+    addressNumber: hideSensitiveNgoLocation ? null : point.addressNumber,
+    addressComplement: hideSensitiveNgoLocation ? null : point.addressComplement,
+    neighborhood: hideSensitiveNgoLocation ? null : point.neighborhood,
+    zipCode: hideSensitiveNgoLocation ? null : point.zipCode,
     city: point.city,
     state: point.state,
-    latitude: point.latitude,
-    longitude: point.longitude,
+    latitude: hideSensitiveNgoLocation ? null : point.latitude,
+    longitude: hideSensitiveNgoLocation ? null : point.longitude,
     avatarUrl: point.avatarUrl,
     coverImageUrl: point.coverImageUrl,
-    phone: point.phone,
+    galleryImageUrls: point.galleryImageUrls,
+    phone: hideSensitiveNgoLocation ? null : point.phone,
     description: point.description,
     purpose: point.purpose,
-    openingHours: point.openingHours,
-    openingSchedule: Array.isArray(point.openingSchedule) ? point.openingSchedule : [],
-    openingHoursExceptions: point.openingHoursExceptions,
+    openingHours: hideSensitiveNgoLocation ? null : point.openingHours,
+    openingSchedule:
+      hideSensitiveNgoLocation
+        ? []
+        : Array.isArray(point.openingSchedule)
+          ? point.openingSchedule
+          : [],
+    openingHoursExceptions: hideSensitiveNgoLocation ? null : point.openingHoursExceptions,
     publicNotes: point.publicNotes,
     accessibilityDetails: point.accessibilityDetails,
     accessibilityFeatures: point.accessibilityFeatures,
@@ -194,6 +221,8 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request, reply) => {
     try {
       const query = nearbyQuerySchema.parse(request.query);
+      const viewer = await resolvePublicViewer(request);
+      const canSeeNgoLocations = canViewPreciseNgoData(viewer);
       const hasCenter = query.lat != null || query.lng != null;
 
       if ((query.lat == null) !== (query.lng == null)) {
@@ -208,7 +237,9 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
         where: {
           role: query.forDonation
             ? UserRole.COLLECTION_POINT
-            : query.role ?? { in: [UserRole.COLLECTION_POINT, UserRole.NGO] },
+            : query.role ?? (canSeeNgoLocations
+                ? { in: [UserRole.COLLECTION_POINT, UserRole.NGO] }
+                : UserRole.COLLECTION_POINT),
           publicProfileState: {
             in: [PublicProfileState.ACTIVE, PublicProfileState.VERIFIED],
           },
@@ -241,7 +272,7 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
 
       const withDistance = points
         .map((point) => {
-          const mapped = mapPublicProfile(point);
+          const mapped = mapPublicProfile(point, viewer);
 
           if (!hasCenter) {
             return {
@@ -323,6 +354,7 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
     try {
       const { id } = request.params as { id: string };
       const query = detailQuerySchema.parse(request.query);
+      const viewer = await resolvePublicViewer(request);
       const point = await fastify.prisma.user.findFirst({
         where: {
           id,
@@ -340,7 +372,7 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
         throw new NotFoundError('Ponto de coleta');
       }
 
-      return reply.send(mapPublicProfile(point));
+      return reply.send(mapPublicProfile(point, viewer));
     } catch (err) {
       if (err instanceof AppError) {
         return reply.code(err.statusCode).send(toErrorResponse(err));

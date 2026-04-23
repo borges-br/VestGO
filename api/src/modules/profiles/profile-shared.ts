@@ -29,10 +29,26 @@ const optionalText = (max: number) =>
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined));
 
+const RELATIVE_ASSET_URL_PATTERN = /^\/api\/backend\/uploads\/[a-zA-Z0-9._%-]+$/;
+const MAX_PROFILE_GALLERY_IMAGES = 6;
+
+function isSupportedAssetUrl(value: string) {
+  if (RELATIVE_ASSET_URL_PATTERN.test(value)) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 const optionalUrl = z
   .string()
   .trim()
-  .url()
+  .refine(isSupportedAssetUrl, 'Informe uma URL valida ou um asset enviado pelo VestGO.')
   .optional()
   .or(z.literal(''))
   .transform((value) => (value && value.length > 0 ? value : undefined));
@@ -43,6 +59,13 @@ const optionalStringArray = (maxItems: number, maxItemLength: number) =>
     .max(maxItems)
     .optional()
     .transform((value) => value?.filter(Boolean) ?? []);
+
+const optionalAssetUrlArray = (maxItems: number) =>
+  z
+    .array(z.string().trim().refine(isSupportedAssetUrl))
+    .max(maxItems)
+    .optional()
+    .transform((value) => Array.from(new Set(value?.filter(Boolean) ?? [])));
 
 const optionalTime = z
   .string()
@@ -131,6 +154,7 @@ export const profileWriteSchema = z.object({
   estimatedCapacity: optionalText(120),
   avatarUrl: optionalUrl,
   coverImageUrl: optionalUrl,
+  galleryImageUrls: optionalAssetUrlArray(MAX_PROFILE_GALLERY_IMAGES),
   acceptedCategories: z.array(z.nativeEnum(ItemCategory)).max(10).optional().default([]),
   nonAcceptedItems: optionalStringArray(20, 80),
   rules: optionalStringArray(16, 140),
@@ -296,6 +320,7 @@ export function sanitizeProfileWriteInput(input: ProfileWriteInput) {
     openingSchedule: input.openingSchedule ?? [],
     accessibilityFeatures: input.accessibilityFeatures ?? [],
     acceptedCategories: input.acceptedCategories ?? [],
+    galleryImageUrls: input.galleryImageUrls ?? [],
     nonAcceptedItems: input.nonAcceptedItems ?? [],
     rules: input.rules ?? [],
     serviceRegions: input.serviceRegions ?? [],

@@ -121,6 +121,7 @@ export function OperationalProfileSummary({
             : {}),
           limit: 12,
           role: 'NGO',
+          accessToken,
         });
 
         const nextCandidates = response.data.filter((item) => item.role === 'NGO');
@@ -134,7 +135,7 @@ export function OperationalProfileSummary({
     }
 
     void loadNgoCandidates();
-  }, [profile?.latitude, profile?.longitude, profile?.role]);
+  }, [accessToken, profile?.latitude, profile?.longitude, profile?.role]);
 
   const activePartnership = useMemo(
     () => partnerships.find((item) => item.status === 'ACTIVE') ?? null,
@@ -646,6 +647,26 @@ export function OperationalProfileSummary({
                   )}
                 </div>
               )}
+
+              <div className="rounded-[1.5rem] bg-surface px-4 py-4">
+                <p className="text-sm font-semibold text-primary-deeper">Galeria publica</p>
+                {profile.galleryImageUrls.length > 0 ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {profile.galleryImageUrls.slice(0, 4).map((imageUrl, index) => (
+                      <img
+                        key={imageUrl}
+                        src={imageUrl}
+                        alt={`Foto publica ${index + 1} de ${title}`}
+                        className="h-36 w-full rounded-[1.25rem] object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm leading-7 text-gray-500">
+                    Nenhuma foto adicional publicada ainda.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

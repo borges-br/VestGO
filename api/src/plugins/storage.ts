@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import { Client } from 'minio';
 
-type UploadTarget = 'avatar' | 'cover';
+type UploadTarget = 'avatar' | 'cover' | 'gallery';
 
 export type StoredAsset = {
   key: string;
@@ -33,12 +33,14 @@ declare module 'fastify' {
 }
 
 function sanitizeFilename(value: string) {
-  return value
+  const sanitized = value
     .normalize('NFKD')
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .toLowerCase();
+
+  return sanitized.slice(0, 80);
 }
 
 function getFileExtension(filename: string, contentType: string) {
@@ -64,7 +66,14 @@ function buildObjectKey(userId: string, target: UploadTarget, filename: string, 
   const sanitizedBase = sanitizeFilename(filename.replace(/\.[^.]+$/, '')) || target;
   const extension = getFileExtension(filename, contentType);
   const random = Math.random().toString(36).slice(2, 10);
-  return `${userId}-${target}-${Date.now()}-${random}-${sanitizedBase}.${extension}`;
+  const targetGroup =
+    target === 'avatar'
+      ? 'profile-avatar'
+      : target === 'cover'
+        ? 'profile-cover'
+        : 'profile-gallery';
+
+  return `${userId}-${targetGroup}-${Date.now()}-${random}-${sanitizedBase}.${extension}`;
 }
 
 export default fp(async (fastify) => {
@@ -109,6 +118,8 @@ export default fp(async (fastify) => {
       await client.putObject(bucket, key, buffer, buffer.length, {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=31536000, immutable',
+        'x-amz-meta-owner-id': userId,
+        'x-amz-meta-upload-target': target,
       });
 
       return {

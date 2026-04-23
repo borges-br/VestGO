@@ -34,6 +34,7 @@ const editableProfileSelect = {
   phone: true,
   avatarUrl: true,
   coverImageUrl: true,
+  galleryImageUrls: true,
   organizationName: true,
   description: true,
   purpose: true,
@@ -102,6 +103,7 @@ type PendingPublicRevisionPayload = {
   phone?: string | null;
   avatarUrl?: string | null;
   coverImageUrl?: string | null;
+  galleryImageUrls?: string[];
   address?: string | null;
   addressNumber?: string | null;
   addressComplement?: string | null;
@@ -128,6 +130,7 @@ type EditableProfileView = {
   phone: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
+  galleryImageUrls: string[];
   organizationName: string | null;
   description: string | null;
   purpose: string | null;
@@ -183,6 +186,7 @@ const GOVERNED_PUBLIC_FIELDS = [
   'phone',
   'avatarUrl',
   'coverImageUrl',
+  'galleryImageUrls',
   'openingHours',
   'openingSchedule',
   'openingHoursExceptions',
@@ -229,6 +233,10 @@ function normalizeAddressField(value: string | null | undefined) {
 
 function normalizeStringArray(value: string[] | null | undefined) {
   return [...(value ?? [])].map((entry) => entry.trim()).filter(Boolean).sort();
+}
+
+function normalizeOrderedStringArray(value: string[] | null | undefined) {
+  return [...(value ?? [])].map((entry) => entry.trim()).filter(Boolean);
 }
 
 function normalizeOpeningHoursValue(value: string | null | undefined) {
@@ -281,7 +289,17 @@ function governedValuesDiffer(
   right: PendingPublicRevisionPayload,
 ) {
   if (field === 'rules' || field === 'accessibilityFeatures') {
-    return JSON.stringify(normalizeStringArray(left[field])) !== JSON.stringify(normalizeStringArray(right[field]));
+    return (
+      JSON.stringify(normalizeStringArray(left[field])) !==
+      JSON.stringify(normalizeStringArray(right[field]))
+    );
+  }
+
+  if (field === 'galleryImageUrls') {
+    return (
+      JSON.stringify(normalizeOrderedStringArray(left.galleryImageUrls)) !==
+      JSON.stringify(normalizeOrderedStringArray(right.galleryImageUrls))
+    );
   }
 
   if (field === 'openingSchedule') {
@@ -310,6 +328,7 @@ function buildGovernedPayload(
     phone: body.phone ?? null,
     avatarUrl: body.avatarUrl ?? null,
     coverImageUrl: body.coverImageUrl ?? null,
+    galleryImageUrls: body.galleryImageUrls ?? [],
     address: body.address ?? null,
     addressNumber: body.addressNumber ?? null,
     addressComplement: body.addressComplement ?? null,
@@ -334,6 +353,7 @@ function buildPublishedGovernedPayload(user: EditableProfileRecord): PendingPubl
     phone: user.phone ?? null,
     avatarUrl: user.avatarUrl ?? null,
     coverImageUrl: user.coverImageUrl ?? null,
+    galleryImageUrls: user.galleryImageUrls ?? [],
     address: user.address ?? null,
     addressNumber: user.addressNumber ?? null,
     addressComplement: user.addressComplement ?? null,
@@ -374,13 +394,18 @@ function overlayPendingRevision(user: EditableProfileRecord): EditableProfileVie
         }
       : null;
 
-  const effective = activePendingRevision?.payload ?? null;
+  const effective =
+    activePendingRevision &&
+    activePendingRevision.status === PublicProfileRevisionStatus.PENDING
+      ? activePendingRevision.payload
+      : null;
 
   return {
     ...user,
     phone: effective?.phone ?? user.phone,
     avatarUrl: effective?.avatarUrl ?? user.avatarUrl,
     coverImageUrl: effective?.coverImageUrl ?? user.coverImageUrl,
+    galleryImageUrls: effective?.galleryImageUrls ?? user.galleryImageUrls ?? [],
     address: effective?.address ?? user.address,
     addressNumber: effective?.addressNumber ?? user.addressNumber,
     addressComplement: effective?.addressComplement ?? user.addressComplement,
@@ -436,6 +461,7 @@ function mapEditableProfile(user: EditableProfileRecord) {
     phone: view.phone,
     avatarUrl: view.avatarUrl,
     coverImageUrl: view.coverImageUrl,
+    galleryImageUrls: view.galleryImageUrls,
     organizationName: view.organizationName,
     description: view.description,
     purpose: view.purpose,
@@ -631,6 +657,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           phone: nextGovernedPayload.phone,
           avatarUrl: nextGovernedPayload.avatarUrl,
           coverImageUrl: nextGovernedPayload.coverImageUrl,
+          galleryImageUrls: nextGovernedPayload.galleryImageUrls,
           address: nextGovernedPayload.address,
           addressNumber: nextGovernedPayload.addressNumber,
           addressComplement: nextGovernedPayload.addressComplement,

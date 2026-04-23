@@ -75,7 +75,14 @@ export default async function RastreioDetalhePage({
   const isCancelled = donation.status === 'CANCELLED';
   const showCelebrate = searchParams?.celebrate === '1';
   const isOperationalRole = role !== 'DONOR';
-  const backHref = '/rastreio';
+  const ngoLocationSummary =
+    role === 'DONOR' && donation.ngo?.role === 'NGO'
+      ? donation.ngo.serviceRegions && donation.ngo.serviceRegions.length > 0
+        ? `Atuacao regional: ${donation.ngo.serviceRegions.join(', ')}`
+        : 'Localizacao precisa protegida durante o rastreio do doador.'
+      : donation.ngo?.address ?? 'Destino social sera exibido quando o fluxo for vinculado';
+
+  const backHref = '/rastreio';
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -361,8 +368,7 @@ export default async function RastreioDetalhePage({
                         'Parceiro ainda nao vinculado'}
                     </p>
                     <p className="mt-1 text-xs text-gray-400">
-                      {donation.ngo?.address ??
-                        'Destino social sera exibido quando o fluxo for vinculado'}
+                      {ngoLocationSummary}
                     </p>
                   </div>
                 </div>

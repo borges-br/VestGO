@@ -67,8 +67,13 @@ const pointSelect = {
   address: true,
   addressNumber: true,
   addressComplement: true,
+  neighborhood: true,
+  zipCode: true,
   city: true,
   state: true,
+  phone: true,
+  openingHours: true,
+  serviceRegions: true,
   role: true,
 } satisfies Prisma.UserSelect;
 
@@ -252,20 +257,30 @@ function getAllowedNextStatuses(donation: DonationAccessRecord, user: Viewer) {
   return [];
 }
 
-function mapPoint(point: DonationRecord['collectionPoint'] | DonationRecord['ngo'] | null) {
+function mapPoint(
+  point: DonationRecord['collectionPoint'] | DonationRecord['ngo'] | null,
+  viewer?: Viewer,
+) {
   if (!point) {
     return null;
   }
+
+  const hideSensitiveNgoLocation = point.role === UserRole.NGO && viewer?.role === UserRole.DONOR;
 
   return {
     id: point.id,
     name: point.name,
     organizationName: point.organizationName,
-    address: point.address,
-    addressNumber: point.addressNumber,
-    addressComplement: point.addressComplement,
+    address: hideSensitiveNgoLocation ? null : point.address,
+    addressNumber: hideSensitiveNgoLocation ? null : point.addressNumber,
+    addressComplement: hideSensitiveNgoLocation ? null : point.addressComplement,
+    neighborhood: hideSensitiveNgoLocation ? null : point.neighborhood,
+    zipCode: hideSensitiveNgoLocation ? null : point.zipCode,
     city: point.city,
     state: point.state,
+    phone: hideSensitiveNgoLocation ? null : point.phone,
+    openingHours: hideSensitiveNgoLocation ? null : point.openingHours,
+    serviceRegions: point.serviceRegions,
     role: point.role,
   };
 }
@@ -315,10 +330,10 @@ function mapDonation(donation: DonationRecord, viewer?: Viewer) {
         : `${donation.items[0]?.name ?? 'Doacao'} e mais ${donation.items.length - 1} item(ns)`,
     canCancel: donation.status === DonationStatus.PENDING,
     allowedNextStatuses: viewer ? getAllowedNextStatuses(donation, viewer) : [],
-    collectionPoint: mapPoint(donation.collectionPoint),
-    ngo: mapPoint(donation.ngo),
+    collectionPoint: mapPoint(donation.collectionPoint, viewer),
+    ngo: mapPoint(donation.ngo, viewer),
     partnership: mapPartnership(donation.operationalPartnership),
-    dropOffPoint: mapPoint(donation.collectionPoint),
+    dropOffPoint: mapPoint(donation.collectionPoint, viewer),
     items: donation.items.map((item) => ({
       id: item.id,
       name: item.name,

@@ -31,7 +31,7 @@ services:
       context: ./api
       dockerfile: Dockerfile
     restart: unless-stopped
-    command: sh -c "npx prisma db push && npm run start"
+    command: sh -c "npx prisma migrate deploy && npm run start"
     environment:
       NODE_ENV: production
       PORT: ${PORT:-3001}
