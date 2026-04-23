@@ -63,6 +63,8 @@ services:
         condition: service_healthy
       vestgo-redis:
         condition: service_healthy
+      vestgo-minio:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
       interval: 10s
@@ -126,6 +128,12 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       vestgo_internal:
         aliases:

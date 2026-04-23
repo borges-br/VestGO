@@ -428,6 +428,9 @@ type ApiFetchOptions = RequestInit & {
   accessToken?: string;
 };
 
+const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const SUPPORTED_PROFILE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T> {
   const headers = new Headers(init.headers);
   const hasBody = init.body != null;
@@ -462,6 +465,48 @@ async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T>
   return res.json() as Promise<T>;
 }
 
+function inferProfileImageContentType(file: File) {
+  const declaredType = file.type.trim().toLowerCase();
+
+  if (declaredType === 'image/jpg') {
+    return 'image/jpeg';
+  }
+
+  if (SUPPORTED_PROFILE_IMAGE_TYPES.has(declaredType)) {
+    return declaredType;
+  }
+
+  const filename = file.name.toLowerCase();
+
+  if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+    return 'image/jpeg';
+  }
+
+  if (filename.endsWith('.png')) {
+    return 'image/png';
+  }
+
+  if (filename.endsWith('.webp')) {
+    return 'image/webp';
+  }
+
+  return null;
+}
+
+function validateProfileImageFile(file: File) {
+  if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
+    throw new Error('A imagem excede o limite de 5MB. Escolha um arquivo menor.');
+  }
+
+  const contentType = inferProfileImageContentType(file);
+
+  if (!contentType) {
+    throw new Error('Formato de imagem invalido. Use JPG, PNG ou WEBP.');
+  }
+
+  return contentType;
+}
+
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -484,12 +529,13 @@ export async function uploadProfileAsset(
   input: { file: File; target: 'avatar' | 'cover' | 'gallery' },
   accessToken: string,
 ): Promise<UploadedAsset> {
+  const contentType = validateProfileImageFile(input.file);
   const dataBase64 = await readFileAsDataUrl(input.file);
   const response = await apiFetch<{ data: UploadedAsset }>('/uploads', {
     method: 'POST',
     body: JSON.stringify({
       filename: input.file.name,
-      contentType: input.file.type,
+      contentType,
       target: input.target,
       dataBase64,
     }),
