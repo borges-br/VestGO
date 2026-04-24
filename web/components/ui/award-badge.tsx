@@ -125,7 +125,7 @@ export function AwardBadge({
       ref={ref}
       role="img"
       aria-label={`${copy.title}${earnedAt ? ` — ${earnedAt}` : ''}`}
-      className={cn('block w-[220px] select-none sm:w-[260px]', className)}
+      className={cn('block w-full max-w-[220px] select-none sm:max-w-[260px]', className)}
       onMouseMove={onMove}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}

@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import {
   BadgeCheck,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -15,13 +16,13 @@ import {
   Layers,
   Loader2,
   MapPin,
+  Minus,
   Package,
-  ShieldCheck,
+  Plus as PlusIcon,
   Shirt,
   Sparkles,
 } from 'lucide-react';
 import { PostDonationRewardCard } from '@/components/gamification/impact-widgets';
-import { Input } from '@/components/ui/input';
 import {
   createDonation,
   getCollectionPoint,
@@ -57,7 +58,23 @@ const conditions = [
   { id: 'bom' as ConditionId, label: 'Usadas, mas conservadas', description: 'Com bom potencial de reaproveitamento.' },
 ];
 
-const volumeOptions = ['1 sacola grande', '2 sacolas', '1 caixa', 'Mais de 1 caixa'];
+const volumeOptions = [
+  'Sacola pequena',
+  'Sacola média',
+  'Sacola grande',
+  'Caixa pequena',
+  'Caixa média',
+  'Caixa grande',
+];
+
+const volumeHints: Record<string, string> = {
+  'Sacola pequena': 'cerca de 3 a 5 peças',
+  'Sacola média': 'cerca de 6 a 10 peças',
+  'Sacola grande': 'cerca de 11 a 18 peças',
+  'Caixa pequena': 'cerca de 12 a 20 peças',
+  'Caixa média': 'cerca de 20 a 35 peças',
+  'Caixa grande': 'cerca de 35 a 60 peças',
+};
 
 const categoryLabels: Record<string, string> = {
   CLOTHING: 'Roupas',
@@ -113,7 +130,7 @@ function readWizardDraft(): DonationWizardDraft {
       currentStep: 0,
       selectedCategories: ['adult'],
       quantity: '',
-      volume: '1 sacola grande',
+      volume: 'Sacola média',
       condition: 'otimo',
       notes: '',
       pointId: '',
@@ -128,7 +145,7 @@ function readWizardDraft(): DonationWizardDraft {
       currentStep: 0,
       selectedCategories: ['adult'],
       quantity: '',
-      volume: '1 sacola grande',
+      volume: 'Sacola média',
       condition: 'otimo',
       notes: '',
       pointId: '',
@@ -151,7 +168,7 @@ function readWizardDraft(): DonationWizardDraft {
       volume:
         typeof parsed.volume === 'string' && volumeOptions.includes(parsed.volume)
           ? parsed.volume
-          : '1 sacola grande',
+          : 'Sacola média',
       condition:
         typeof parsed.condition === 'string' && isConditionId(parsed.condition)
           ? parsed.condition
@@ -165,7 +182,7 @@ function readWizardDraft(): DonationWizardDraft {
       currentStep: 0,
       selectedCategories: ['adult'],
       quantity: '',
-      volume: '1 sacola grande',
+      volume: 'Sacola média',
       condition: 'otimo',
       notes: '',
       pointId: '',
@@ -337,7 +354,7 @@ export default function DoarPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<CategoryId[]>(['adult']);
   const [quantity, setQuantity] = useState('');
-  const [volume, setVolume] = useState('1 sacola grande');
+  const [volume, setVolume] = useState('Sacola média');
   const [condition, setCondition] = useState<ConditionId>('otimo');
   const [notes, setNotes] = useState('');
   const [pointId, setPointId] = useState('');
@@ -655,17 +672,13 @@ export default function DoarPage() {
       <div className="mx-auto max-w-shell space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doacao</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doação</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper sm:text-4xl">
-              Registrar doacao em etapas
+              Registrar doação em etapas
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
-              Um fluxo guiado que agora cria doacoes reais no backend do VestGO.
+              Preencha cada passo para registrar sua doação com segurança.
             </p>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary-light px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            <ShieldCheck size={14} />
-            fluxo conectado ao backend
           </div>
         </div>
 
@@ -772,9 +785,9 @@ export default function DoarPage() {
                       <Info size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">Voce pode combinar categorias na mesma entrega.</p>
+                      <p className="text-sm font-semibold">Combine mais de uma categoria na mesma entrega.</p>
                       <p className="mt-2 text-sm leading-7 text-primary-muted">
-                        Os itens serao salvos no backend com base nas escolhas feitas neste fluxo.
+                        Você pode selecionar quantas quiser — elas serão organizadas no resumo antes de confirmar.
                       </p>
                     </div>
                   </div>
@@ -784,21 +797,100 @@ export default function DoarPage() {
 
             {currentStep === 1 && (
               <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
-                <div className="space-y-4">
-                  <Input
-                    id="quantidade"
-                    label="Quantidade estimada"
-                    placeholder="Ex: 8 pecas ou 2 pares"
-                    value={quantity}
-                    onChange={(event) => setQuantity(event.target.value)}
-                  />
-                  <p className="px-1 text-xs text-gray-400">Use um numero aproximado para registrar a doacao real.</p>
+                <div className="space-y-5">
+                  <div>
+                    <label
+                      htmlFor="quantidade"
+                      className="mb-2 block px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400"
+                    >
+                      Quantidade estimada
+                    </label>
+                    <div className="flex items-stretch gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = getEstimatedQuantity(quantity) || 0;
+                          const next = Math.max(0, current - 1);
+                          setQuantity(next === 0 ? '' : String(next));
+                        }}
+                        aria-label="Diminuir quantidade"
+                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={getEstimatedQuantity(quantity) <= 0}
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <input
+                        id="quantidade"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        placeholder="0"
+                        value={quantity}
+                        onChange={(event) => {
+                          const raw = event.target.value;
+                          if (raw === '') {
+                            setQuantity('');
+                            return;
+                          }
+                          const digits = raw.replace(/[^0-9]/g, '');
+                          setQuantity(digits);
+                        }}
+                        className="h-14 flex-1 rounded-2xl border border-gray-200 bg-white px-4 text-center text-lg font-bold text-primary-deeper outline-none transition-colors placeholder:text-gray-300 focus:border-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = getEstimatedQuantity(quantity) || 0;
+                          setQuantity(String(current + 1));
+                        }}
+                        aria-label="Aumentar quantidade"
+                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary"
+                      >
+                        <PlusIcon size={18} />
+                      </button>
+                    </div>
+                    <p className="mt-2 px-1 text-xs text-gray-400">
+                      Informe quantas peças (ou pares) você planeja entregar.
+                    </p>
+                  </div>
 
                   <div>
-                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">Observacoes</p>
+                    <label
+                      htmlFor="volume"
+                      className="mb-2 block px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400"
+                    >
+                      Volume (tipo de embalagem)
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="volume"
+                        value={volume}
+                        onChange={(event) => setVolume(event.target.value)}
+                        className="h-14 w-full appearance-none rounded-2xl border border-gray-200 bg-white px-4 pr-12 text-sm font-semibold text-on-surface outline-none transition-colors focus:border-primary"
+                      >
+                        {volumeOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option} — {volumeHints[option]}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={18}
+                        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                    </div>
+                    <p className="mt-2 px-1 text-xs text-gray-400">
+                      Escolha o recipiente que melhor representa o volume — isso ajuda o ponto
+                      de coleta a reservar espaço.
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">Observações</p>
                     <textarea
-                      rows={5}
-                      placeholder="Opcional: tamanhos, pecas mais sensiveis ou contexto util."
+                      rows={4}
+                      placeholder="Opcional: tamanhos, peças mais sensíveis ou contexto útil."
                       value={notes}
                       onChange={(event) => setNotes(event.target.value)}
                       className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white"
@@ -808,26 +900,7 @@ export default function DoarPage() {
 
                 <div className="space-y-4">
                   <div className="rounded-[1.75rem] bg-surface p-5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Volume</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {volumeOptions.map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setVolume(option)}
-                          className={cn(
-                            'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
-                            volume === option ? 'bg-primary-deeper text-white' : 'bg-white text-gray-500 shadow-sm hover:text-primary-deeper',
-                          )}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.75rem] bg-surface p-5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Condicao das pecas</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Condição das peças</p>
                     <div className="mt-3 space-y-3">
                       {conditions.map((item) => (
                         <button
@@ -852,6 +925,16 @@ export default function DoarPage() {
                       ))}
                     </div>
                   </div>
+
+                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      Dica rápida
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-gray-500">
+                      Quanto mais precisa a quantidade informada, mais fácil o ponto de coleta
+                      separa o espaço para sua entrega.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -861,7 +944,7 @@ export default function DoarPage() {
                 <div className="rounded-[1.75rem] bg-primary-light/45 p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-primary-deeper">Escolha um ponto parceiro real.</p>
+                      <p className="text-sm font-semibold text-primary-deeper">Escolha um ponto parceiro.</p>
                       <p className="mt-2 text-sm leading-7 text-gray-500">
                         So pontos de coleta com ONG ativa podem finalizar a doacao. Pontos ainda em estruturacao continuam visiveis como indisponiveis.
                       </p>
@@ -882,7 +965,7 @@ export default function DoarPage() {
                 {pointsLoading ? (
                   <div className="flex items-center gap-3 rounded-[1.75rem] bg-surface p-5 text-sm text-gray-500">
                     <Loader2 size={18} className="animate-spin text-primary" />
-                    Carregando pontos de coleta reais...
+                    Carregando pontos de coleta próximos...
                   </div>
                 ) : pointsError ? (
                   <div className="rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
@@ -1032,7 +1115,7 @@ export default function DoarPage() {
                     <div className="mt-4 space-y-3">
                       {[
                         'As pecas estao limpas e prontas para reaproveitamento.',
-                        'O ponto escolhido existe na base real e sera associado a esta doacao.',
+                        'O ponto escolhido está ativo e receberá sua doação.',
                         'Apos concluir, voce sera redirecionado ao rastreio da doacao criada.',
                       ].map((item) => (
                         <div key={item} className="flex items-start gap-3">
@@ -1128,7 +1211,7 @@ export default function DoarPage() {
                       {loading ? (
                         <>
                           <Loader2 size={16} className="animate-spin" />
-                          Criando doacao...
+                          Registrando doação...
                         </>
                       ) : (
                         <>

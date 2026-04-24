@@ -36,7 +36,9 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
   const router = useRouter();
   const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [hiddenOnMobile, setHiddenOnMobile] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const lastScrollRef = useRef(0);
 
   const userName = session?.user?.name ?? 'VestGO';
   const userRole = session?.user?.role ?? 'DONOR';
@@ -67,8 +69,49 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
     setDropdownOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const SCROLL_THRESHOLD = 12;
+    const REVEAL_AT_TOP = 40;
+    let ticking = false;
+
+    function handleScroll() {
+      if (ticking) return;
+      ticking = true;
+
+      window.requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const delta = currentY - lastScrollRef.current;
+
+        if (currentY <= REVEAL_AT_TOP) {
+          setHiddenOnMobile(false);
+        } else if (delta > SCROLL_THRESHOLD) {
+          setHiddenOnMobile(true);
+        } else if (delta < -SCROLL_THRESHOLD) {
+          setHiddenOnMobile(false);
+        }
+
+        lastScrollRef.current = currentY;
+        ticking = false;
+      });
+    }
+
+    lastScrollRef.current = window.scrollY;
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    setHiddenOnMobile(false);
+  }, [pathname]);
+
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl">
+    <header
+      className={`fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl transition-transform duration-300 ease-out md:translate-y-0 ${
+        hiddenOnMobile ? '-translate-y-full' : 'translate-y-0'
+      }`}
+    >
       <div className="mx-auto flex h-topbar max-w-shell items-center gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-[1.1]">
           <Link href="/inicio" className="flex min-w-0 items-center gap-3">

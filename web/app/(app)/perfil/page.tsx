@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowDown,
   Bell,
   Camera,
   ChevronRight,
@@ -447,6 +448,19 @@ export default function PerfilPage() {
                 {profileError}
               </p>
             )}
+
+            {donorCompletion &&
+              (donorCompletion.missingFields?.length ?? 0) > 0 && (
+                <a
+                  href="#completar-perfil"
+                  className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-white px-4 py-2 text-xs font-semibold text-primary shadow-sm transition-colors hover:bg-primary-light"
+                >
+                  <Sparkles size={13} />
+                  Complete seu perfil ({donorCompletion.completedItems ?? 0}/
+                  {donorCompletion.totalItems ?? 0})
+                  <ArrowDown size={12} />
+                </a>
+              )}
           </header>
 
           {/* ──────────────────── STATS STRIP ──────────────────── */}
@@ -467,152 +481,6 @@ export default function PerfilPage() {
           </section>
 
           {/* ──────────────────── BADGES ──────────────────── */}
-          <section aria-labelledby="profile-completion-heading" className="max-w-4xl">
-            <div className="rounded-[2rem] border border-gray-100 bg-white/80 p-6 shadow-card">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                <div className="max-w-2xl">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
-                    Perfil complementar
-                  </p>
-                  <h2
-                    id="profile-completion-heading"
-                    className="mt-1 text-2xl font-bold text-primary-deeper"
-                  >
-                    Complete seu perfil no seu ritmo
-                  </h2>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
-                    Esses dados continuam opcionais. Eles ajudam o VestGO a melhorar
-                    personalizacao e descoberta local sem mexer no cadastro inicial.
-                  </p>
-                </div>
-
-                <div className="rounded-[1.5rem] bg-surface px-4 py-3 text-sm text-gray-600">
-                  <p className="font-semibold text-primary-deeper">
-                    {donorCompletion?.completedItems ?? 0} de {donorCompletion?.totalItems ?? 0}{' '}
-                    itens concluidos
-                  </p>
-                  {donorCompletion?.missingFields?.length ? (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Faltando: {donorCompletion.missingFields.join(', ')}.
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Perfil complementar em dia.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">Data de nascimento</span>
-                  <input
-                    type="date"
-                    value={donorProfileForm.birthDate}
-                    onChange={(event) => {
-                      setDonorProfileForm((current) => ({
-                        ...current,
-                        birthDate: event.target.value,
-                      }));
-                      setDonorProfileSuccess(null);
-                      setProfileError(null);
-                    }}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
-
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">Cidade</span>
-                  <input
-                    value={donorProfileForm.city}
-                    onChange={(event) => {
-                      setDonorProfileForm((current) => ({
-                        ...current,
-                        city: event.target.value,
-                      }));
-                      setDonorProfileSuccess(null);
-                      setProfileError(null);
-                    }}
-                    placeholder="Ex.: Sorocaba"
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
-
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">Estado</span>
-                  <input
-                    value={donorProfileForm.state}
-                    onChange={(event) => {
-                      setDonorProfileForm((current) => ({
-                        ...current,
-                        state: event.target.value,
-                      }));
-                      setDonorProfileSuccess(null);
-                      setProfileError(null);
-                    }}
-                    placeholder="Ex.: SP"
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-6">
-                <p className="text-sm font-semibold text-primary-deeper">
-                  Interesses de doacao
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  Escolha categorias que fazem sentido para o seu momento solidario.
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {DONATION_INTEREST_OPTIONS.map((option) => {
-                    const selected = donorProfileForm.donationInterestCategories.includes(
-                      option.value,
-                    );
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => toggleDonationInterest(option.value)}
-                        className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
-                          selected
-                            ? 'border-primary bg-primary-light text-primary-deeper'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-primary hover:text-primary'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {donorProfileSuccess && (
-                <p className="mt-5 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  {donorProfileSuccess}
-                </p>
-              )}
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleSaveDonorProfile()}
-                  disabled={savingDonorProfile || loadingProfile}
-                  className="inline-flex items-center justify-center rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingDonorProfile ? 'Salvando perfil...' : 'Salvar perfil complementar'}
-                </button>
-                <Link
-                  href="/configuracoes"
-                  className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
-                >
-                  Ajustes da conta
-                </Link>
-              </div>
-            </div>
-          </section>
-
           <section aria-labelledby="badges-heading">
             <div className="mb-6 flex items-end justify-between gap-3">
               <div>
@@ -634,12 +502,12 @@ export default function PerfilPage() {
             {loadingImpact && donations.length === 0 ? (
               <p className="text-sm text-gray-500">Carregando conquistas…</p>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <div className="grid justify-items-center gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {badges.map((badge) => (
                   <div
                     key={badge.type}
                     className={cn(
-                      'flex flex-col items-center text-center transition-opacity',
+                      'flex w-full max-w-[260px] flex-col items-center text-center transition-opacity',
                       !badge.earned && 'opacity-50 grayscale-[55%]',
                     )}
                   >
@@ -648,6 +516,7 @@ export default function PerfilPage() {
                       tier={badge.tier}
                       subtitle={badge.subtitle}
                       earnedAt={badge.earned ? badge.earnedAt : undefined}
+                      className="!w-full"
                     />
                     {!badge.earned && badge.progressLabel && (
                       <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">
@@ -727,9 +596,163 @@ export default function PerfilPage() {
             )}
           </section>
 
+          {/* ──────────────────── COMPLETAR PERFIL ──────────────────── */}
+          <section
+            id="completar-perfil"
+            aria-labelledby="profile-completion-heading"
+            className="mx-auto w-full max-w-4xl scroll-mt-24"
+          >
+            <div className="rounded-[2rem] border border-gray-100 bg-white/80 p-6 shadow-card">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
+                    Perfil complementar
+                  </p>
+                  <h2
+                    id="profile-completion-heading"
+                    className="mt-1 text-2xl font-bold text-primary-deeper"
+                  >
+                    Complete seu perfil no seu ritmo
+                  </h2>
+                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                    Esses dados continuam opcionais. Eles ajudam o VestGO a melhorar
+                    personalização e descoberta local sem mexer no cadastro inicial.
+                  </p>
+                </div>
+
+                <div className="rounded-[1.5rem] bg-surface px-4 py-3 text-sm text-gray-600">
+                  <p className="font-semibold text-primary-deeper">
+                    {donorCompletion?.completedItems ?? 0} de {donorCompletion?.totalItems ?? 0}{' '}
+                    itens concluídos
+                  </p>
+                  {donorCompletion?.missingFields?.length ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Faltando: {donorCompletion.missingFields.join(', ')}.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Perfil complementar em dia.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <label className="space-y-2 text-sm text-gray-500">
+                  <span className="font-semibold text-on-surface">Data de nascimento</span>
+                  <input
+                    type="date"
+                    value={donorProfileForm.birthDate}
+                    onChange={(event) => {
+                      setDonorProfileForm((current) => ({
+                        ...current,
+                        birthDate: event.target.value,
+                      }));
+                      setDonorProfileSuccess(null);
+                      setProfileError(null);
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm text-gray-500">
+                  <span className="font-semibold text-on-surface">Cidade</span>
+                  <input
+                    value={donorProfileForm.city}
+                    onChange={(event) => {
+                      setDonorProfileForm((current) => ({
+                        ...current,
+                        city: event.target.value,
+                      }));
+                      setDonorProfileSuccess(null);
+                      setProfileError(null);
+                    }}
+                    placeholder="Ex.: Sorocaba"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm text-gray-500">
+                  <span className="font-semibold text-on-surface">Estado</span>
+                  <input
+                    value={donorProfileForm.state}
+                    onChange={(event) => {
+                      setDonorProfileForm((current) => ({
+                        ...current,
+                        state: event.target.value,
+                      }));
+                      setDonorProfileSuccess(null);
+                      setProfileError(null);
+                    }}
+                    placeholder="Ex.: SP"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6">
+                <p className="text-sm font-semibold text-primary-deeper">
+                  Interesses de doação
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Escolha categorias que fazem sentido para o seu momento solidário.
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {DONATION_INTEREST_OPTIONS.map((option) => {
+                    const selected = donorProfileForm.donationInterestCategories.includes(
+                      option.value,
+                    );
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => toggleDonationInterest(option.value)}
+                        className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
+                          selected
+                            ? 'border-primary bg-primary-light text-primary-deeper'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-primary hover:text-primary'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {donorProfileSuccess && (
+                <p className="mt-5 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  {donorProfileSuccess}
+                </p>
+              )}
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveDonorProfile()}
+                  disabled={savingDonorProfile || loadingProfile}
+                  className="inline-flex items-center justify-center rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingDonorProfile ? 'Salvando perfil...' : 'Salvar perfil complementar'}
+                </button>
+                <Link
+                  href="/configuracoes"
+                  className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
+                >
+                  Ajustes da conta
+                </Link>
+              </div>
+            </div>
+          </section>
+
           {/* ──────────────────── ACCOUNT MENU ──────────────────── */}
-          <section aria-labelledby="account-heading" className="max-w-2xl">
-            <div className="mb-6">
+          <section
+            aria-labelledby="account-heading"
+            className="mx-auto w-full max-w-2xl"
+          >
+            <div className="mb-6 text-center">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
                 Conta
               </p>

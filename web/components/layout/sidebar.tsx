@@ -3,9 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { LogOut, X } from 'lucide-react';
+import { ChevronRight, LogOut, X } from 'lucide-react';
 import {
-  getPrimaryNavItems,
   getUtilityNavItems,
   ROLE_LABELS,
   isNavigationItemActive,
@@ -24,7 +23,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const userRole = session?.user?.role ?? 'DONOR';
   const userEmail = session?.user?.email ?? '';
   const utilityNavItems = getUtilityNavItems(userRole);
-  const primaryNavLabels = getPrimaryNavItems(userRole).map((item) => item.label).join(', ');
   const firstName = userName.split(' ')[0];
   const initials = userName
     .split(' ')
@@ -47,13 +45,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         }`}
       >
         <div className="border-b border-gray-100 px-5 py-4">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-                Menu secundario
-              </p>
-              <h2 className="mt-1 text-lg font-bold text-primary-deeper">Conta e ajustes</h2>
-            </div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-primary-deeper">Conta e ajustes</h2>
             <button
               onClick={onClose}
               aria-label="Fechar menu"
@@ -63,28 +56,34 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </button>
           </div>
 
-          <div className="rounded-3xl bg-primary-deeper p-4 text-white">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-light/10">
-                {session?.user?.image ? (
-                  <img
-                    src={session.user.image}
-                    alt={userName}
-                    className="h-full w-full rounded-2xl object-cover"
-                  />
-                ) : (
-                  <span className="text-xl font-bold text-white">{initials}</span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xl font-bold">Ola, {firstName}</p>
-                <p className="mt-0.5 text-sm font-semibold text-primary-muted">
-                  {ROLE_LABELS[userRole] ?? userRole}
-                </p>
-                <p className="mt-1 truncate text-xs text-white/70">{userEmail}</p>
-              </div>
+          <Link
+            href="/perfil"
+            onClick={onClose}
+            className="group flex items-center gap-4 rounded-3xl bg-primary-deeper p-4 text-white transition-colors hover:bg-primary-dark"
+          >
+            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary-light/10">
+              {session?.user?.image ? (
+                <img
+                  src={session.user.image}
+                  alt={userName}
+                  className="h-full w-full rounded-2xl object-cover"
+                />
+              ) : (
+                <span className="text-xl font-bold text-white">{initials}</span>
+              )}
             </div>
-          </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xl font-bold">Ola, {firstName}</p>
+              <p className="mt-0.5 text-sm font-semibold text-primary-muted">
+                {ROLE_LABELS[userRole] ?? userRole}
+              </p>
+              <p className="mt-1 truncate text-xs text-white/70">{userEmail}</p>
+            </div>
+            <ChevronRight
+              size={18}
+              className="flex-shrink-0 text-white/70 transition-transform group-hover:translate-x-0.5"
+            />
+          </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-5">
@@ -132,15 +131,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             })}
           </div>
 
-          <div className="mt-4 rounded-3xl border border-gray-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-              Navegacao principal
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-gray-500">
-              Sua navegacao principal atual fica disponivel no topo ou na barra inferior: {primaryNavLabels}.
-              Este painel concentra atalhos secundarios e acesso rapido a operacoes e ajustes da conta.
-            </p>
-          </div>
         </div>
 
         <div className="border-t border-gray-100 p-4">
