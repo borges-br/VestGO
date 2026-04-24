@@ -40,19 +40,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       />
 
       <aside
-        className={`fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-[22rem] flex-col bg-white shadow-panel transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-[22rem] flex-col bg-white shadow-panel transition-transform duration-300 ease-in-out dark:bg-surface-inkSoft ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="border-b border-gray-100 px-5 py-4">
+        <div className="border-b border-gray-100 px-5 py-4 dark:border-white/10">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-primary-deeper">Conta e ajustes</h2>
+            <h2 className="text-lg font-bold text-primary-deeper dark:text-primary-muted">Conta e ajustes</h2>
             <button
               onClick={onClose}
               aria-label="Fechar menu"
-              className="rounded-xl p-1.5 transition-colors hover:bg-surface"
+              className="rounded-xl p-1.5 transition-colors hover:bg-surface dark:hover:bg-white/10"
             >
-              <X size={20} className="text-gray-400" />
+              <X size={20} className="text-gray-400 dark:text-gray-400" />
             </button>
           </div>
 
@@ -87,7 +87,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-5">
-          <div className="rounded-3xl bg-surface p-2">
+          <div className="rounded-3xl bg-surface p-2 dark:bg-surface-ink">
             {utilityNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavigationItemActive(pathname, item);
@@ -99,20 +99,22 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   onClick={onClose}
                   className={`mb-1 flex items-center gap-3 rounded-2xl px-4 py-3.5 transition-all ${
                     isActive
-                      ? 'bg-white text-primary-deeper shadow-sm'
-                      : 'text-gray-600 hover:bg-white/70'
+                      ? 'bg-white text-primary-deeper shadow-sm dark:bg-surface-inkSoft dark:text-primary-muted dark:shadow-none'
+                      : 'text-gray-600 hover:bg-white/70 dark:text-gray-300 dark:hover:bg-white/5'
                   }`}
                 >
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-2xl ${
-                      isActive ? 'bg-primary-light text-primary' : 'bg-white text-gray-500'
+                      isActive
+                        ? 'bg-primary-light text-primary dark:bg-primary/20 dark:text-primary-muted'
+                        : 'bg-white text-gray-500 dark:bg-white/5 dark:text-gray-400'
                     }`}
                   >
                     <Icon size={18} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{item.label}</p>
-                    <p className="mt-0.5 text-xs text-gray-400">
+                    <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
                       {item.label === 'Operacoes'
                         ? 'Fila dedicada para pontos, ONGs e administracao'
                         : item.label === 'Governanca'
@@ -133,15 +135,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         </div>
 
-        <div className="border-t border-gray-100 p-4">
+        <div className="border-t border-gray-100 p-4 dark:border-white/10">
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-red-500 transition-colors hover:bg-red-50"
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-red-500 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
           >
             <LogOut size={20} />
             <span className="text-sm font-semibold">Sair da conta</span>
           </button>
-          <p className="mt-3 text-center text-[11px] uppercase tracking-widest text-gray-300">
+          <p className="mt-3 text-center text-[11px] uppercase tracking-widest text-gray-300 dark:text-gray-600">
             VestGO v1.0.0
           </p>
         </div>

@@ -491,7 +491,7 @@ export function MapaPageContent() {
       )}
 
       <div className={`mx-auto flex min-h-0 w-full flex-1 flex-col ${isLoggedIn ? '' : 'max-w-shell'}`}>
-        <div className="flex-shrink-0 px-4 pb-4 pt-4 sm:px-5 lg:px-6">
+        <div className="relative z-10 flex-shrink-0 px-4 pb-4 pt-4 sm:px-5 lg:px-6">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search

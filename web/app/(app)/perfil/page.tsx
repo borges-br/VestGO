@@ -15,6 +15,7 @@ import {
   Package,
   Shield,
   Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import { AwardBadge, type AwardBadgeTier, type AwardBadgeType } from '@/components/ui/award-badge';
 import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
@@ -26,7 +27,7 @@ import {
   type DonationRecord,
   type MyProfile,
 } from '@/lib/api';
-import { buildImpactSnapshot } from '@/lib/gamification';
+import { buildImpactSnapshot, getDonorLevel } from '@/lib/gamification';
 import { cn } from '@/lib/utils';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -438,6 +439,15 @@ export default function PerfilPage() {
                   {snapshot.streak.value === 1 ? 'mês seguido' : 'meses seguidos'}
                 </span>
               </div>
+              {/* Level chip — only shown for donors */}
+              {userRole === 'DONOR' && (
+                <div className="mt-3 flex items-center justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-600 shadow-sm">
+                    <TrendingUp size={11} className="text-primary" />
+                    {getDonorLevel(snapshot.points).name}
+                  </span>
+                </div>
+              )}
             </div>
 
             {avatarUploading && (

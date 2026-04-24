@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useTheme, type ThemePref } from '@/components/layout/theme-provider';
 import {
   Bell,
   ChevronRight,
@@ -14,8 +15,6 @@ import {
   Sun,
   Trash2,
 } from 'lucide-react';
-
-type ThemePref = 'light' | 'dark' | 'system';
 
 type NotificationPrefs = {
   push: boolean;
@@ -31,7 +30,6 @@ const DEFAULT_NOTIFICATIONS: NotificationPrefs = {
   newsletters: false,
 };
 
-const THEME_STORAGE_KEY = 'vestgo:theme-preference';
 const NOTIF_STORAGE_KEY = 'vestgo:notification-preferences';
 const RADIUS_STORAGE_KEY = 'vestgo:donation-radius';
 
@@ -51,18 +49,13 @@ const quickLinks = [
 ];
 
 export default function ConfiguracoesPage() {
-  const [theme, setTheme] = useState<ThemePref>('system');
+  const { theme, setTheme: applyTheme } = useTheme();
   const [notifications, setNotifications] = useState<NotificationPrefs>(DEFAULT_NOTIFICATIONS);
   const [radius, setRadius] = useState(10);
   const [saved, setSaved] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemePref | null;
-    if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
-      setTheme(storedTheme);
-    }
 
     const storedNotif = window.localStorage.getItem(NOTIF_STORAGE_KEY);
     if (storedNotif) {
@@ -81,10 +74,7 @@ export default function ConfiguracoesPage() {
   }, []);
 
   function persistTheme(next: ThemePref) {
-    setTheme(next);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(THEME_STORAGE_KEY, next);
-    }
+    applyTheme(next); // ThemeProvider handles localStorage + DOM class
     flashSaved('Aparência atualizada');
   }
 

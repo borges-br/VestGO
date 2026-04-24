@@ -19,16 +19,17 @@ function AppShellChrome({
   sidebarOpen: boolean;
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
-  const { unreadCount, preview, markAsRead } = useNotifications();
+  const { unreadCount, preview, markAsRead, markAllAsRead } = useNotifications();
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface dark:bg-surface-ink">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <TopBar
         onMenuOpen={() => setSidebarOpen(true)}
         unreadCount={unreadCount}
         notifPreview={preview}
         onNotifRead={markAsRead}
+        onMarkAllRead={markAllAsRead}
       />
       <main className="mx-auto w-full max-w-shell pb-[calc(var(--mobile-nav-height)+0.75rem)] pt-[calc(var(--topbar-height)+0.75rem)] md:pb-8">
         <div className="min-h-[calc(100vh-var(--topbar-height)-1rem)]">{children}</div>

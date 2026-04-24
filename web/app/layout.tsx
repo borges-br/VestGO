@@ -3,6 +3,7 @@ import '@/styles/globals.css';
 import 'leaflet/dist/leaflet.css';
 import { SessionProvider } from 'next-auth/react';
 import { auth } from '@/lib/auth';
+import { ThemeProvider } from '@/components/layout/theme-provider';
 
 export const metadata: Metadata = {
   title: 'VestGO - Doar com proposito',
@@ -35,15 +36,23 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="pt-BR">
-      <body className="min-h-screen bg-surface text-on-surface">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* Inline script to apply dark class before first paint — prevents FOUC */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('vestgo:theme-preference')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');})();`,
+          }}
+        />
+      </head>
+      <body className="min-h-screen bg-surface text-on-surface dark:bg-surface-ink dark:text-gray-100">
         <SessionProvider
           session={session}
           refetchInterval={60}
           refetchOnWindowFocus
           refetchWhenOffline={false}
         >
-          {children}
+          <ThemeProvider>{children}</ThemeProvider>
         </SessionProvider>
       </body>
     </html>

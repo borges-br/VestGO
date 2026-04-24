@@ -11,10 +11,42 @@ export type ImpactBadge = {
   progressLabel?: string;
 };
 
+export type DonorLevel = {
+  name: string;
+  /** Tailwind color token suffix used for chip bg/text (e.g. 'primary', 'amber', 'emerald') */
+  color: 'gray' | 'primary' | 'emerald' | 'amber' | 'indigo' | 'violet' | 'rose';
+  minPoints: number;
+  /** Threshold of the next level (undefined = max level reached) */
+  nextThreshold?: number;
+};
+
+export const DONOR_LEVELS: DonorLevel[] = [
+  { name: 'Futuro Doador',           color: 'gray',    minPoints: 0,    nextThreshold: 50 },
+  { name: 'Doador Iniciante',        color: 'primary',  minPoints: 50,   nextThreshold: 150 },
+  { name: 'Semeador Solidário',      color: 'emerald', minPoints: 150,  nextThreshold: 350 },
+  { name: 'Agente do Bem',           color: 'amber',   minPoints: 350,  nextThreshold: 700 },
+  { name: 'Multiplicador Solidário', color: 'indigo',  minPoints: 700,  nextThreshold: 1200 },
+  { name: 'Guardião da Generosidade',color: 'violet',  minPoints: 1200, nextThreshold: 2000 },
+  { name: 'Embaixador do Impacto',   color: 'rose',    minPoints: 2000 },
+];
+
+export function getDonorLevel(points: number): DonorLevel {
+  const level = [...DONOR_LEVELS].reverse().find((l) => points >= l.minPoints);
+  return level ?? DONOR_LEVELS[0];
+}
+
 export type ImpactSnapshot = {
   points: number;
   pointsLabel: string;
   levelTitle: string;
+  /** Short, human-readable level name (e.g. "Semeador Solidário") */
+  levelName: string;
+  /** Tailwind color key for the level chip */
+  levelColor: DonorLevel['color'];
+  /** Progress within the current level (0–1) */
+  levelProgress: number;
+  /** Points needed to reach the next level (0 if already at max) */
+  pointsToNextLevel: number;
   nextMilestone: {
     label: string;
     current: number;
@@ -123,24 +155,22 @@ function getMonthlyStreak(donations: DonationRecord[]) {
   return streak;
 }
 
+/** Legacy descriptive title — kept for backward compat with any existing usage */
 function getLevelTitle(points: number) {
-  if (points >= 1200) {
-    return 'Constancia que multiplica a solidariedade';
-  }
+  const level = getDonorLevel(points);
+  return level.name;
+}
 
-  if (points >= 800) {
-    return 'Solidariedade recorrente em consolidacao';
+function computeLevelProgress(points: number, level: DonorLevel): { progress: number; pointsToNext: number } {
+  if (!level.nextThreshold) {
+    return { progress: 1, pointsToNext: 0 };
   }
-
-  if (points >= 300) {
-    return 'Participacao com ritmo consistente';
-  }
-
-  if (points >= 120) {
-    return 'Primeiros marcos solidarios';
-  }
-
-  return 'Primeiros passos solidarios';
+  const range = level.nextThreshold - level.minPoints;
+  const gained = points - level.minPoints;
+  return {
+    progress: Math.min(1, gained / range),
+    pointsToNext: Math.max(0, level.nextThreshold - points),
+  };
 }
 
 function getNextMilestone(points: number) {
@@ -184,11 +214,17 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
   ).size;
   const streakMonths = getMonthlyStreak(ordered);
   const nextMilestone = getNextMilestone(totalPoints);
+  const level = getDonorLevel(totalPoints);
+  const { progress: levelProgress, pointsToNext: pointsToNextLevel } = computeLevelProgress(totalPoints, level);
 
   return {
     points: totalPoints,
     pointsLabel: 'Pontos solidarios',
     levelTitle: getLevelTitle(totalPoints),
+    levelName: level.name,
+    levelColor: level.color,
+    levelProgress,
+    pointsToNextLevel,
     nextMilestone,
     monthlyGoal: {
       label: 'Meta do mes',

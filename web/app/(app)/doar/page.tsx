@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -351,6 +351,7 @@ export default function DoarPage() {
   const { data: session, status } = useSession();
   const userRole = session?.user?.role ?? 'DONOR';
   const isDonor = userRole === 'DONOR';
+  const stepCardRef = useRef<HTMLDivElement>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<CategoryId[]>(['adult']);
   const [quantity, setQuantity] = useState('');
@@ -623,14 +624,29 @@ export default function DoarPage() {
     );
   }
 
+  function scrollToStepTop() {
+    // On mobile, scroll the step card into view; on desktop leave position intact
+    if (window.innerWidth < 1024 && stepCardRef.current) {
+      const topbarHeight = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--topbar-height') || '64',
+        10,
+      );
+      const rect = stepCardRef.current.getBoundingClientRect();
+      window.scrollBy({ top: rect.top - topbarHeight - 12, behavior: 'smooth' });
+    }
+  }
+
   function handleNext() {
     if (!canContinue || currentStep === steps.length - 1) return;
     setCurrentStep((value) => value + 1);
+    // Defer scroll so the new step has rendered
+    setTimeout(scrollToStepTop, 50);
   }
 
   function handleBack() {
     if (currentStep === 0) return;
     setCurrentStep((value) => value - 1);
+    setTimeout(scrollToStepTop, 50);
   }
 
   async function handleConfirm() {
@@ -682,59 +698,74 @@ export default function DoarPage() {
           </div>
         </div>
 
-        <div className="rounded-[2rem] bg-white p-5 shadow-card lg:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Fluxo guiado</p>
-              <p className="mt-1 text-sm text-gray-500">Etapa {currentStep + 1} de {steps.length}</p>
+        <div ref={stepCardRef} className="rounded-[2rem] bg-white p-4 shadow-card sm:p-5 lg:p-6">
+          {/* Mobile: compact pill header — progress bar + current step label only */}
+          <div className="flex items-center gap-3 lg:hidden">
+            <div className="flex-1">
+              <div className="h-2 overflow-hidden rounded-full bg-surface">
+                <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+              </div>
             </div>
-            <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-              {step.short}
+            <span className="flex-shrink-0 rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary">
+              {currentStep + 1}/{steps.length} · {step.short}
             </span>
           </div>
 
-          <div className="mt-4 h-2 rounded-full bg-surface">
-            <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
-          </div>
+          {/* Desktop: full step buttons */}
+          <div className="hidden lg:block">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Fluxo guiado</p>
+                <p className="mt-1 text-sm text-gray-500">Etapa {currentStep + 1} de {steps.length}</p>
+              </div>
+              <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                {step.short}
+              </span>
+            </div>
 
-          <div className="mt-5 grid gap-2 sm:grid-cols-4">
-            {steps.map((item, index) => {
-              const isCurrent = index === currentStep;
-              const isPast = index < currentStep;
+            <div className="mt-4 h-2 rounded-full bg-surface">
+              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+            </div>
 
-              return (
-                <button
-                  key={item.title}
-                  type="button"
-                  onClick={() => index <= currentStep && setCurrentStep(index)}
-                  disabled={index > currentStep}
-                  className={cn(
-                    'flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
-                    isCurrent && 'bg-primary-deeper text-white',
-                    isPast && 'bg-primary-light text-primary-deeper',
-                    !isCurrent && !isPast && 'bg-surface text-gray-400',
-                    index > currentStep && 'cursor-not-allowed opacity-70',
-                  )}
-                >
-                  <div
+            <div className="mt-5 grid gap-2 grid-cols-4">
+              {steps.map((item, index) => {
+                const isCurrent = index === currentStep;
+                const isPast = index < currentStep;
+
+                return (
+                  <button
+                    key={item.title}
+                    type="button"
+                    onClick={() => index <= currentStep && setCurrentStep(index)}
+                    disabled={index > currentStep}
                     className={cn(
-                      'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold',
-                      isCurrent && 'bg-white/15 text-white',
-                      isPast && 'bg-white text-primary',
-                      !isCurrent && !isPast && 'bg-white text-gray-400',
+                      'flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
+                      isCurrent && 'bg-primary-deeper text-white',
+                      isPast && 'bg-primary-light text-primary-deeper',
+                      !isCurrent && !isPast && 'bg-surface text-gray-400',
+                      index > currentStep && 'cursor-not-allowed opacity-70',
                     )}
                   >
-                    {isPast ? <Check size={16} /> : index + 1}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{item.short}</p>
-                    <p className={cn('mt-0.5 text-xs', isCurrent ? 'text-white/75' : 'text-gray-400')}>
-                      {item.eyebrow}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
+                    <div
+                      className={cn(
+                        'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold',
+                        isCurrent && 'bg-white/15 text-white',
+                        isPast && 'bg-white text-primary',
+                        !isCurrent && !isPast && 'bg-white text-gray-400',
+                      )}
+                    >
+                      {isPast ? <Check size={16} /> : index + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{item.short}</p>
+                      <p className={cn('mt-0.5 text-xs', isCurrent ? 'text-white/75' : 'text-gray-400')}>
+                        {item.eyebrow}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
