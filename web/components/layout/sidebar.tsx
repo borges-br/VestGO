@@ -19,7 +19,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  const userName = session?.user?.name ?? 'Usuario';
+  const userName = session?.user?.name ?? 'Usuário';
   const userRole = session?.user?.role ?? 'DONOR';
   const userEmail = session?.user?.email ?? '';
   const utilityNavItems = getUtilityNavItems(userRole);
@@ -73,7 +73,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xl font-bold">Ola, {firstName}</p>
+              <p className="text-xl font-bold">Olá, {firstName}</p>
               <p className="mt-0.5 text-sm font-semibold text-primary-muted">
                 {ROLE_LABELS[userRole] ?? userRole}
               </p>
@@ -115,16 +115,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{item.label}</p>
                     <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                      {item.label === 'Operacoes'
-                        ? 'Fila dedicada para pontos, ONGs e administracao'
-                        : item.label === 'Governanca'
-                          ? 'Aprovacoes iniciais e revisoes publicas pendentes'
+                      {item.label === 'Operações'
+                        ? 'Fila dedicada para pontos, ONGs e administração'
+                        : item.label === 'Governança'
+                          ? 'Aprovações iniciais e revisões públicas pendentes'
                         : item.label === 'Perfil'
-                          ? 'Acesse seu historico e dados principais'
-                          : item.label === 'Configuracoes'
-                            ? 'Preferencias, notificacoes e ajustes'
+                          ? 'Acesse seu histórico e dados principais'
+                          : item.label === 'Configurações'
+                            ? 'Preferências, notificações e ajustes'
                             : item.label === 'Privacidade'
-                              ? 'Seguranca da conta e dados pessoais'
+                              ? 'Segurança da conta e dados pessoais'
                               : 'Ajuda, FAQ e canais de suporte'}
                     </p>
                   </div>

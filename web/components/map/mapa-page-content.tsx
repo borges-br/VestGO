@@ -36,8 +36,8 @@ const CollectionMap = dynamic(
 
 const CATEGORY_LABELS: Record<string, string> = {
   CLOTHING: 'Roupas',
-  SHOES: 'Calcados',
-  ACCESSORIES: 'Acessorios',
+  SHOES: 'Calçados',
+  ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas',
   OTHER: 'Outros',
 };
@@ -199,15 +199,15 @@ export function MapaPageContent() {
         if (availablePoints.length === 0) {
           setError(
             nextSearch
-              ? 'Nenhum parceiro publico corresponde a essa busca.'
+              ? 'Nenhum parceiro público corresponde a essa busca.'
               : isSelectionMode
-                ? 'Nenhum ponto de coleta publico foi encontrado nessa area.'
-                : 'Nenhum parceiro publico encontrado nessa area.',
+                ? 'Nenhum ponto de coleta público foi encontrado nessa área.'
+                : 'Nenhum parceiro público encontrado nessa área.',
           );
         }
       } catch {
         if (requestId === lastFetchRequestIdRef.current) {
-          setError('Erro ao buscar pontos. Verifique sua conexao.');
+          setError('Erro ao buscar pontos. Verifique sua conexão.');
         }
       } finally {
         if (requestId === lastFetchRequestIdRef.current) {
@@ -236,7 +236,7 @@ export function MapaPageContent() {
         city && state ? `${city} - ${state}` : city ?? state ?? fallbackLabel;
 
       if (locationLabel) {
-        setLocationNotice(`Mostrando parceiros proximos de ${locationLabel}.`);
+        setLocationNotice(`Mostrando parceiros próximos de ${locationLabel}.`);
       }
     } catch {
       // The generic location notice is already enough when reverse geocoding fails.
@@ -251,7 +251,7 @@ export function MapaPageContent() {
     if (!window.navigator.geolocation) {
       setHasResolvedInitialCenter(true);
       setLocationNotice(
-        'Geolocalizacao indisponivel neste navegador. Mostrando Sorocaba como area base.',
+        'Geolocalização indisponível neste navegador. Mostrando Sorocaba como área base.',
       );
       return;
     }
@@ -263,7 +263,7 @@ export function MapaPageContent() {
       ({ coords }) => {
         setCenter([coords.latitude, coords.longitude]);
         setLocated(true);
-        setLocationNotice('Mostrando parceiros proximos da sua localizacao atual.');
+        setLocationNotice('Mostrando parceiros próximos da sua localização atual.');
         setHasResolvedInitialCenter(true);
         setIsLocating(false);
         locationRequestActiveRef.current = false;
@@ -275,8 +275,8 @@ export function MapaPageContent() {
         setIsLocating(false);
         setLocationNotice(
           source === 'auto'
-            ? 'Nao foi possivel usar sua localizacao agora. Mostrando Sorocaba como area base para voce explorar.'
-            : 'Permissao de localizacao negada. Continue explorando pelo mapa ou pela busca.',
+            ? 'Não foi possível usar sua localização agora. Mostrando Sorocaba como área base para você explorar.'
+            : 'Permissão de localização negada. Continue explorando pelo mapa ou pela busca.',
         );
         locationRequestActiveRef.current = false;
       },
@@ -307,7 +307,7 @@ export function MapaPageContent() {
     if (isSelectionMode && !isDonationSelectablePoint(point)) {
       setLocationNotice(
         point.donationEligibility?.message ??
-          'Este ponto ainda nao pode finalizar doacoes no fluxo doador.',
+          'Este ponto ainda não pode finalizar doações no fluxo doador.',
       );
       return;
     }
@@ -351,7 +351,7 @@ export function MapaPageContent() {
       setLocationNotice(
         `Mapa recentralizado para ${suggestion.city ?? suggestion.label}${
           suggestion.state ? ` - ${suggestion.state}` : ''
-        }. A busca textual de parceiros continua disponivel.`,
+        }. A busca textual de parceiros continua disponível.`,
       );
       setSearchFocused(false);
       clearSuggestions();
@@ -430,12 +430,12 @@ export function MapaPageContent() {
           setSelectedPointId(null);
           setLocationNotice(
             point.donationEligibility?.message ??
-              'O ponto anteriormente selecionado ainda nao pode finalizar doacoes.',
+              'O ponto anteriormente selecionado ainda não pode finalizar doações.',
           );
         }
       } catch {
         if (!cancelled) {
-          setLocationNotice('O ponto anteriormente selecionado nao esta mais disponivel nesta busca.');
+          setLocationNotice('O ponto anteriormente selecionado não está mais disponível nesta busca.');
         }
       }
     }
@@ -461,7 +461,7 @@ export function MapaPageContent() {
     setSelectedPointId(null);
     setLocationNotice(
       point.donationEligibility?.message ??
-      'Este ponto ainda nao pode finalizar doacoes no fluxo doador.',
+      'Este ponto ainda não pode finalizar doações no fluxo doador.',
     );
   }, [isSelectionMode, points, selectedPointId]);
 
@@ -500,7 +500,7 @@ export function MapaPageContent() {
               />
               <input
                 type="text"
-                placeholder="Buscar parceiros ou ir para um endereco..."
+                placeholder="Buscar parceiros ou ir para um endereço..."
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 onFocus={handleSearchFocus}
@@ -515,14 +515,14 @@ export function MapaPageContent() {
                       Ir para um lugar
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      Escolha uma sugestao para recentralizar o mapa sem substituir a busca textual de parceiros.
+                      Escolha uma sugestão para recentralizar o mapa sem substituir a busca textual de parceiros.
                     </p>
                   </div>
 
                   {addressSuggestionsLoading && (
                     <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
                       <Loader2 size={15} className="animate-spin text-primary" />
-                      Buscando lugares e enderecos...
+                      Buscando lugares e endereços...
                     </div>
                   )}
 
@@ -569,7 +569,7 @@ export function MapaPageContent() {
             <button
               type="button"
               onClick={handleLocate}
-              title="Usar minha localizacao"
+              title="Usar minha localização"
               className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl shadow-sm transition-colors ${
                 located
                   ? 'bg-primary text-white'
@@ -580,7 +580,7 @@ export function MapaPageContent() {
             </button>
           </div>
           <p className="mt-2 text-xs text-gray-400">
-            Digite para filtrar parceiros cadastrados. Se quiser recentralizar o mapa, escolha uma sugestao de endereco ou lugar.
+            Digite para filtrar parceiros cadastrados. Se quiser recentralizar o mapa, escolha uma sugestão de endereço ou lugar.
           </p>
 
           {isSelectionMode && (
@@ -588,10 +588,10 @@ export function MapaPageContent() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                    Selecionar ponto para doacao
+                    Selecionar ponto para doação
                   </p>
                   <p className="mt-2 text-sm leading-7 text-gray-500">
-                    Escolha um ponto de coleta, confirme a selecao e volte direto para a etapa 3 do wizard.
+                    Escolha um ponto de coleta, confirme a seleção e volte direto para a etapa 3 do wizard.
                   </p>
                   <p className="mt-2 text-sm font-semibold text-primary-deeper">
                     {selectedPoint
@@ -646,7 +646,7 @@ export function MapaPageContent() {
                       : partnerSearch
                         ? `Resultados para "${partnerSearch}".`
                         : located
-                          ? 'Veja pontos e parceiros proximos da sua localizacao.'
+                          ? 'Veja pontos e parceiros próximos da sua localização.'
                           : 'Veja parceiros ativos, compare perfis e escolha onde doar.'}
                   </p>
                 </div>
@@ -684,7 +684,7 @@ export function MapaPageContent() {
                   <p className="mt-1 text-sm text-gray-500">
                     {isSelectionMode
                       ? 'Selecione um ponto de coleta e confirme para voltar ao wizard.'
-                      : 'Perfis publicos de pontos de coleta e ONGs em operacao.'}
+                      : 'Perfis públicos de pontos de coleta e ONGs em operação.'}
                   </p>
                 </div>
                 {!isSelectionMode && (
@@ -739,7 +739,7 @@ export function MapaPageContent() {
                                 <p className="mt-2 line-clamp-2 text-xs leading-6 text-gray-500">
                                   {point.description ??
                                     formatAddressSummary(point) ??
-                                    'Perfil publico em construcao.'}
+                                    'Perfil público em construção.'}
                                 </p>
                                 {point.donationEligibility && (
                                   <div
@@ -821,8 +821,8 @@ export function MapaPageContent() {
                       <MapPin size={32} className="mx-auto mb-3 text-gray-200" />
                       <p className="text-sm text-gray-400">
                         {isSelectionMode
-                          ? 'Use sua localizacao para ver pontos de coleta proximos.'
-                          : 'Use sua localizacao para ver parceiros publicos proximos.'}
+                          ? 'Use sua localização para ver pontos de coleta próximos.'
+                          : 'Use sua localização para ver parceiros públicos próximos.'}
                       </p>
                     </div>
                   )}

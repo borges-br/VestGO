@@ -25,11 +25,11 @@ function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return 'agora';
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `ha ${minutes}min`;
+  if (minutes < 60) return `há ${minutes}min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `ha ${hours}h`;
+  if (hours < 24) return `há ${hours}h`;
   const days = Math.floor(hours / 24);
-  return `ha ${days}d`;
+  return `há ${days}d`;
 }
 
 export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onMarkAllRead }: TopBarProps) {
@@ -122,7 +122,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
                 VestGO
               </p>
               <p className="hidden text-[11px] uppercase tracking-[0.28em] text-gray-400 dark:text-gray-500 lg:block">
-                Doacoes rastreaveis
+                Doações rastreáveis
               </p>
             </div>
           </Link>
@@ -156,7 +156,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
           <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setDropdownOpen((value) => !value)}
-              aria-label="Abrir notificacoes"
+              aria-label="Abrir notificações"
               aria-expanded={dropdownOpen}
               className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-300 dark:shadow-none dark:hover:border-primary-muted/40 dark:hover:text-primary-muted"
             >
@@ -185,7 +185,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
 
                 <div className="divide-y divide-gray-50 dark:divide-white/5">
                   {notifPreview.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Nenhuma notificacao</p>
+                    <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Nenhuma notificação</p>
                   ) : (
                     notifPreview.map((notification) => (
                       <button
@@ -228,7 +228,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
                     onClick={() => setDropdownOpen(false)}
                     className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary-light dark:text-primary-muted dark:hover:bg-primary/10"
                   >
-                    Ver todas as notificacoes
+                    Ver todas as notificações
                     <ChevronRight size={13} />
                   </Link>
                 </div>
@@ -238,7 +238,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
 
           <button
             onClick={onMenuOpen}
-            aria-label="Abrir menu de conta e configuracoes"
+            aria-label="Abrir menu de conta e configurações"
             className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-300 dark:shadow-none dark:hover:border-primary-muted/40 dark:hover:text-primary-muted"
           >
             <Settings2 size={18} />

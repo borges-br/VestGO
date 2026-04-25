@@ -99,11 +99,11 @@ export type PostDonationReward = {
 
 const MONTHLY_GOAL_TARGET = 4;
 const POINT_MILESTONES = [
-  { label: 'Primeiro marco solidario', target: 120 },
-  { label: 'Constancia em evolucao', target: 300 },
-  { label: 'Guardiao da recorrencia', target: 500 },
+  { label: 'Primeiro marco solidário', target: 120 },
+  { label: 'Constância em evolução', target: 300 },
+  { label: 'Guardião da recorrência', target: 500 },
   { label: 'Solidariedade recorrente', target: 800 },
-  { label: 'Referencia comunitaria', target: 1200 },
+  { label: 'Referência comunitária', target: 1200 },
 ];
 
 const STATUS_POINTS: Record<DonationStatus, number> = {
@@ -178,10 +178,10 @@ function getNextMilestone(points: number) {
 
   if (!next) {
     return {
-      label: 'Referencia comunitaria',
+      label: 'Referência comunitária',
       current: points,
       target: points,
-      note: 'Voce ja ultrapassou os marcos iniciais desta fase.',
+      note: 'Você já ultrapassou os marcos iniciais desta fase.',
     };
   }
 
@@ -189,7 +189,7 @@ function getNextMilestone(points: number) {
     label: next.label,
     current: points,
     target: next.target,
-    note: `Faltam ${next.target - points} pontos para o proximo marco.`,
+    note: `Faltam ${next.target - points} pontos para o próximo marco.`,
   };
 }
 
@@ -219,7 +219,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
 
   return {
     points: totalPoints,
-    pointsLabel: 'Pontos solidarios',
+    pointsLabel: 'Pontos solidários',
     levelTitle: getLevelTitle(totalPoints),
     levelName: level.name,
     levelColor: level.color,
@@ -227,26 +227,26 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
     pointsToNextLevel,
     nextMilestone,
     monthlyGoal: {
-      label: 'Meta do mes',
+      label: 'Meta do mês',
       current: monthlyDonations,
       target: MONTHLY_GOAL_TARGET,
       note:
         monthlyDonations === 0
-          ? 'Sua meta mensal comeca na primeira doacao registrada.'
-          : 'Meta calculada a partir das doacoes reais deste mes.',
+          ? 'Sua meta mensal começa na primeira doação registrada.'
+          : 'Meta calculada a partir das doações reais deste mês.',
     },
     streak: {
       value: streakMonths,
-      label: 'meses consecutivos com participacao',
-      note: 'A constancia considera meses seguidos com ao menos uma doacao registrada.',
+      label: 'meses consecutivos com participação',
+      note: 'A constância considera meses seguidos com ao menos uma doação registrada.',
     },
     ranking: {
       position: null,
       scope: 'comunidade local',
-      note: 'Ranking opt-in segue preparado para uma integracao futura com dados de comunidade.',
+      note: 'Ranking opt-in segue preparado para uma integração futura com dados de comunidade.',
     },
     stats: [
-      { value: String(completed.length), label: 'doacoes concluidas' },
+      { value: String(completed.length), label: 'doações concluídas' },
       { value: String(itemCount), label: 'itens registrados' },
       { value: String(usedDropOffPoints), label: 'pontos parceiros usados' },
       { value: String(active.length), label: 'jornadas em andamento' },
@@ -255,22 +255,22 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
       {
         id: 'first-donation',
         label: 'Primeira entrega',
-        description: 'Reconhece a primeira doacao registrada na plataforma.',
+        description: 'Reconhece a primeira doação registrada na plataforma.',
         tone: 'primary',
         earned: ordered.length >= 1,
       },
       {
         id: 'tracked-impact',
         label: 'Jornada rastreada',
-        description: 'Doacao acompanhada ate uma etapa real da jornada logistica.',
+        description: 'Doação acompanhada até uma etapa real da jornada logística.',
         tone: 'indigo',
         earned: tracked.length >= 1,
         progressLabel: tracked.length === 0 ? 'Aguardando a primeira jornada acompanhada' : undefined,
       },
       {
         id: 'steady-donor',
-        label: 'Constancia solidaria',
-        description: 'Participacao recorrente em mais de um ciclo mensal.',
+        label: 'Constância solidária',
+        description: 'Participação recorrente em mais de um ciclo mensal.',
         tone: 'emerald',
         earned: streakMonths >= 2,
         progressLabel: streakMonths < 2 ? `${streakMonths} de 2 meses consecutivos` : undefined,
@@ -291,7 +291,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
       title: donation.itemLabel,
       detail:
         donation.latestEvent?.description ??
-        'Doacao registrada e pronta para acompanhar.',
+        'Doação registrada e pronta para acompanhar.',
       date: formatDateLabel(donation.createdAt),
       points: `+${donation.pointsAwarded} pts`,
     })),
@@ -306,8 +306,8 @@ export function buildPostDonationReward(donations: DonationRecord[]): PostDonati
 
   return {
     points: predictedPoints,
-    label: 'Pontuacao prevista desta entrega',
-    note: 'Ao registrar a doacao, seu progresso passa a refletir esta nova jornada no sistema.',
+    label: 'Pontuação prevista desta entrega',
+    note: 'Ao registrar a doação, seu progresso passa a refletir esta nova jornada no sistema.',
     milestone: {
       label: nextMilestone.label,
       current: currentPointsAfterCreate,

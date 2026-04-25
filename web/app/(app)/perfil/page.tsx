@@ -39,8 +39,8 @@ const ROLE_LABELS: Record<string, string> = {
 
 const DONATION_INTEREST_OPTIONS = [
   { value: 'CLOTHING', label: 'Roupas' },
-  { value: 'SHOES', label: 'Calcados' },
-  { value: 'ACCESSORIES', label: 'Acessorios' },
+  { value: 'SHOES', label: 'Calçados' },
+  { value: 'ACCESSORIES', label: 'Acessórios' },
   { value: 'BAGS', label: 'Bolsas' },
   { value: 'OTHER', label: 'Outros' },
 ] as const;
@@ -210,7 +210,7 @@ export default function PerfilPage() {
           setDonations(response.data);
           setProfile(nextProfile);
         } catch {
-          setProfileError('Nao foi possivel carregar seu perfil agora.');
+          setProfileError('Não foi possível carregar seu perfil agora.');
           setImpactError('Não foi possível carregar seu histórico agora.');
         } finally {
           setLoadingImpact(false);
@@ -368,7 +368,7 @@ export default function PerfilPage() {
       setProfileError(
         error instanceof Error
           ? error.message
-          : 'Nao foi possivel salvar seu perfil complementar agora.',
+          : 'Não foi possível salvar seu perfil complementar agora.',
       );
     } finally {
       setSavingDonorProfile(false);
