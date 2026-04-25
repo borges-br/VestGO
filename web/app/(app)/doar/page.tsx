@@ -39,22 +39,22 @@ type CategoryId = 'adult' | 'child' | 'shoes' | 'blankets' | 'other';
 type ConditionId = 'otimo' | 'bom';
 
 const steps = [
-  { eyebrow: 'Etapa 1', short: 'Tipo', title: 'O que voce vai doar?', description: 'Escolha as categorias principais para iniciar o registro.' },
-  { eyebrow: 'Etapa 2', short: 'Detalhes', title: 'Detalhes das pecas', description: 'Informe so o necessario para dar contexto a entrega.' },
-  { eyebrow: 'Etapa 3', short: 'Ponto', title: 'Escolha o ponto de coleta', description: 'Selecione um parceiro real para receber a doacao.' },
-  { eyebrow: 'Etapa 4', short: 'Revisao', title: 'Revisao e confirmacao', description: 'Confira os dados principais antes de concluir.' },
+  { eyebrow: 'Etapa 1', short: 'Tipo', title: 'O que você vai doar?', description: 'Escolha as categorias principais para iniciar o registro.' },
+  { eyebrow: 'Etapa 2', short: 'Detalhes', title: 'Detalhes das peças', description: 'Informe só o necessário para dar contexto à entrega.' },
+  { eyebrow: 'Etapa 3', short: 'Ponto', title: 'Escolha o ponto de coleta', description: 'Selecione um parceiro real para receber a doação.' },
+  { eyebrow: 'Etapa 4', short: 'Revisão', title: 'Revisão e confirmação', description: 'Confira os dados principais antes de concluir.' },
 ];
 
 const categories = [
-  { id: 'adult' as CategoryId, label: 'Roupas adultas', hint: 'camisetas, calcas, casacos', icon: Shirt },
-  { id: 'child' as CategoryId, label: 'Roupas infantis', hint: 'pecas para criancas', icon: Sparkles },
-  { id: 'shoes' as CategoryId, label: 'Calcados', hint: 'tenis, sapatos e chinelos', icon: Footprints },
+  { id: 'adult' as CategoryId, label: 'Roupas adultas', hint: 'camisetas, calças, casacos', icon: Shirt },
+  { id: 'child' as CategoryId, label: 'Roupas infantis', hint: 'peças para crianças', icon: Sparkles },
+  { id: 'shoes' as CategoryId, label: 'Calçados', hint: 'tênis, sapatos e chinelos', icon: Footprints },
   { id: 'blankets' as CategoryId, label: 'Cobertores', hint: 'mantas e agasalhos pesados', icon: Layers },
-  { id: 'other' as CategoryId, label: 'Outros itens', hint: 'acessorios e pecas diversas', icon: Package },
+  { id: 'other' as CategoryId, label: 'Outros itens', hint: 'acessórios e peças diversas', icon: Package },
 ];
 
 const conditions = [
-  { id: 'otimo' as ConditionId, label: 'Em otimo estado', description: 'Prontas para uso imediato.' },
+  { id: 'otimo' as ConditionId, label: 'Em ótimo estado', description: 'Prontas para uso imediato.' },
   { id: 'bom' as ConditionId, label: 'Usadas, mas conservadas', description: 'Com bom potencial de reaproveitamento.' },
 ];
 
@@ -78,8 +78,8 @@ const volumeHints: Record<string, string> = {
 
 const categoryLabels: Record<string, string> = {
   CLOTHING: 'Roupas',
-  SHOES: 'Calcados',
-  ACCESSORIES: 'Acessorios',
+  SHOES: 'Calçados',
+  ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas',
   OTHER: 'Outros',
 };
@@ -266,14 +266,14 @@ function SummaryCard({
   const labels = selectedCategories.length
     ? categories.filter((item) => selectedCategories.includes(item.id)).map((item) => item.label)
     : ['Nenhuma categoria'];
-  const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? 'Nao informado';
+  const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? 'Não informado';
 
   return (
     <div className={cn('rounded-[2rem] bg-white shadow-card', compact ? 'p-5' : 'p-6 lg:p-7')}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doacao</p>
-          <h2 className="mt-2 text-xl font-bold text-primary-deeper">O que ja foi definido</h2>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doação</p>
+          <h2 className="mt-2 text-xl font-bold text-primary-deeper">O que já foi definido</h2>
         </div>
         <BadgeCheck size={20} className="text-primary" />
       </div>
@@ -299,7 +299,7 @@ function SummaryCard({
             </div>
             <div>
               <p className="text-sm font-semibold text-on-surface">{conditionLabel}</p>
-              <p className="mt-1 text-sm text-gray-400">{notes ? 'Com observacoes' : 'Sem observacoes'}</p>
+              <p className="mt-1 text-sm text-gray-400">{notes ? 'Com observações' : 'Sem observações'}</p>
             </div>
           </div>
         </div>
@@ -311,7 +311,7 @@ function SummaryCard({
               <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
                 <p className="mt-1 text-sm text-gray-400">
                   {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
-                  {formatAddressSummary(selectedPoint) ?? 'Endereco nao informado'}
+                  {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
                 </p>
               <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                 {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
@@ -405,7 +405,7 @@ export default function DoarPage() {
     }
 
     if (selectionApplied) {
-      setSelectionFeedback('Ponto aplicado com sucesso. Voce ja pode continuar a doacao.');
+      setSelectionFeedback('Ponto aplicado com sucesso. Você já pode continuar a doação.');
     }
 
     const parsedStep = Number.parseInt(stepParam ?? '2', 10);
@@ -457,7 +457,7 @@ export default function DoarPage() {
         if (!isDonationEligiblePoint(point)) {
           setPointId('');
           setConfirmed(false);
-          setPointsError(point.donationEligibility?.message ?? 'Este ponto ainda nao pode finalizar doacoes.');
+          setPointsError(point.donationEligibility?.message ?? 'Este ponto ainda não pode finalizar doações.');
         } else {
           setPointsError(null);
         }
@@ -465,7 +465,7 @@ export default function DoarPage() {
         if (!cancelled) {
           setPointId('');
           setConfirmed(false);
-          setPointsError('O ponto escolhido anteriormente nao esta mais disponivel. Escolha outro para seguir.');
+          setPointsError('O ponto escolhido anteriormente não está mais disponível. Escolha outro para seguir.');
         }
       }
     }
@@ -514,14 +514,14 @@ export default function DoarPage() {
         }
 
         if (collectionPointsOnly.length === 0) {
-          setPointsError('Nenhum ponto parceiro disponivel agora.');
+          setPointsError('Nenhum ponto parceiro disponível agora.');
         } else if (!firstEligiblePoint) {
           setPointsError(
-            'Os pontos visiveis nesta area ainda aguardam ONG parceira ativa e, por isso, nao podem finalizar doacoes.',
+            'Os pontos visíveis nesta área ainda aguardam ONG parceira ativa e, por isso, não podem finalizar doações.',
           );
         }
       } catch {
-        setPointsError('Nao foi possivel carregar os pontos de coleta no momento.');
+        setPointsError('Não foi possível carregar os pontos de coleta no momento.');
       } finally {
         setPointsLoading(false);
       }
@@ -545,7 +545,7 @@ export default function DoarPage() {
     setConfirmed(false);
     setPointsError(
       currentPoint.donationEligibility?.message ??
-        'Este ponto ainda nao pode finalizar doacoes.',
+        'Este ponto ainda não pode finalizar doações.',
     );
   }, [pointId, points]);
 
@@ -553,7 +553,7 @@ export default function DoarPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4 py-10">
         <div className="rounded-[1.75rem] bg-white px-5 py-4 text-sm text-gray-500 shadow-card">
-          {status === 'loading' ? 'Carregando permissao de acesso...' : 'Recuperando seu rascunho da doacao...'}
+          {status === 'loading' ? 'Carregando permissão de acesso...' : 'Recuperando seu rascunho da doação...'}
         </div>
       </div>
     );
@@ -567,9 +567,9 @@ export default function DoarPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
               Fluxo exclusivo para doadores
             </p>
-            <h1 className="mt-3 text-3xl font-bold text-primary-deeper">Seu perfil nao cria doacoes</h1>
+            <h1 className="mt-3 text-3xl font-bold text-primary-deeper">Seu perfil não cria doações</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-500">
-              Perfis de ponto de coleta, ONG e administracao acompanham ou operam doacoes, mas nao podem iniciar uma nova entrega como doadores.
+              Perfis de ponto de coleta, ONG e administração acompanham ou operam doações, mas não podem iniciar uma nova entrega como doadores.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
@@ -582,7 +582,7 @@ export default function DoarPage() {
                 href="/operacoes"
                 className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
               >
-                Abrir operacoes
+                Abrir operações
               </Link>
             </div>
           </div>
@@ -656,7 +656,7 @@ export default function DoarPage() {
     const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? condition;
     const payload = {
       collectionPointId: selectedPoint.id,
-      notes: [`Volume aproximado: ${volume}`, `Condicao declarada: ${conditionLabel}`, notes ? `Observacoes: ${notes}` : null].filter(Boolean).join(' | '),
+      notes: [`Volume aproximado: ${volume}`, `Condição declarada: ${conditionLabel}`, notes ? `Observações: ${notes}` : null].filter(Boolean).join(' | '),
       items: selectedCategories.map((categoryId, index) => {
         const category = categories.find((item) => item.id === categoryId)!;
         return {
@@ -678,7 +678,7 @@ export default function DoarPage() {
       }
       router.push(`/rastreio/${donation.id}?celebrate=1`);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Nao foi possivel registrar a doacao.');
+      setSubmitError(error instanceof Error ? error.message : 'Não foi possível registrar a doação.');
       setLoading(false);
     }
   }
@@ -977,7 +977,7 @@ export default function DoarPage() {
                     <div>
                       <p className="text-sm font-semibold text-primary-deeper">Escolha um ponto parceiro.</p>
                       <p className="mt-2 text-sm leading-7 text-gray-500">
-                        So pontos de coleta com ONG ativa podem finalizar a doacao. Pontos ainda em estruturacao continuam visiveis como indisponiveis.
+                        Só pontos de coleta com ONG ativa podem finalizar a doação. Pontos ainda em estruturação continuam visíveis como indisponíveis.
                       </p>
                     </div>
                     <Link href={mapSelectionHref} className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
@@ -1046,7 +1046,7 @@ export default function DoarPage() {
                                   )}
                                 </div>
                                 <p className="mt-2 text-sm text-gray-400">
-                                  {formatAddressSummary(point) ?? 'Endereco nao informado'}
+                                  {formatAddressSummary(point) ?? 'Endereço não informado'}
                                 </p>
                                 <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                                   {point.acceptedCategories.map((item) => categoryLabels[item] ?? item).join(' - ')}
@@ -1082,7 +1082,7 @@ export default function DoarPage() {
                             >
                               {isSelected
                                 ? 'Selecionado'
-                                : point.donationEligibility?.label ?? 'Disponivel'}
+                                : point.donationEligibility?.label ?? 'Disponível'}
                             </div>
                           </div>
                         </button>
@@ -1097,7 +1097,7 @@ export default function DoarPage() {
               <div className="space-y-5">
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="rounded-[1.75rem] bg-surface p-5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tipo da doacao</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tipo da doação</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {selectedCategories.map((categoryId) => {
                         const label = categories.find((item) => item.id === categoryId)?.label ?? categoryId;
@@ -1115,7 +1115,7 @@ export default function DoarPage() {
                     <p className="mt-3 text-sm font-semibold text-on-surface">{quantity || 'Quantidade pendente'}</p>
                     <p className="mt-1 text-sm text-gray-400">{volume}</p>
                     <p className="mt-2 text-sm text-gray-500">
-                      Condicao: {conditions.find((item) => item.id === condition)?.label}
+                      Condição: {conditions.find((item) => item.id === condition)?.label}
                     </p>
                   </div>
 
@@ -1126,7 +1126,7 @@ export default function DoarPage() {
                         <div>
                           <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
                             <p className="mt-1 text-sm text-gray-400">
-                              {formatAddressSummary(selectedPoint) ?? 'Endereco nao informado'}
+                              {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
                             </p>
                           {selectedPoint.donationEligibility && (
                             <p className="mt-2 text-sm text-gray-500">
@@ -1145,9 +1145,9 @@ export default function DoarPage() {
                     <p className="text-sm font-semibold text-primary-deeper">Antes de confirmar</p>
                     <div className="mt-4 space-y-3">
                       {[
-                        'As pecas estao limpas e prontas para reaproveitamento.',
+                        'As peças estão limpas e prontas para reaproveitamento.',
                         'O ponto escolhido está ativo e receberá sua doação.',
-                        'Apos concluir, voce sera redirecionado ao rastreio da doacao criada.',
+                        'Após concluir, você será redirecionado ao rastreio da doação criada.',
                       ].map((item) => (
                         <div key={item} className="flex items-start gap-3">
                           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-primary">
@@ -1171,7 +1171,7 @@ export default function DoarPage() {
                     <Check size={12} />
                   </button>
                   <span className="text-sm leading-7 text-gray-500">
-                    Confirmo que as pecas estao limpas, em bom estado e prontas para seguir para o ponto selecionado.
+                    Confirmo que as peças estão limpas, em bom estado e prontas para seguir para o ponto selecionado.
                   </span>
                 </label>
               </div>
@@ -1246,7 +1246,7 @@ export default function DoarPage() {
                         </>
                       ) : (
                         <>
-                          Confirmar doacao
+                          Confirmar doação
                           <ChevronRight size={16} />
                         </>
                       )}
@@ -1257,7 +1257,7 @@ export default function DoarPage() {
 
               <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
                 <Clock3 size={14} />
-                Voce pode voltar etapas anteriores sem perder o contexto preenchido.
+                Você pode voltar etapas anteriores sem perder o contexto preenchido.
               </div>
             </div>
           </section>
