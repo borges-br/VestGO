@@ -57,21 +57,21 @@ const quickActions = [
     label: 'Explorar pontos',
     description: 'Encontrar parceiros',
     icon: Map,
-    tone: 'bg-primary-light text-primary',
+    tone: 'bg-primary-light text-primary dark:bg-primary/20',
   },
   {
     href: '/rastreio',
     label: 'Acompanhar status',
     description: 'Ver andamento',
     icon: Truck,
-    tone: 'bg-blue-50 text-blue-600',
+    tone: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
   },
   {
     href: '/perfil',
     label: 'Minha solidariedade',
     description: 'Resumo pessoal',
     icon: HeartHandshake,
-    tone: 'bg-amber-50 text-amber-600',
+    tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
   },
 ];
 
@@ -119,21 +119,21 @@ const operationalActionMap: Record<
       label: 'Perfil público',
       description: 'Endereço, status e checklist',
       icon: Store,
-      tone: 'bg-primary-light text-primary',
+      tone: 'bg-primary-light text-primary dark:bg-primary/20',
     },
     {
       href: '/mapa',
       label: 'Explorar pontos',
       description: 'Validar descoberta pública',
       icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
+      tone: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
     },
     {
       href: '/rastreio',
       label: 'Rastreio',
       description: 'Acompanhar jornadas',
       icon: Truck,
-      tone: 'bg-amber-50 text-amber-600',
+      tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
     },
   ],
   NGO: [
@@ -149,21 +149,21 @@ const operationalActionMap: Record<
       label: 'Perfil público',
       description: 'Base, cobertura e status',
       icon: Users,
-      tone: 'bg-primary-light text-primary',
+      tone: 'bg-primary-light text-primary dark:bg-primary/20',
     },
     {
       href: '/mapa',
       label: 'Explorar parceiros',
       description: 'Ver pontos e ONGs ativas',
       icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
+      tone: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
     },
     {
       href: '/rastreio',
       label: 'Rastreio',
       description: 'Acompanhar distribuições',
       icon: Truck,
-      tone: 'bg-amber-50 text-amber-600',
+      tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
     },
   ],
   ADMIN: [
@@ -179,21 +179,21 @@ const operationalActionMap: Record<
       label: 'Operações',
       description: 'Visão ampla da operação',
       icon: ClipboardList,
-      tone: 'bg-primary-light text-primary',
+      tone: 'bg-primary-light text-primary dark:bg-primary/20',
     },
     {
       href: '/mapa',
       label: 'Descoberta pública',
       description: 'Validar mapa e busca',
       icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
+      tone: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
     },
     {
       href: '/perfil',
       label: 'Minha conta',
       description: 'Dados da sessão atual',
       icon: User,
-      tone: 'bg-amber-50 text-amber-600',
+      tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
     },
   ],
 };
@@ -202,12 +202,12 @@ const STATUS_META: Record<
   DonationStatus,
   { label: string; tone: string; stepIndex: number }
 > = {
-  PENDING: { label: 'Pendente', tone: 'bg-amber-50 text-amber-600', stepIndex: 0 },
-  AT_POINT: { label: 'No ponto', tone: 'bg-blue-50 text-blue-600', stepIndex: 1 },
-  IN_TRANSIT: { label: 'Em trânsito', tone: 'bg-indigo-50 text-indigo-600', stepIndex: 2 },
-  DELIVERED: { label: 'Entregue', tone: 'bg-primary-light text-primary', stepIndex: 3 },
-  DISTRIBUTED: { label: 'Distribuída', tone: 'bg-emerald-50 text-emerald-600', stepIndex: 3 },
-  CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-500', stepIndex: 0 },
+  PENDING: { label: 'Pendente', tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400', stepIndex: 0 },
+  AT_POINT: { label: 'No ponto', tone: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400', stepIndex: 1 },
+  IN_TRANSIT: { label: 'Em trânsito', tone: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400', stepIndex: 2 },
+  DELIVERED: { label: 'Entregue', tone: 'bg-primary-light text-primary dark:bg-primary/20', stepIndex: 3 },
+  DISTRIBUTED: { label: 'Distribuída', tone: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400', stepIndex: 3 },
+  CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400', stepIndex: 0 },
 };
 
 function formatDateLabel(input: string) {
@@ -313,9 +313,9 @@ function OperationalHome({
                 </p>
 
                 {profile && role !== 'ADMIN' && (
-                  <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-on-surface">
+                  <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-white">
                     <p className="text-sm font-semibold">Checklist operacional</p>
-                    <p className="mt-1 text-sm text-gray-400">
+                    <p className="mt-1 text-sm text-primary-muted">
                       {completion?.totalItems
                         ? `${completion.completedItems} de ${completion.totalItems} itens essenciais concluídos.`
                         : 'Sem checklist operacional disponível.'}
@@ -326,33 +326,33 @@ function OperationalHome({
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
               Painel do papel
             </p>
             <div className="mt-4 space-y-3">
               {role === 'ADMIN' ? (
                 <>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
+                  <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                       Governança e operação continuam centralizadas entre `/admin/perfis` e `/operacoes`
                     </p>
                   </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
+                  <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                       O dashboard dedicado desta fase foca COLLECTION_POINT e NGO
                     </p>
                   </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
+                  <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                       A administração segue acompanhando a descoberta pública e a fila completa
                     </p>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
+                  <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                       {activePartnership
                         ? role === 'COLLECTION_POINT'
                           ? `ONG ativa: ${activePartnership.ngo.organizationName ?? activePartnership.ngo.name}`
@@ -360,13 +360,13 @@ function OperationalHome({
                         : 'Nenhuma parceria ativa no momento'}
                     </p>
                   </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
+                  <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                       {pendingPickupRequests.length} solicitação(ões) de retirada pendente(s)
                     </p>
                   </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
+                  <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                       {role === 'COLLECTION_POINT'
                         ? 'Aprovações de retirada ficam neste dashboard'
                         : 'Novas retiradas podem ser solicitadas neste dashboard'}
@@ -379,13 +379,13 @@ function OperationalHome({
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Ações rápidas
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Atalhos do seu papel</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">Atalhos do seu papel</h2>
               </div>
               <ArrowRight size={18} className="text-primary" />
             </div>
@@ -395,13 +395,13 @@ function OperationalHome({
                 <Link
                   key={href}
                   href={href}
-                  className="flex items-start gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-card-lg"
+                  className="flex items-start gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-card-lg dark:border-white/10 dark:bg-surface-ink"
                 >
                   <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}>
                     <Icon size={20} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-on-surface">{label}</p>
+                    <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{label}</p>
                     <p className="mt-1 text-sm text-gray-400">{description}</p>
                   </div>
                 </Link>
@@ -409,32 +409,32 @@ function OperationalHome({
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Perfil operacional
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Visibilidade do estado</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">Visibilidade do estado</h2>
               </div>
               <ShieldCheck size={18} className="text-primary" />
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.5rem] bg-surface p-4">
-                <p className="text-3xl font-bold text-primary-deeper">{stats.handledDonations}</p>
+              <div className="rounded-[1.5rem] bg-surface p-4 dark:bg-surface-ink">
+                <p className="text-3xl font-bold text-primary-deeper dark:text-white">{stats.handledDonations}</p>
                 <p className="mt-1 text-sm text-gray-500">Doações ligadas ao perfil</p>
               </div>
-              <div className="rounded-[1.5rem] bg-surface p-4">
-                <p className="text-3xl font-bold text-primary-deeper">{stats.activePartnerships}</p>
+              <div className="rounded-[1.5rem] bg-surface p-4 dark:bg-surface-ink">
+                <p className="text-3xl font-bold text-primary-deeper dark:text-white">{stats.activePartnerships}</p>
                 <p className="mt-1 text-sm text-gray-500">Parcerias ativas</p>
               </div>
             </div>
 
             {role !== 'ADMIN' && completion && completion.missingFields.length > 0 && (
-              <div className="mt-5 rounded-[1.75rem] border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-semibold text-amber-800">Campos que ainda afetam a publicação</p>
-                <div className="mt-3 space-y-2 text-sm text-amber-700">
+              <div className="mt-5 rounded-[1.75rem] border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Campos que ainda afetam a publicação</p>
+                <div className="mt-3 space-y-2 text-sm text-amber-700 dark:text-amber-400">
                   {completion.missingFields.slice(0, 5).map((field) => (
                     <div key={field}>{field}</div>
                   ))}
@@ -445,13 +445,13 @@ function OperationalHome({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Descoberta pública
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Mapa e busca vivos</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">Mapa e busca vivos</h2>
               </div>
               <MapPin size={20} className="text-primary" />
             </div>
@@ -459,10 +459,10 @@ function OperationalHome({
             <div className="mt-5 space-y-3">
               {nearbyPoints.length > 0 ? (
                 nearbyPoints.map((point) => (
-                  <div key={point.id} className="rounded-3xl bg-surface p-4">
+                  <div key={point.id} className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-on-surface">
+                        <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
                           {point.organizationName ?? point.name}
                         </p>
                         <p className="mt-1 text-sm text-gray-400">
@@ -483,8 +483,8 @@ function OperationalHome({
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
+                <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                     Ainda não há parceiros públicos nessa busca.
                   </p>
                   <p className="mt-2 text-sm leading-7 text-gray-500">
@@ -500,11 +500,11 @@ function OperationalHome({
             </Link>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
               Radar operacional
             </p>
-            <h2 className="mt-2 text-2xl font-bold text-primary-deeper">O que este painel coordena agora</h2>
+            <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">O que este painel coordena agora</h2>
             <div className="mt-5 space-y-3">
               {[
                 'retiradas com data prevista, faixa de horário e resposta do parceiro',
@@ -512,8 +512,8 @@ function OperationalHome({
                 'parcerias ativas que tornam o ponto elegível para doações',
                 'perfil público, checklist e status acompanhados no mesmo fluxo',
               ].map((item) => (
-                <div key={item} className="rounded-3xl bg-surface p-4">
-                  <p className="text-sm font-semibold text-on-surface">{item}</p>
+                <div key={item} className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{item}</p>
                 </div>
               ))}
             </div>
@@ -557,14 +557,14 @@ function AdminHome({
       label: 'Operações',
       description: 'Abrir a fila operacional compartilhada',
       icon: ClipboardList,
-      tone: 'bg-primary-light text-primary',
+      tone: 'bg-primary-light text-primary dark:bg-primary/20',
     },
     {
       href: '/mapa',
       label: 'Mapa público',
       description: 'Validar como pontos e ONGs aparecem para doadores',
       icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
+      tone: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
     },
   ];
 
@@ -631,23 +631,23 @@ function AdminHome({
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
               Resumo rápido
             </p>
             <div className="mt-4 space-y-3">
-              <div className="rounded-3xl bg-surface p-4">
-                <p className="text-sm font-semibold text-primary-deeper">
+              <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                   {pendingApprovals.length} perfis novos aguardando aprovação
                 </p>
               </div>
-              <div className="rounded-3xl bg-surface p-4">
-                <p className="text-sm font-semibold text-primary-deeper">
+              <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                   {pendingRevisions.length} revisões públicas aguardando avaliação
                 </p>
               </div>
-              <div className="rounded-3xl bg-surface p-4">
-                <p className="text-sm font-semibold text-primary-deeper">
+              <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                   {notifications.length > 0
                     ? 'Há alertas recentes prontos para abrir'
                     : 'Nenhum alerta novo de governança no momento'}
@@ -658,13 +658,13 @@ function AdminHome({
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Aprovação inicial
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Perfis aguardando aprovação</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">Perfis aguardando aprovação</h2>
               </div>
               <Link href="/admin/perfis" className="text-sm font-semibold text-primary">
                 Abrir governança
@@ -674,8 +674,8 @@ function AdminHome({
             <div className="mt-5 space-y-3">
               {pendingApprovals.length > 0 ? (
                 pendingApprovals.map((profile) => (
-                  <div key={profile.id} className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-on-surface">
+                  <div key={profile.id} className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
                       {profile.organizationName ?? profile.name}
                     </p>
                     <p className="mt-1 text-sm text-gray-400">
@@ -685,8 +685,8 @@ function AdminHome({
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
+                <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                     Nenhum perfil novo aguardando aprovação.
                   </p>
                 </div>
@@ -694,13 +694,13 @@ function AdminHome({
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Revisões públicas
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Alterações pendentes</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">Alterações pendentes</h2>
               </div>
               <Link href="/admin/perfis" className="text-sm font-semibold text-primary">
                 Revisar agora
@@ -710,8 +710,8 @@ function AdminHome({
             <div className="mt-5 space-y-3">
               {pendingRevisions.length > 0 ? (
                 pendingRevisions.map((profile) => (
-                  <div key={profile.id} className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-on-surface">
+                  <div key={profile.id} className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+                    <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
                       {profile.organizationName ?? profile.name}
                     </p>
                     <p className="mt-1 text-sm text-gray-400">
@@ -722,8 +722,8 @@ function AdminHome({
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
+                <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                     Nenhuma revisão pública pendente no momento.
                   </p>
                 </div>
@@ -733,13 +733,13 @@ function AdminHome({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Ações rápidas
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Atalhos do admin</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">Atalhos do admin</h2>
               </div>
               <ShieldCheck size={18} className="text-primary" />
             </div>
@@ -749,13 +749,13 @@ function AdminHome({
                 <Link
                   key={href}
                   href={href}
-                  className="flex items-start gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-card-lg"
+                  className="flex items-start gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-card-lg dark:border-white/10 dark:bg-surface-inkSoft"
                 >
                   <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}>
                     <Icon size={20} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-on-surface">{label}</p>
+                    <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{label}</p>
                     <p className="mt-1 text-sm text-gray-400">{description}</p>
                   </div>
                 </Link>
@@ -763,13 +763,13 @@ function AdminHome({
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Alertas recentes
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Notificações de governança</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">Notificações de governança</h2>
               </div>
               <ArrowRight size={18} className="text-primary" />
             </div>
@@ -780,15 +780,15 @@ function AdminHome({
                   <Link
                     key={notification.id}
                     href={notification.href ?? '/notificacoes'}
-                    className="block rounded-3xl bg-surface p-4 transition-colors hover:bg-primary-light"
+                    className="block rounded-3xl bg-surface p-4 transition-colors hover:bg-primary-light dark:bg-surface-ink dark:hover:bg-primary/20"
                   >
-                    <p className="text-sm font-semibold text-on-surface">{notification.title}</p>
+                    <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{notification.title}</p>
                     <p className="mt-1 text-sm text-gray-400">{notification.body}</p>
                   </Link>
                 ))
               ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
+                <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                     Nenhum alerta de governança no momento.
                   </p>
                 </div>

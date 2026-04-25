@@ -27,8 +27,8 @@ const CollectionMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full w-full items-center justify-center rounded-[1.75rem] bg-primary-light">
-        <Loader2 className="animate-spin text-primary" size={28} />
+      <div className="flex h-full w-full items-center justify-center rounded-[1.75rem] bg-primary-light dark:bg-primary/20">
+        <Loader2 className="animate-spin text-primary dark:text-primary-muted" size={28} />
       </div>
     ),
   },
@@ -475,15 +475,15 @@ export function MapaPageContent() {
   );
 
   return (
-    <div className={`flex flex-col bg-surface font-sans ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
+    <div className={`flex flex-col bg-surface font-sans dark:bg-surface-ink ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
       {!isLoggedIn && (
-        <header className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
-          <Link href="/" className="text-lg font-bold text-primary-deeper">
+        <header className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 bg-white px-5 py-4 dark:border-white/10 dark:bg-surface-inkSoft">
+          <Link href="/" className="text-lg font-bold text-primary-deeper dark:text-primary-muted">
             VestGO
           </Link>
           <Link
             href="/login"
-            className="rounded-xl bg-primary-light px-4 py-2 text-sm font-semibold text-primary"
+            className="rounded-xl bg-primary-light px-4 py-2 text-sm font-semibold text-primary dark:bg-primary/20 dark:text-primary-muted"
           >
             Entrar
           </Link>
@@ -496,7 +496,7 @@ export function MapaPageContent() {
             <div className="relative flex-1">
               <Search
                 size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
               />
               <input
                 type="text"
@@ -505,29 +505,29 @@ export function MapaPageContent() {
                 onChange={(event) => setSearchInput(event.target.value)}
                 onFocus={handleSearchFocus}
                 onBlur={handleSearchBlur}
-                className="w-full rounded-2xl border border-gray-100 bg-white py-3 pl-9 pr-4 text-sm shadow-sm outline-none transition-colors focus:border-primary"
+                className="w-full rounded-2xl border border-gray-100 bg-white py-3 pl-9 pr-4 text-sm shadow-sm outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100 dark:placeholder:text-gray-500 dark:shadow-none dark:focus:border-primary-muted"
               />
 
               {searchFocused && (hasAddressSuggestionQuery || addressSuggestionsLoading) && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg">
-                  <div className="border-b border-gray-100 px-4 py-3">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg dark:border-white/10 dark:bg-surface-inkSoft dark:shadow-none">
+                  <div className="border-b border-gray-100 px-4 py-3 dark:border-white/10">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
                       Ir para um lugar
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       Escolha uma sugestão para recentralizar o mapa sem substituir a busca textual de parceiros.
                     </p>
                   </div>
 
                   {addressSuggestionsLoading && (
-                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
-                      <Loader2 size={15} className="animate-spin text-primary" />
+                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      <Loader2 size={15} className="animate-spin text-primary dark:text-primary-muted" />
                       Buscando lugares e endereços...
                     </div>
                   )}
 
                   {!addressSuggestionsLoading && addressSuggestionsError && (
-                    <div className="px-4 py-3 text-sm text-amber-700">
+                    <div className="px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
                       {addressSuggestionsError}
                     </div>
                   )}
@@ -542,12 +542,12 @@ export function MapaPageContent() {
                             type="button"
                             onMouseDown={(event) => event.preventDefault()}
                             onClick={() => handleSelectAddressSuggestion(suggestion)}
-                            className="w-full px-4 py-3 text-left transition-colors hover:bg-surface"
+                            className="w-full px-4 py-3 text-left transition-colors hover:bg-surface dark:hover:bg-white/5"
                           >
-                            <p className="text-sm font-semibold text-on-surface">
+                            <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
                               {suggestion.label}
                             </p>
-                            <p className="mt-1 text-xs leading-6 text-gray-400">
+                            <p className="mt-1 text-xs leading-6 text-gray-400 dark:text-gray-500">
                               {suggestion.displayName}
                             </p>
                           </button>
@@ -559,7 +559,7 @@ export function MapaPageContent() {
                     !addressSuggestionsError &&
                     hasAddressSuggestionQuery &&
                     addressSuggestions.length === 0 && (
-                      <div className="px-4 py-3 text-sm text-gray-500">
+                      <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                         Nenhum lugar sugerido para esse termo. A busca de parceiros continua ativa normalmente.
                       </div>
                     )}
@@ -573,27 +573,27 @@ export function MapaPageContent() {
               className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl shadow-sm transition-colors ${
                 located
                   ? 'bg-primary text-white'
-                  : 'border border-gray-100 bg-white text-gray-500'
+                  : 'border border-gray-100 bg-white text-gray-500 dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-300 dark:shadow-none'
               }`}
             >
               {isLocating ? <Loader2 size={18} className="animate-spin" /> : <Navigation size={18} />}
             </button>
           </div>
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
             Digite para filtrar parceiros cadastrados. Se quiser recentralizar o mapa, escolha uma sugestão de endereço ou lugar.
           </p>
 
           {isSelectionMode && (
-            <div className="mt-4 rounded-[1.75rem] bg-white p-4 shadow-card">
+            <div className="mt-4 rounded-[1.75rem] bg-white p-4 shadow-card dark:bg-surface-inkSoft dark:shadow-none">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                     Selecionar ponto para doação
                   </p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                  <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                     Escolha um ponto de coleta, confirme a seleção e volte direto para a etapa 3 do wizard.
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-primary-deeper">
+                  <p className="mt-2 text-sm font-semibold text-primary-deeper dark:text-primary-muted">
                     {selectedPoint
                       ? `Ponto atual: ${selectedPoint.organizationName ?? selectedPoint.name}`
                       : 'Nenhum ponto confirmado ainda.'}
@@ -604,7 +604,7 @@ export function MapaPageContent() {
                   <button
                     type="button"
                     onClick={() => router.push(returnTo)}
-                    className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
+                    className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:text-gray-300 dark:hover:border-primary-muted dark:hover:text-primary-muted"
                   >
                     Voltar ao wizard
                   </button>
@@ -615,7 +615,7 @@ export function MapaPageContent() {
                     className={`inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
                       isDonationSelectablePoint(selectedPoint)
                         ? 'bg-primary-deeper text-white hover:bg-primary-dark'
-                        : 'cursor-not-allowed bg-surface text-gray-300'
+                        : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink dark:text-gray-600'
                     }`}
                   >
                     Confirmar ponto e voltar
@@ -626,7 +626,7 @@ export function MapaPageContent() {
           )}
 
           {locationNotice && (
-            <div className="mt-4 rounded-2xl border border-primary/10 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+            <div className="mt-4 rounded-2xl border border-primary/10 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-400 dark:shadow-none">
               {locationNotice}
             </div>
           )}
@@ -634,13 +634,13 @@ export function MapaPageContent() {
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 sm:px-5 lg:px-6 lg:pb-6">
           <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)]">
-            <section className="order-2 flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white p-3 shadow-card lg:order-1 lg:h-full">
+            <section className="order-2 flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white p-3 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:order-1 lg:h-full">
               <div className="mb-3 flex items-center justify-between gap-3 px-1">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
                     Explorar pontos
                   </p>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {selectedPoint
                       ? `Selecionado: ${selectedPoint.organizationName ?? selectedPoint.name}`
                       : partnerSearch
@@ -650,7 +650,7 @@ export function MapaPageContent() {
                           : 'Veja parceiros ativos, compare perfis e escolha onde doar.'}
                   </p>
                 </div>
-                <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary">
+                <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary dark:bg-primary/20 dark:text-primary-muted">
                   {points.length} resultados
                 </span>
               </div>
@@ -665,9 +665,9 @@ export function MapaPageContent() {
                     selectedId={selectedPointId}
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center rounded-[1.75rem] bg-primary-light/40 text-sm text-gray-500">
+                  <div className="flex h-full items-center justify-center rounded-[1.75rem] bg-primary-light/40 text-sm text-gray-500 dark:bg-primary/10 dark:text-gray-400">
                     <div className="flex items-center gap-3">
-                      <Loader2 size={18} className="animate-spin text-primary" />
+                      <Loader2 size={18} className="animate-spin text-primary dark:text-primary-muted" />
                       Preparando mapa...
                     </div>
                   </div>
@@ -675,20 +675,20 @@ export function MapaPageContent() {
               </div>
             </section>
 
-            <section className="order-1 flex flex-col overflow-hidden rounded-3xl bg-white shadow-card lg:order-2 lg:h-full lg:min-h-0">
-              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4">
+            <section className="order-1 flex flex-col overflow-hidden rounded-3xl bg-white shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:order-2 lg:h-full lg:min-h-0">
+              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4 dark:border-white/10">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
                     {loading ? 'Buscando...' : isSelectionMode ? 'Pontos sugeridos' : 'Lista de parceiros'}
                   </p>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {isSelectionMode
                       ? 'Selecione um ponto de coleta e confirme para voltar ao wizard.'
                       : 'Perfis públicos de pontos de coleta e ONGs em operação.'}
                   </p>
                 </div>
                 {!isSelectionMode && (
-                  <button type="button" className="flex items-center gap-1 text-xs text-gray-500">
+                  <button type="button" className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                     <SlidersHorizontal size={13} />
                     Filtrar
                   </button>
@@ -697,7 +697,7 @@ export function MapaPageContent() {
 
               <div className="px-4 pb-4 pt-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {error && (
-                  <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-400">
                     {error}
                   </div>
                 )}
@@ -713,30 +713,30 @@ export function MapaPageContent() {
                         type="button"
                         onClick={() => handleSelectPoint(point)}
                         disabled={!canSelect}
-                        className={`w-full rounded-2xl bg-white p-4 text-left transition-all active:scale-[0.98] ${
+                        className={`w-full rounded-2xl bg-white p-4 text-left transition-all active:scale-[0.98] dark:bg-surface-ink ${
                           isSelected
-                            ? 'ring-2 ring-primary shadow-card-lg'
+                            ? 'ring-2 ring-primary shadow-card-lg dark:shadow-none'
                             : canSelect
-                              ? 'shadow-card hover:shadow-card-lg'
-                              : 'border border-amber-200 bg-amber-50/70 shadow-none'
+                              ? 'shadow-card hover:shadow-card-lg dark:shadow-none dark:hover:bg-surface-inkSoft'
+                              : 'border border-amber-200 bg-amber-50/70 shadow-none dark:border-amber-800/40 dark:bg-amber-900/10'
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary-light">
-                            <MapPin size={16} className="text-primary" />
+                          <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary-light dark:bg-primary/20">
+                            <MapPin size={16} className="text-primary dark:text-primary-muted" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-on-surface">
+                                <p className="truncate text-sm font-semibold text-on-surface dark:text-gray-100">
                                   {point.organizationName ?? point.name}
                                 </p>
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
                                   <span>{ROLE_LABELS[point.role] ?? 'Parceiro'}</span>
                                   {point.neighborhood && <span>{point.neighborhood}</span>}
                                   {point.city && <span>{point.city}</span>}
                                 </div>
-                                <p className="mt-2 line-clamp-2 text-xs leading-6 text-gray-500">
+                                <p className="mt-2 line-clamp-2 text-xs leading-6 text-gray-500 dark:text-gray-400">
                                   {point.description ??
                                     formatAddressSummary(point) ??
                                     'Perfil público em construção.'}
@@ -745,8 +745,8 @@ export function MapaPageContent() {
                                   <div
                                     className={`mt-3 rounded-2xl px-3 py-2 text-xs leading-6 ${
                                       point.donationEligibility.canDonateHere
-                                        ? 'bg-emerald-50 text-emerald-700'
-                                        : 'bg-amber-100 text-amber-800'
+                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
                                     }`}
                                   >
                                     <p className="font-semibold">{point.donationEligibility.label}</p>
@@ -757,7 +757,7 @@ export function MapaPageContent() {
 
                               <div className="flex flex-shrink-0 flex-col items-end gap-1">
                                 {point.distanceKm != null && (
-                                  <span className="text-xs font-semibold text-primary">
+                                  <span className="text-xs font-semibold text-primary dark:text-primary-muted">
                                     {point.distanceKm}km
                                   </span>
                                 )}
@@ -767,8 +767,8 @@ export function MapaPageContent() {
                                       isSelected
                                         ? 'bg-primary-deeper text-white'
                                         : canSelect
-                                          ? 'bg-surface text-gray-400'
-                                          : 'bg-amber-100 text-amber-800'
+                                          ? 'bg-surface text-gray-400 dark:bg-surface-ink dark:text-gray-500'
+                                          : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
                                     }`}
                                   >
                                     {isSelected
@@ -781,7 +781,7 @@ export function MapaPageContent() {
                                     onClick={(event) => event.stopPropagation()}
                                     className="mt-1"
                                   >
-                                    <ChevronRight size={16} className="text-gray-300" />
+                                    <ChevronRight size={16} className="text-gray-300 dark:text-gray-600" />
                                   </Link>
                                 )}
                               </div>
@@ -792,13 +792,13 @@ export function MapaPageContent() {
                                 {point.acceptedCategories.slice(0, 3).map((category) => (
                                   <span
                                     key={category}
-                                    className="rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-semibold text-primary"
+                                    className="rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-semibold text-primary dark:bg-primary/20 dark:text-primary-muted"
                                   >
                                     {CATEGORY_LABELS[category] ?? category}
                                   </span>
                                 ))}
                                 {point.acceptedCategories.length > 3 && (
-                                  <span className="text-[10px] text-gray-400">
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500">
                                     +{point.acceptedCategories.length - 3}
                                   </span>
                                 )}
@@ -806,7 +806,7 @@ export function MapaPageContent() {
                             )}
 
                             {point.openingHours && point.role === 'COLLECTION_POINT' && (
-                              <p className="mt-2 text-[11px] leading-5 text-gray-400">
+                              <p className="mt-2 text-[11px] leading-5 text-gray-400 dark:text-gray-500">
                                 {point.openingHours}
                               </p>
                             )}
@@ -818,8 +818,8 @@ export function MapaPageContent() {
 
                   {!loading && points.length === 0 && !error && (
                     <div className="py-10 text-center">
-                      <MapPin size={32} className="mx-auto mb-3 text-gray-200" />
-                      <p className="text-sm text-gray-400">
+                      <MapPin size={32} className="mx-auto mb-3 text-gray-200 dark:text-gray-600" />
+                      <p className="text-sm text-gray-400 dark:text-gray-500">
                         {isSelectionMode
                           ? 'Use sua localização para ver pontos de coleta próximos.'
                           : 'Use sua localização para ver parceiros públicos próximos.'}

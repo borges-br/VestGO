@@ -269,46 +269,46 @@ function SummaryCard({
   const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? 'Não informado';
 
   return (
-    <div className={cn('rounded-[2rem] bg-white shadow-card', compact ? 'p-5' : 'p-6 lg:p-7')}>
+    <div className={cn('rounded-[2rem] bg-white shadow-card dark:bg-surface-inkSoft dark:shadow-none', compact ? 'p-5' : 'p-6 lg:p-7')}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doação</p>
-          <h2 className="mt-2 text-xl font-bold text-primary-deeper">O que já foi definido</h2>
+          <h2 className="mt-2 text-xl font-bold text-primary-deeper dark:text-white">O que já foi definido</h2>
         </div>
         <BadgeCheck size={20} className="text-primary" />
       </div>
 
       <div className="mt-5 space-y-4">
-        <div className="rounded-3xl bg-surface p-4">
+        <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Categorias</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {labels.map((label) => (
-              <span key={label} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+              <span key={label} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-inkSoft">
                 {label}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="rounded-3xl bg-surface p-4">
+        <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Detalhes</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
-              <p className="text-sm font-semibold text-on-surface">{quantity || 'Quantidade pendente'}</p>
+              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{quantity || 'Quantidade pendente'}</p>
               <p className="mt-1 text-sm text-gray-400">{volume}</p>
             </div>
             <div>
-              <p className="text-sm font-semibold text-on-surface">{conditionLabel}</p>
+              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{conditionLabel}</p>
               <p className="mt-1 text-sm text-gray-400">{notes ? 'Com observações' : 'Sem observações'}</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl bg-surface p-4">
+        <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Ponto de coleta</p>
           {selectedPoint ? (
             <div className="mt-3">
-              <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
+              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{selectedPoint.organizationName ?? selectedPoint.name}</p>
                 <p className="mt-1 text-sm text-gray-400">
                   {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
                   {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
@@ -321,8 +321,8 @@ function SummaryCard({
                   className={cn(
                     'mt-3 rounded-2xl px-3 py-2 text-xs leading-6',
                     selectedPoint.donationEligibility.canDonateHere
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-amber-50 text-amber-700',
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                      : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
                   )}
                 >
                   <p className="font-semibold">{selectedPoint.donationEligibility.label}</p>
@@ -335,8 +335,8 @@ function SummaryCard({
           )}
         </div>
 
-        <div className="rounded-3xl bg-primary-light/45 p-4">
-          <p className="text-sm font-semibold text-primary-deeper">+{reward.points} pontos previstos</p>
+        <div className="rounded-3xl bg-primary-light/45 p-4 dark:bg-primary/10">
+          <p className="text-sm font-semibold text-primary-deeper dark:text-white">+{reward.points} pontos previstos</p>
           <p className="mt-2 text-sm leading-7 text-gray-500">Esta entrega passa a contar no seu progresso real assim que for registrada.</p>
         </div>
       </div>
@@ -552,7 +552,7 @@ export default function DoarPage() {
   if (status === 'loading' || !draftReady) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4 py-10">
-        <div className="rounded-[1.75rem] bg-white px-5 py-4 text-sm text-gray-500 shadow-card">
+        <div className="rounded-[1.75rem] bg-white px-5 py-4 text-sm text-gray-500 shadow-card dark:bg-surface-inkSoft dark:text-gray-400 dark:shadow-none">
           {status === 'loading' ? 'Carregando permissão de acesso...' : 'Recuperando seu rascunho da doação...'}
         </div>
       </div>
@@ -563,11 +563,11 @@ export default function DoarPage() {
     return (
       <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-shell">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-8">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
               Fluxo exclusivo para doadores
             </p>
-            <h1 className="mt-3 text-3xl font-bold text-primary-deeper">Seu perfil não cria doações</h1>
+            <h1 className="mt-3 text-3xl font-bold text-primary-deeper dark:text-white">Seu perfil não cria doações</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-500">
               Perfis de ponto de coleta, ONG e administração acompanham ou operam doações, mas não podem iniciar uma nova entrega como doadores.
             </p>
@@ -580,7 +580,7 @@ export default function DoarPage() {
               </Link>
               <Link
                 href="/operacoes"
-                className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
+                className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:text-gray-300"
               >
                 Abrir operações
               </Link>
@@ -689,7 +689,7 @@ export default function DoarPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doação</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper dark:text-white sm:text-4xl">
               Registrar doação em etapas
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
@@ -698,15 +698,15 @@ export default function DoarPage() {
           </div>
         </div>
 
-        <div ref={stepCardRef} className="rounded-[2rem] bg-white p-4 shadow-card sm:p-5 lg:p-6">
+        <div ref={stepCardRef} className="rounded-[2rem] bg-white p-4 shadow-card dark:bg-surface-inkSoft dark:shadow-none sm:p-5 lg:p-6">
           {/* Mobile: compact pill header — progress bar + current step label only */}
           <div className="flex items-center gap-3 lg:hidden">
             <div className="flex-1">
-              <div className="h-2 overflow-hidden rounded-full bg-surface">
+              <div className="h-2 overflow-hidden rounded-full bg-surface dark:bg-surface-ink">
                 <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
               </div>
             </div>
-            <span className="flex-shrink-0 rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary">
+            <span className="flex-shrink-0 rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary dark:bg-primary/20">
               {currentStep + 1}/{steps.length} · {step.short}
             </span>
           </div>
@@ -718,12 +718,12 @@ export default function DoarPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Fluxo guiado</p>
                 <p className="mt-1 text-sm text-gray-500">Etapa {currentStep + 1} de {steps.length}</p>
               </div>
-              <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+              <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary dark:bg-primary/20">
                 {step.short}
               </span>
             </div>
 
-            <div className="mt-4 h-2 rounded-full bg-surface">
+            <div className="mt-4 h-2 rounded-full bg-surface dark:bg-surface-ink">
               <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
 
@@ -741,8 +741,8 @@ export default function DoarPage() {
                     className={cn(
                       'flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
                       isCurrent && 'bg-primary-deeper text-white',
-                      isPast && 'bg-primary-light text-primary-deeper',
-                      !isCurrent && !isPast && 'bg-surface text-gray-400',
+                      isPast && 'bg-primary-light text-primary-deeper dark:bg-primary/20 dark:text-primary-muted',
+                      !isCurrent && !isPast && 'bg-surface text-gray-400 dark:bg-surface-ink',
                       index > currentStep && 'cursor-not-allowed opacity-70',
                     )}
                   >
@@ -750,8 +750,8 @@ export default function DoarPage() {
                       className={cn(
                         'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold',
                         isCurrent && 'bg-white/15 text-white',
-                        isPast && 'bg-white text-primary',
-                        !isCurrent && !isPast && 'bg-white text-gray-400',
+                        isPast && 'bg-white text-primary dark:bg-surface-ink',
+                        !isCurrent && !isPast && 'bg-white text-gray-400 dark:bg-surface-inkSoft',
                       )}
                     >
                       {isPast ? <Check size={16} /> : index + 1}
@@ -770,16 +770,16 @@ export default function DoarPage() {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_360px]">
-          <section className="rounded-[2rem] bg-white p-6 shadow-card lg:p-8">
+          <section className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{step.eyebrow}</p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">{step.title}</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">{step.title}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">{step.description}</p>
               </div>
-              <div className="hidden rounded-2xl bg-surface px-3 py-2 text-right lg:block">
+              <div className="hidden rounded-2xl bg-surface px-3 py-2 text-right dark:bg-surface-ink lg:block">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">etapa atual</p>
-                <p className="mt-1 text-sm font-semibold text-primary-deeper">{step.short}</p>
+                <p className="mt-1 text-sm font-semibold text-primary-deeper dark:text-primary-muted">{step.short}</p>
               </div>
             </div>
 
@@ -797,13 +797,15 @@ export default function DoarPage() {
                         onClick={() => toggleCategory(category.id)}
                         className={cn(
                           'rounded-[1.75rem] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-lg',
-                          isSelected ? 'border-primary bg-primary-light/40 shadow-card' : 'border-gray-100 bg-white',
+                          isSelected
+                            ? 'border-primary bg-primary-light/40 shadow-card dark:bg-primary/20'
+                            : 'border-gray-100 bg-white dark:border-white/10 dark:bg-surface-ink',
                         )}
                       >
-                        <div className={cn('flex h-12 w-12 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500')}>
+                        <div className={cn('flex h-12 w-12 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500 dark:bg-surface-inkSoft')}>
                           <Icon size={20} />
                         </div>
-                        <p className="mt-4 text-sm font-semibold text-on-surface">{category.label}</p>
+                        <p className="mt-4 text-sm font-semibold text-on-surface dark:text-gray-100">{category.label}</p>
                         <p className="mt-2 text-sm leading-7 text-gray-400">{category.hint}</p>
                       </button>
                     );
@@ -845,7 +847,7 @@ export default function DoarPage() {
                           setQuantity(next === 0 ? '' : String(next));
                         }}
                         aria-label="Diminuir quantidade"
-                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-400"
                         disabled={getEstimatedQuantity(quantity) <= 0}
                       >
                         <Minus size={18} />
@@ -867,7 +869,7 @@ export default function DoarPage() {
                           const digits = raw.replace(/[^0-9]/g, '');
                           setQuantity(digits);
                         }}
-                        className="h-14 flex-1 rounded-2xl border border-gray-200 bg-white px-4 text-center text-lg font-bold text-primary-deeper outline-none transition-colors placeholder:text-gray-300 focus:border-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="h-14 flex-1 rounded-2xl border border-gray-200 bg-white px-4 text-center text-lg font-bold text-primary-deeper outline-none transition-colors placeholder:text-gray-300 focus:border-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100 dark:placeholder:text-gray-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                       <button
                         type="button"
@@ -876,7 +878,7 @@ export default function DoarPage() {
                           setQuantity(String(current + 1));
                         }}
                         aria-label="Aumentar quantidade"
-                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary"
+                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-400"
                       >
                         <PlusIcon size={18} />
                       </button>
@@ -898,7 +900,7 @@ export default function DoarPage() {
                         id="volume"
                         value={volume}
                         onChange={(event) => setVolume(event.target.value)}
-                        className="h-14 w-full appearance-none rounded-2xl border border-gray-200 bg-white px-4 pr-12 text-sm font-semibold text-on-surface outline-none transition-colors focus:border-primary"
+                        className="h-14 w-full appearance-none rounded-2xl border border-gray-200 bg-white px-4 pr-12 text-sm font-semibold text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
                       >
                         {volumeOptions.map((option) => (
                           <option key={option} value={option}>
@@ -924,13 +926,13 @@ export default function DoarPage() {
                       placeholder="Opcional: tamanhos, peças mais sensíveis ou contexto útil."
                       value={notes}
                       onChange={(event) => setNotes(event.target.value)}
-                      className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white"
+                      className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:bg-surface-inkSoft"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="rounded-[1.75rem] bg-surface p-5">
+                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Condição das peças</p>
                     <div className="mt-3 space-y-3">
                       {conditions.map((item) => (
@@ -940,10 +942,12 @@ export default function DoarPage() {
                           onClick={() => setCondition(item.id)}
                           className={cn(
                             'flex w-full items-start gap-3 rounded-[1.5rem] px-4 py-4 text-left transition-all',
-                            condition === item.id ? 'bg-primary-deeper text-white' : 'bg-white text-gray-600 shadow-sm hover:shadow-card',
+                            condition === item.id
+                              ? 'bg-primary-deeper text-white'
+                              : 'bg-white text-gray-600 shadow-sm hover:shadow-card dark:bg-surface-inkSoft dark:text-gray-100',
                           )}
                         >
-                          <div className={cn('mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full', condition === item.id ? 'bg-white/15 text-white' : 'bg-primary-light text-primary')}>
+                          <div className={cn('mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full', condition === item.id ? 'bg-white/15 text-white' : 'bg-primary-light text-primary dark:bg-primary/20')}>
                             <Check size={15} />
                           </div>
                           <div>
@@ -957,8 +961,8 @@ export default function DoarPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5">
-                    <p className="text-sm font-semibold text-primary-deeper">
+                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
                       Dica rápida
                     </p>
                     <p className="mt-2 text-sm leading-7 text-gray-500">
@@ -972,10 +976,10 @@ export default function DoarPage() {
 
             {currentStep === 2 && (
               <div className="space-y-5">
-                <div className="rounded-[1.75rem] bg-primary-light/45 p-5">
+                <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-primary-deeper">Escolha um ponto parceiro.</p>
+                      <p className="text-sm font-semibold text-primary-deeper dark:text-white">Escolha um ponto parceiro.</p>
                       <p className="mt-2 text-sm leading-7 text-gray-500">
                         Só pontos de coleta com ONG ativa podem finalizar a doação. Pontos ainda em estruturação continuam visíveis como indisponíveis.
                       </p>
@@ -988,18 +992,18 @@ export default function DoarPage() {
                 </div>
 
                 {selectionFeedback && (
-                  <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-400">
                     {selectionFeedback}
                   </div>
                 )}
 
                 {pointsLoading ? (
-                  <div className="flex items-center gap-3 rounded-[1.75rem] bg-surface p-5 text-sm text-gray-500">
+                  <div className="flex items-center gap-3 rounded-[1.75rem] bg-surface p-5 text-sm text-gray-500 dark:bg-surface-ink">
                     <Loader2 size={18} className="animate-spin text-primary" />
                     Carregando pontos de coleta próximos...
                   </div>
                 ) : pointsError ? (
-                  <div className="rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
+                  <div className="rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-400">
                     {pointsError}
                   </div>
                 ) : (
@@ -1024,23 +1028,23 @@ export default function DoarPage() {
                           className={cn(
                             'w-full rounded-[1.75rem] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-lg',
                             isSelected
-                              ? 'border-primary bg-primary-light/35 shadow-card'
+                              ? 'border-primary bg-primary-light/35 shadow-card dark:bg-primary/20'
                               : canDonateHere
-                                ? 'border-gray-100 bg-white'
-                                : 'border-amber-200 bg-amber-50/70 text-gray-500 opacity-95',
+                                ? 'border-gray-100 bg-white dark:border-white/10 dark:bg-surface-inkSoft'
+                                : 'border-amber-200 bg-amber-50/70 text-gray-500 opacity-95 dark:border-amber-800/50 dark:bg-amber-900/10',
                             !canDonateHere && 'cursor-not-allowed hover:translate-y-0 hover:shadow-none',
                           )}
                         >
                           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div className="flex gap-4">
-                              <div className={cn('flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500')}>
+                              <div className={cn('flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500 dark:bg-surface-ink')}>
                                 <MapPin size={20} />
                               </div>
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-sm font-semibold text-on-surface">{point.organizationName ?? point.name}</p>
+                                  <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{point.organizationName ?? point.name}</p>
                                   {point.distanceKm != null && (
-                                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+                                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-ink">
                                       {point.distanceKm} km
                                     </span>
                                   )}
@@ -1059,8 +1063,8 @@ export default function DoarPage() {
                                     className={cn(
                                       'mt-3 rounded-2xl px-3 py-2 text-xs leading-6',
                                       canDonateHere
-                                        ? 'bg-emerald-50 text-emerald-700'
-                                        : 'bg-amber-100 text-amber-800',
+                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400',
                                     )}
                                   >
                                     <p className="font-semibold">{point.donationEligibility.label}</p>
@@ -1076,8 +1080,8 @@ export default function DoarPage() {
                                 isSelected
                                   ? 'bg-primary-deeper text-white'
                                   : canDonateHere
-                                    ? 'bg-surface text-gray-400'
-                                    : 'bg-amber-100 text-amber-800',
+                                    ? 'bg-surface text-gray-400 dark:bg-surface-ink'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400',
                               )}
                             >
                               {isSelected
@@ -1096,13 +1100,13 @@ export default function DoarPage() {
             {currentStep === 3 && (
               <div className="space-y-5">
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-[1.75rem] bg-surface p-5">
+                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tipo da doação</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {selectedCategories.map((categoryId) => {
                         const label = categories.find((item) => item.id === categoryId)?.label ?? categoryId;
                         return (
-                          <span key={categoryId} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+                          <span key={categoryId} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-inkSoft">
                             {label}
                           </span>
                         );
@@ -1110,21 +1114,21 @@ export default function DoarPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[1.75rem] bg-surface p-5">
+                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Detalhes</p>
-                    <p className="mt-3 text-sm font-semibold text-on-surface">{quantity || 'Quantidade pendente'}</p>
+                    <p className="mt-3 text-sm font-semibold text-on-surface dark:text-gray-100">{quantity || 'Quantidade pendente'}</p>
                     <p className="mt-1 text-sm text-gray-400">{volume}</p>
                     <p className="mt-2 text-sm text-gray-500">
                       Condição: {conditions.find((item) => item.id === condition)?.label}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.75rem] bg-surface p-5 lg:col-span-2">
+                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink lg:col-span-2">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Ponto escolhido</p>
                     {selectedPoint && (
                       <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-on-surface">{selectedPoint.organizationName ?? selectedPoint.name}</p>
+                          <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{selectedPoint.organizationName ?? selectedPoint.name}</p>
                             <p className="mt-1 text-sm text-gray-400">
                               {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
                             </p>
@@ -1134,15 +1138,15 @@ export default function DoarPage() {
                             </p>
                           )}
                         </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm">
+                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-inkSoft">
                           {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5 lg:col-span-2">
-                    <p className="text-sm font-semibold text-primary-deeper">Antes de confirmar</p>
+                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10 lg:col-span-2">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">Antes de confirmar</p>
                     <div className="mt-4 space-y-3">
                       {[
                         'As peças estão limpas e prontas para reaproveitamento.',
@@ -1150,7 +1154,7 @@ export default function DoarPage() {
                         'Após concluir, você será redirecionado ao rastreio da doação criada.',
                       ].map((item) => (
                         <div key={item} className="flex items-start gap-3">
-                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-primary">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-primary dark:bg-surface-inkSoft">
                             <Check size={15} />
                           </div>
                           <p className="text-sm leading-7 text-gray-500">{item}</p>
@@ -1162,11 +1166,11 @@ export default function DoarPage() {
                   <PostDonationRewardCard className="lg:col-span-2" reward={rewardPreview} />
                 </div>
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-[1.75rem] border border-gray-100 bg-white px-4 py-4 shadow-sm">
+                <label className="flex cursor-pointer items-start gap-3 rounded-[1.75rem] border border-gray-100 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-surface-inkSoft">
                   <button
                     type="button"
                     onClick={() => setConfirmed((value) => !value)}
-                    className={cn('mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors', confirmed ? 'border-primary bg-primary text-white' : 'border-gray-300 bg-white text-transparent')}
+                    className={cn('mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors', confirmed ? 'border-primary bg-primary text-white' : 'border-gray-300 bg-white text-transparent dark:border-white/20 dark:bg-surface-ink')}
                   >
                     <Check size={12} />
                   </button>
@@ -1178,12 +1182,12 @@ export default function DoarPage() {
             )}
 
             {submitError && (
-              <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
                 {submitError}
               </div>
             )}
 
-            <div className="mt-8 border-t border-gray-100 pt-5">
+            <div className="mt-8 border-t border-gray-100 pt-5 dark:border-white/10">
               <div className="xl:hidden">
                 <SummaryCard
                   selectedCategories={selectedCategories}
@@ -1205,8 +1209,8 @@ export default function DoarPage() {
                   className={cn(
                     'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
                     currentStep === 0 || loading
-                      ? 'cursor-not-allowed bg-surface text-gray-300'
-                      : 'border border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:text-primary',
+                      ? 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink'
+                      : 'border border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-300',
                   )}
                 >
                   <ChevronLeft size={16} />
@@ -1221,7 +1225,7 @@ export default function DoarPage() {
                       disabled={!canContinue || loading}
                       className={cn(
                         'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
-                        canContinue && !loading ? 'bg-primary-deeper text-white hover:bg-primary-dark' : 'cursor-not-allowed bg-surface text-gray-300',
+                        canContinue && !loading ? 'bg-primary-deeper text-white hover:bg-primary-dark' : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
                       )}
                     >
                       Continuar
@@ -1236,7 +1240,7 @@ export default function DoarPage() {
                         'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
                         canContinue && !loading && session?.user?.accessToken
                           ? 'bg-primary-deeper text-white hover:bg-primary-dark'
-                          : 'cursor-not-allowed bg-surface text-gray-300',
+                          : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
                       )}
                     >
                       {loading ? (

@@ -51,21 +51,21 @@ export default async function RastreioPage() {
       response.meta.statusCounts ?? {};
 
     const summaryCards = [
-      { label: 'Total', value: String(response.meta.count), color: 'text-on-surface' },
+      { label: 'Total', value: String(response.meta.count), color: 'text-on-surface dark:text-gray-100' },
       {
         label: 'Aguardando ação',
         value: String(response.meta.actionableCount),
-        color: 'text-amber-600',
+        color: 'text-amber-600 dark:text-amber-400',
       },
       {
         label: 'No ponto',
         value: String(statusCounts.AT_POINT ?? 0),
-        color: 'text-blue-600',
+        color: 'text-blue-600 dark:text-blue-400',
       },
       {
         label: 'Distribuídas',
         value: String(statusCounts.DISTRIBUTED ?? 0),
-        color: 'text-primary',
+        color: 'text-primary dark:text-primary-muted',
       },
     ];
 
@@ -76,7 +76,7 @@ export default async function RastreioPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
               Rastreio operacional
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-primary-deeper sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-bold text-primary-deeper dark:text-white sm:text-4xl">
               Acompanhamento da jornada
             </h1>
             <p className="mt-2 text-sm text-gray-500 sm:text-base">
@@ -88,36 +88,36 @@ export default async function RastreioPage() {
 
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map(({ label, value, color }) => (
-              <div key={label} className="rounded-[1.75rem] bg-white p-4 shadow-card">
+              <div key={label} className="rounded-[1.75rem] bg-white p-4 shadow-card dark:bg-surface-inkSoft dark:shadow-none">
                 <p className={`text-3xl font-bold ${color}`}>{value}</p>
-                <p className="mt-1 text-sm text-gray-500">{label}</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{label}</p>
               </div>
             ))}
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_360px]">
-            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+            <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                     Timeline operacional
                   </p>
-                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">
                     Doações mais recentes
                   </h2>
                 </div>
-                <Link href="/operacoes" className="text-sm font-semibold text-primary">
+                <Link href="/operacoes" className="text-sm font-semibold text-primary dark:text-primary-muted">
                   Abrir fila
                 </Link>
               </div>
 
               {donations.length === 0 ? (
                 <div className="py-16 text-center">
-                  <Route size={40} className="mx-auto mb-4 text-gray-200" />
+                  <Route size={40} className="mx-auto mb-4 text-gray-200 dark:text-gray-600" />
                   <p className="text-base font-semibold text-gray-400">
                     Nenhuma doação operacional ainda
                   </p>
-                  <p className="mb-6 mt-1 text-sm text-gray-300">
+                  <p className="mb-6 mt-1 text-sm text-gray-300 dark:text-gray-500">
                     Quando a rede gerar movimento real, o rastreio operacional aparece aqui.
                   </p>
                   <Link
@@ -138,17 +138,17 @@ export default async function RastreioPage() {
                       <Link
                         key={donation.id}
                         href={`/rastreio/${donation.id}`}
-                        className="block rounded-[1.75rem] border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg"
+                        className="block rounded-[1.75rem] border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg dark:border-white/10 dark:bg-surface-ink dark:hover:bg-surface-inkSoft"
                       >
                         <div className="flex items-start gap-4">
-                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary">
+                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary dark:bg-primary/20 dark:text-primary-muted">
                             <Package size={20} />
                           </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-on-surface">
+                                <p className="truncate text-sm font-semibold text-on-surface dark:text-gray-100">
                                   {donation.itemLabel}
                                 </p>
                                 <p className="mt-1 truncate text-sm text-gray-400">
@@ -164,7 +164,7 @@ export default async function RastreioPage() {
                                 >
                                   {statusConfig.label}
                                 </span>
-                                <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                                <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:bg-surface-ink dark:text-gray-400">
                                   {donation.code}
                                 </span>
                               </div>
@@ -178,7 +178,7 @@ export default async function RastreioPage() {
                             </div>
 
                             {donation.latestEvent && (
-                              <p className="mt-3 text-sm leading-6 text-gray-500">
+                              <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
                                 {donation.latestEvent.description}
                               </p>
                             )}
@@ -192,29 +192,29 @@ export default async function RastreioPage() {
             </div>
 
             <aside className="space-y-4">
-              <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                       Distinção de contexto
                     </p>
-                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">
                       Rastreio vs operações
                     </h2>
                   </div>
-                  <Target size={20} className="text-primary" />
+                  <Target size={20} className="text-primary dark:text-primary-muted" />
                 </div>
 
-                <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">Rastreio</p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                <div className="mt-5 rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-primary-muted">Rastreio</p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                     Visão de acompanhamento, histórico e leitura da jornada das doações.
                   </p>
                 </div>
 
-                <div className="mt-4 rounded-[1.75rem] bg-primary-light/45 p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">Operacoes</p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                <div className="mt-4 rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-primary-muted">Operações</p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                     Fila acionável para mudar status, responder pedidos e executar a rotina do papel.
                   </p>
                 </div>
@@ -248,7 +248,7 @@ export default async function RastreioPage() {
   const snapshot = buildImpactSnapshot(donations);
 
   const summaryCards = [
-    { label: 'Total', value: String(donations.length), color: 'text-on-surface' },
+    { label: 'Total', value: String(donations.length), color: 'text-on-surface dark:text-gray-100' },
     {
       label: 'Em andamento',
       value: String(
@@ -256,21 +256,21 @@ export default async function RastreioPage() {
           ['PENDING', 'AT_POINT', 'IN_TRANSIT'].includes(donation.status),
         ).length,
       ),
-      color: 'text-blue-600',
+      color: 'text-blue-600 dark:text-blue-400',
     },
     {
-      label: 'Concluidas',
+      label: 'Concluídas',
       value: String(
         donations.filter((donation) =>
           ['DELIVERED', 'DISTRIBUTED'].includes(donation.status),
         ).length,
       ),
-      color: 'text-primary',
+      color: 'text-primary dark:text-primary-muted',
     },
     {
       label: 'Pontos solidários',
       value: String(snapshot.points),
-      color: 'text-primary-deeper',
+      color: 'text-primary-deeper dark:text-white',
     },
   ];
 
@@ -281,7 +281,7 @@ export default async function RastreioPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
             Rastreio
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-primary-deeper sm:text-4xl">
+          <h1 className="mt-2 text-3xl font-bold text-primary-deeper dark:text-white sm:text-4xl">
             Minhas doações
           </h1>
           <p className="mt-2 text-sm text-gray-500 sm:text-base">
@@ -291,34 +291,34 @@ export default async function RastreioPage() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map(({ label, value, color }) => (
-            <div key={label} className="rounded-[1.75rem] bg-white p-4 shadow-card">
+            <div key={label} className="rounded-[1.75rem] bg-white p-4 shadow-card dark:bg-surface-inkSoft dark:shadow-none">
               <p className={`text-3xl font-bold ${color}`}>{value}</p>
-              <p className="mt-1 text-sm text-gray-500">{label}</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{label}</p>
             </div>
           ))}
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_360px]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Jornada das doações
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">
                   Status de cada entrega
                 </h2>
               </div>
-              <Link href="/doar" className="text-sm font-semibold text-primary">
+              <Link href="/doar" className="text-sm font-semibold text-primary dark:text-primary-muted">
                 Nova doação
               </Link>
             </div>
 
             {donations.length === 0 ? (
               <div className="py-16 text-center">
-                <Package size={40} className="mx-auto mb-4 text-gray-200" />
+                <Package size={40} className="mx-auto mb-4 text-gray-200 dark:text-gray-600" />
                 <p className="text-base font-semibold text-gray-400">Nenhuma doação ainda</p>
-                <p className="mb-6 mt-1 text-sm text-gray-300">
+                <p className="mb-6 mt-1 text-sm text-gray-300 dark:text-gray-500">
                   Comece sua primeira doação agora.
                 </p>
                 <Link
@@ -339,17 +339,17 @@ export default async function RastreioPage() {
                     <Link
                       key={donation.id}
                       href={`/rastreio/${donation.id}`}
-                      className="block rounded-[1.75rem] border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg"
+                      className="block rounded-[1.75rem] border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg dark:border-white/10 dark:bg-surface-ink dark:hover:bg-surface-inkSoft"
                     >
                       <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary dark:bg-primary/20 dark:text-primary-muted">
                           <Package size={20} />
                         </div>
 
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-on-surface">
+                              <p className="truncate text-sm font-semibold text-on-surface dark:text-gray-100">
                                 {donation.itemLabel}
                               </p>
                               <p className="mt-1 truncate text-sm text-gray-400">
@@ -365,7 +365,7 @@ export default async function RastreioPage() {
                               >
                                 {statusConfig.label}
                               </span>
-                              <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+                              <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary dark:bg-surface-ink dark:text-primary-muted">
                                 +{donation.pointsAwarded} pts
                               </span>
                             </div>
@@ -376,13 +376,13 @@ export default async function RastreioPage() {
                               <StatusIcon size={14} className={statusConfig.color} />
                               {formatDonationDateLabel(donation.createdAt)}
                             </span>
-                            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-gray-300">
+                            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-gray-300 dark:text-gray-500">
                               {donation.code}
                             </span>
                           </div>
 
                           {donation.latestEvent && (
-                            <p className="mt-3 text-sm leading-6 text-gray-500">
+                            <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
                               {donation.latestEvent.description}
                             </p>
                           )}
@@ -396,27 +396,27 @@ export default async function RastreioPage() {
           </div>
 
           <aside className="space-y-4">
-            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+            <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                     Progresso ligado ao rastreio
                   </p>
-                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">
                     Cada etapa conta
                   </h2>
                 </div>
-                <Target size={20} className="text-primary" />
+                <Target size={20} className="text-primary dark:text-primary-muted" />
               </div>
 
-              <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
-                <p className="text-sm font-semibold text-primary-deeper">
+              <div className="mt-5 rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                <p className="text-sm font-semibold text-primary-deeper dark:text-primary-muted">
                   {snapshot.nextMilestone.label}
                 </p>
-                <p className="mt-2 text-sm leading-7 text-gray-500">
+                <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                   {snapshot.nextMilestone.note}
                 </p>
-                <div className="mt-4 h-2 rounded-full bg-white">
+                <div className="mt-4 h-2 rounded-full bg-white dark:bg-white/10">
                   <div
                     className="h-full rounded-full bg-primary"
                     style={{
@@ -432,14 +432,14 @@ export default async function RastreioPage() {
                     }}
                   />
                 </div>
-                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
+                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary dark:text-primary-muted">
                   {snapshot.nextMilestone.current}/{snapshot.nextMilestone.target} neste marco
                 </p>
               </div>
 
-              <div className="mt-4 rounded-[1.75rem] bg-primary-light/45 p-5">
-                <p className="text-sm font-semibold text-primary-deeper">Meta do mês em andamento</p>
-                <p className="mt-2 text-sm leading-7 text-gray-500">
+              <div className="mt-4 rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
+                <p className="text-sm font-semibold text-primary-deeper dark:text-primary-muted">Meta do mês em andamento</p>
+                <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                   {snapshot.monthlyGoal.current}/{snapshot.monthlyGoal.target} entregas
                   registradas neste ciclo.
                 </p>

@@ -59,9 +59,9 @@ export default async function RastreioDetalhePage({
   if (!donation) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-5 text-center">
-        <Package size={40} className="mb-4 text-gray-200" />
+        <Package size={40} className="mb-4 text-gray-200 dark:text-gray-600" />
         <p className="font-semibold text-gray-400">Doação não encontrada</p>
-        <Link href="/rastreio" className="mt-4 text-sm font-semibold text-primary hover:underline">
+        <Link href="/rastreio" className="mt-4 text-sm font-semibold text-primary hover:underline dark:text-primary-muted">
           {role !== 'DONOR' ? 'Voltar ao rastreio operacional' : 'Voltar ao rastreio'}
         </Link>
       </div>
@@ -90,7 +90,7 @@ export default async function RastreioDetalhePage({
         <section>
           <Link
             href={backHref}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 transition-colors hover:text-primary"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 transition-colors hover:text-primary dark:hover:text-primary-muted"
           >
             <ArrowLeft size={14} />
             {isOperationalRole ? 'Voltar ao rastreio operacional' : 'Voltar ao rastreio'}
@@ -98,16 +98,16 @@ export default async function RastreioDetalhePage({
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
             Detalhes
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-primary-deeper sm:text-4xl">{donation.code}</h1>
-          <p className="mt-2 text-sm text-gray-500">
+          <h1 className="mt-2 text-3xl font-bold text-primary-deeper dark:text-white sm:text-4xl">{donation.code}</h1>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Registrada em {formatDonationDateLabel(donation.createdAt)}
           </p>
         </section>
 
         {showCelebrate && (
-          <section className="rounded-[2rem] bg-primary-light/45 p-6 shadow-card lg:p-7">
+          <section className="rounded-[2rem] bg-primary-light/45 p-6 shadow-card dark:bg-primary/10 dark:shadow-none lg:p-7">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary shadow-sm">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary shadow-sm dark:bg-surface-inkSoft dark:text-primary-muted dark:shadow-none">
                 <Sparkles size={14} />
                 Doação confirmada
               </span>
@@ -115,42 +115,42 @@ export default async function RastreioDetalhePage({
 
             <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
               <div>
-                <h2 className="text-2xl font-bold text-primary-deeper">
+                <h2 className="text-2xl font-bold text-primary-deeper dark:text-white">
                   Sua doação já faz parte do fluxo real do VestGO.
                 </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 dark:text-gray-400">
                   O rastreio, o dashboard e o perfil agora refletem esta entrega a partir do mesmo
                   dado persistido.
                 </p>
               </div>
 
-              <div className="rounded-[1.75rem] bg-white p-5 shadow-sm">
+              <div className="rounded-[1.75rem] bg-white p-5 shadow-sm dark:bg-surface-inkSoft dark:shadow-none">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
                   Pontos desta doação
                 </p>
-                <p className="mt-2 text-3xl font-bold text-primary-deeper">
+                <p className="mt-2 text-3xl font-bold text-primary-deeper dark:text-white">
                   +{donation.pointsAwarded} pts
                 </p>
-                <p className="mt-2 text-sm leading-7 text-gray-500">
+                <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                   Seu progresso total agora está em {snapshot.points} pontos solidários.
                 </p>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
+              <div className="rounded-[1.5rem] bg-white p-4 shadow-sm dark:bg-surface-inkSoft dark:shadow-none">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
                   Meta do mês
                 </p>
-                <p className="mt-2 text-sm font-semibold text-primary-deeper">
+                <p className="mt-2 text-sm font-semibold text-primary-deeper dark:text-primary-muted">
                   {snapshot.monthlyGoal.current}/{snapshot.monthlyGoal.target} entregas
                 </p>
               </div>
-              <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
+              <div className="rounded-[1.5rem] bg-white p-4 shadow-sm dark:bg-surface-inkSoft dark:shadow-none">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
                   Próximo marco
                 </p>
-                <p className="mt-2 text-sm font-semibold text-primary-deeper">
+                <p className="mt-2 text-sm font-semibold text-primary-deeper dark:text-primary-muted">
                   {snapshot.nextMilestone.label}
                 </p>
               </div>
@@ -175,16 +175,16 @@ export default async function RastreioDetalhePage({
         )}
 
         <section
-          className={`flex items-start gap-4 rounded-[2rem] p-5 shadow-card ${statusConfig.bg} lg:p-6`}
+          className={`flex items-start gap-4 rounded-[2rem] p-5 shadow-card dark:shadow-none ${statusConfig.bg} lg:p-6`}
         >
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm">
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-surface-inkSoft dark:shadow-none">
             <StatusIcon size={26} className={statusConfig.color} />
           </div>
           <div className="min-w-0 flex-1">
             <p className={`text-lg font-bold ${statusConfig.color}`}>{statusConfig.label}</p>
-            <p className="mt-1 text-sm leading-7 text-gray-500">{statusConfig.description}</p>
+            <p className="mt-1 text-sm leading-7 text-gray-500 dark:text-gray-400">{statusConfig.description}</p>
             {donation.latestEvent && (
-              <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-primary-deeper">
+              <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-primary-deeper dark:text-primary-muted">
                 Última atualização: {formatDonationDateLabel(donation.latestEvent.createdAt)}
               </p>
             )}
@@ -194,7 +194,7 @@ export default async function RastreioDetalhePage({
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4">
             {!isCancelled && (
-              <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Progresso
                 </p>
@@ -215,15 +215,15 @@ export default async function RastreioDetalhePage({
                                 ? isCurrentStep
                                   ? 'bg-primary ring-4 ring-primary/20'
                                   : 'bg-primary'
-                                : 'bg-gray-100'
+                                : 'bg-gray-100 dark:bg-white/10'
                             }`}
                           >
-                            <StepIcon size={15} className={done ? 'text-white' : 'text-gray-300'} />
+                            <StepIcon size={15} className={done ? 'text-white' : 'text-gray-300 dark:text-gray-500'} />
                           </div>
                           {!isLast && (
                             <div
                               className={`my-1 w-0.5 flex-1 ${
-                                index < currentIdx ? 'bg-primary' : 'bg-gray-100'
+                                index < currentIdx ? 'bg-primary' : 'bg-gray-100 dark:bg-white/10'
                               }`}
                               style={{ minHeight: 24 }}
                             />
@@ -233,18 +233,18 @@ export default async function RastreioDetalhePage({
                         <div className="pb-4">
                           <p
                             className={`text-sm font-bold ${
-                              done ? 'text-on-surface' : 'text-gray-300'
+                              done ? 'text-on-surface dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'
                             }`}
                           >
                             {stepConfig.label}
                           </p>
                           {isCurrentStep && (
-                            <p className="mt-0.5 text-xs leading-snug text-gray-400">
+                            <p className="mt-0.5 text-xs leading-snug text-gray-400 dark:text-gray-500">
                               {stepConfig.description}
                             </p>
                           )}
                           {donation.timeline.find((event) => event.status === status) && (
-                            <p className="mt-0.5 text-[10px] text-gray-300">
+                            <p className="mt-0.5 text-[10px] text-gray-300 dark:text-gray-600">
                               {formatDonationDateLabel(
                                 donation.timeline.find((event) => event.status === status)
                                   ?.createdAt ?? donation.createdAt,
@@ -259,7 +259,7 @@ export default async function RastreioDetalhePage({
               </div>
             )}
 
-            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+            <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                 Histórico de eventos
               </p>
@@ -271,7 +271,7 @@ export default async function RastreioDetalhePage({
                   return (
                     <div
                       key={event.id}
-                      className="flex items-start gap-3 rounded-[1.75rem] bg-white p-4 shadow-sm"
+                      className="flex items-start gap-3 rounded-[1.75rem] bg-white p-4 shadow-sm dark:bg-surface-ink dark:shadow-none"
                     >
                       <div
                         className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl ${eventConfig.bg}`}
@@ -279,16 +279,16 @@ export default async function RastreioDetalhePage({
                         <EventIcon size={15} className={eventConfig.color} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-on-surface">
+                        <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
                           {eventConfig.label}
                         </p>
-                        <p className="mt-1 text-xs leading-6 text-gray-400">{event.description}</p>
+                        <p className="mt-1 text-xs leading-6 text-gray-400 dark:text-gray-500">{event.description}</p>
                         {event.location && (
-                          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
+                          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-primary dark:text-primary-muted">
                             {event.location}
                           </p>
                         )}
-                        <p className="mt-1 text-[10px] text-gray-300">
+                        <p className="mt-1 text-[10px] text-gray-300 dark:text-gray-600">
                           {formatDonationDateLabel(event.createdAt)}
                         </p>
                       </div>
@@ -298,7 +298,7 @@ export default async function RastreioDetalhePage({
               </div>
             </div>
 
-            <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+            <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                 Itens doados
               </p>
@@ -306,21 +306,21 @@ export default async function RastreioDetalhePage({
                 {donation.items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-start gap-3 rounded-[1.75rem] bg-white p-4 shadow-sm"
+                    className="flex items-start gap-3 rounded-[1.75rem] bg-white p-4 shadow-sm dark:bg-surface-ink dark:shadow-none"
                   >
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-light text-primary">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-light text-primary dark:bg-primary/20 dark:text-primary-muted">
                       <Package size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-on-surface">{item.name}</p>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{item.name}</p>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                         {CATEGORY_LABELS[item.category] ?? item.category} - {item.quantity}{' '}
                         unidade(s)
                       </p>
                       {item.description && (
                         <div className="mt-2 flex items-center gap-1">
-                          <Info size={11} className="text-gray-300" />
-                          <p className="text-[11px] text-gray-400">{item.description}</p>
+                          <Info size={11} className="text-gray-300 dark:text-gray-600" />
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500">{item.description}</p>
                         </div>
                       )}
                     </div>
@@ -331,8 +331,8 @@ export default async function RastreioDetalhePage({
           </div>
 
           <aside className="space-y-4">
-            <div className="overflow-hidden rounded-[2rem] bg-white shadow-card">
-              <div className="flex h-28 items-center justify-center bg-gradient-to-br from-primary-light to-[#c8eae7]">
+            <div className="overflow-hidden rounded-[2rem] bg-white shadow-card dark:bg-surface-inkSoft dark:shadow-none">
+              <div className="flex h-28 items-center justify-center bg-gradient-to-br from-primary-light to-[#c8eae7] dark:from-primary/30 dark:to-primary/10">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg">
                   <MapPin size={16} />
                 </div>
@@ -348,26 +348,26 @@ export default async function RastreioDetalhePage({
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
                       Ponto de coleta
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-on-surface">
+                    <p className="mt-1 text-sm font-semibold text-on-surface dark:text-gray-100">
                       {donation.collectionPoint?.organizationName ??
                         donation.collectionPoint?.name ??
                         'Não informado'}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       {donation.collectionPoint?.address ?? 'Endereço ainda não informado'}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.5rem] bg-surface p-4">
+                  <div className="rounded-[1.5rem] bg-surface p-4 dark:bg-surface-ink">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
                       ONG vinculada
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-on-surface">
+                    <p className="mt-1 text-sm font-semibold text-on-surface dark:text-gray-100">
                       {donation.ngo?.organizationName ??
                         donation.ngo?.name ??
                         'Parceiro ainda não vinculado'}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       {ngoLocationSummary}
                     </p>
                   </div>
@@ -375,7 +375,7 @@ export default async function RastreioDetalhePage({
 
                 <Link
                   href="/mapa"
-                  className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
+                  className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline dark:text-primary-muted"
                 >
                   <MapPin size={12} />
                   Ver no mapa
@@ -384,32 +384,32 @@ export default async function RastreioDetalhePage({
             </div>
 
             {isOperationalRole ? (
-              <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                       Visão operacional
                     </p>
-                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">
                       Etapa sob controle
                     </h2>
                   </div>
-                  <Target size={20} className="text-primary" />
+                  <Target size={20} className="text-primary dark:text-primary-muted" />
                 </div>
 
-                <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
+                <div className="mt-5 rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-primary-muted">
                     {donation.allowedNextStatuses.length > 0
                       ? 'Esta doação possui próxima etapa disponível.'
                       : 'Aguardando o próximo ator do fluxo.'}
                   </p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                  <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                     {donation.latestEvent?.description ??
                       'O histórico desta doação será atualizado sempre que uma etapa mudar.'}
                   </p>
                   <Link
                     href="/operacoes"
-                    className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary"
+                    className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary dark:text-primary-muted"
                   >
                     Voltar para o painel operacional
                     <ArrowLeft size={14} />
@@ -417,23 +417,23 @@ export default async function RastreioDetalhePage({
                 </div>
               </div>
             ) : (
-              <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+              <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-7">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                       Progresso pessoal
                     </p>
-                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                    <h2 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">
                       {snapshot.nextMilestone.label}
                     </h2>
                   </div>
-                  <Target size={20} className="text-primary" />
+                  <Target size={20} className="text-primary dark:text-primary-muted" />
                 </div>
 
-                <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">Pontos solidários</p>
-                  <p className="mt-2 text-3xl font-bold text-primary-deeper">{snapshot.points}</p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                <div className="mt-5 rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
+                  <p className="text-sm font-semibold text-primary-deeper dark:text-primary-muted">Pontos solidários</p>
+                  <p className="mt-2 text-3xl font-bold text-primary-deeper dark:text-white">{snapshot.points}</p>
+                  <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
                     {snapshot.nextMilestone.note}
                   </p>
                 </div>
