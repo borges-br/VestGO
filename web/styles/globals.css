@@ -43,17 +43,17 @@
 
 @layer components {
   .soft-field {
-    @apply bg-[#eeeeee] border-0 rounded-2xl transition-all duration-200;
+    @apply bg-[#eeeeee] border-0 rounded-2xl transition-all duration-200 dark:bg-white/10;
   }
 
   .soft-field:focus-within {
-    @apply bg-white shadow-md;
+    @apply bg-white shadow-md dark:bg-surface-inkSoft;
     outline: 2px solid #006a62;
     outline-offset: -2px;
   }
 
   .card {
-    @apply bg-white rounded-2xl shadow-sm;
+    @apply bg-white rounded-2xl shadow-sm dark:bg-surface-inkSoft dark:shadow-none;
   }
 
   /* Scrollbar invisível mas funcional */
