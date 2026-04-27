@@ -432,6 +432,11 @@ export type NotificationsResponse = {
   };
 };
 
+export type EmailVerificationResponse = {
+  emailVerificationSent: boolean;
+  alreadyVerified: boolean;
+};
+
 type ApiFetchOptions = RequestInit & {
   accessToken?: string;
 };
@@ -934,5 +939,38 @@ export async function markAllNotificationsAsRead(
   return apiFetch<{ updatedCount: number }>('/notifications/read-all', {
     method: 'PATCH',
     accessToken,
+  });
+}
+
+export async function requestEmailVerification(
+  accessToken: string,
+): Promise<EmailVerificationResponse> {
+  return apiFetch<EmailVerificationResponse>('/auth/request-email-verification', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function verifyEmail(token: string): Promise<{ user: { emailVerifiedAt: string | null } }> {
+  return apiFetch<{ user: { emailVerifiedAt: string | null } }>('/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/auth/request-password-reset', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(input: {
+  token: string;
+  password: string;
+}): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }
