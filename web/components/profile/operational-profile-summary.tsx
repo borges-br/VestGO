@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Building2,
+  AlertTriangle,
   CheckCircle2,
   ClipboardList,
   Handshake,
@@ -53,6 +54,7 @@ type Props = {
   loading: boolean;
   error: string | null;
   accessToken?: string;
+  emailVerifiedAt?: string | null;
   onRefreshProfile?: () => Promise<void> | void;
 };
 
@@ -61,6 +63,7 @@ export function OperationalProfileSummary({
   loading,
   error,
   accessToken,
+  emailVerifiedAt,
   onRefreshProfile,
 }: Props) {
   const [partnerships, setPartnerships] = useState<PartnershipRecord[]>([]);
@@ -240,6 +243,7 @@ export function OperationalProfileSummary({
 
   const title = profile.organizationName ?? profile.name;
   const subtitle = profile.role === 'NGO' ? 'ONG Parceira' : 'Ponto de Coleta';
+  const emailVerified = Boolean(emailVerifiedAt);
   const initials = title
     .split(' ')
     .map((segment) => segment[0])
@@ -280,6 +284,20 @@ export function OperationalProfileSummary({
               <div className="min-w-0 flex-1">
                 <p className="text-3xl font-bold tracking-tight sm:text-4xl">{title}</p>
                 <p className="mt-2 text-sm text-primary-muted">{subtitle}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-primary-muted">{profile.email}</span>
+                  {emailVerified ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/30 bg-emerald-400/15 px-3 py-1 text-[11px] font-semibold text-emerald-100">
+                      <CheckCircle2 size={12} />
+                      E-mail verificado
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/30 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold text-amber-100">
+                      <AlertTriangle size={12} />
+                      Não verificado
+                    </span>
+                  )}
+                </div>
                 <p className="mt-2 text-sm text-primary-muted">
                   Responsavel: {profile.name}
                   {profile.phone ? ` - ${profile.phone}` : ''}

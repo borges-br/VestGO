@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowRight, CheckCircle, Loader2, MailCheck, Sparkles, XCircle } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -36,12 +36,44 @@ const statusContent: Record<Status, { title: string; message: string }> = {
   },
 };
 
+function getSupportMailto() {
+  const now = new Date().toISOString();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'indefinido';
+  const userAgent = navigator.userAgent.slice(0, 140);
+  const appUrl = `${window.location.origin}/confirmar-email`;
+  const subject = 'Suporte VestGO - confirmacao de e-mail';
+  const body = [
+    'Olá, suporte.',
+    '',
+    'Estou com problema para confirmar meu e-mail no VestGO.',
+    '',
+    'Tipo: email_confirmation_failed',
+    'Página: /confirmar-email',
+    'Código: LINK_INVALID_OR_EXPIRED',
+    `Domínio: ${window.location.origin}`,
+    `URL pública: ${appUrl}`,
+    `Data/hora local: ${now}`,
+    `Timezone: ${timezone}`,
+    `Navegador: ${userAgent}`,
+    '',
+    'Não incluí token ou dados sensíveis nesta mensagem.',
+  ].join('\n');
+
+  return `mailto:suporte@mosfet.com.br?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function ConfirmarEmailInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
   const { update } = useSession();
   const [status, setStatus] = useState<Status>('loading');
+  const [supportHref, setSupportHref] = useState('mailto:suporte@mosfet.com.br');
   const verificationStartedRef = useRef(false);
+
+  useEffect(() => {
+    setSupportHref(getSupportMailto());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +98,8 @@ function ConfirmarEmailInner() {
 
         if (response.user.emailVerifiedAt) {
           await update({ user: { emailVerifiedAt: response.user.emailVerifiedAt } });
+          window.localStorage.setItem('vestgo-email-verified-at', response.user.emailVerifiedAt);
+          router.refresh();
         }
       } catch (err) {
         if (cancelled) return;
@@ -169,6 +203,14 @@ function ConfirmarEmailInner() {
                   <MailCheck size={16} />
                   Ir para o inicio
                 </Link>
+                {!isSuccess && !isLoading && (
+                  <a
+                    href={supportHref}
+                    className="inline-flex items-center justify-center rounded-2xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-red-900/70 dark:text-red-200 dark:hover:bg-red-950/40 dark:focus-visible:ring-offset-surface-inkSoft"
+                  >
+                    Entrar em contato com suporte
+                  </a>
+                )}
               </div>
             </div>
           </motion.section>

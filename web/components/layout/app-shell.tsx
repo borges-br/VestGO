@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
+import { EmailVerificationReminder } from '@/components/auth/email-verification-reminder';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/topbar';
@@ -14,6 +15,29 @@ import {
 function EmailVerificationBanner() {
   const { data: session, update } = useSession();
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'verified' | 'skipped' | 'error'>('idle');
+
+  useEffect(() => {
+    if (!session?.user?.accessToken || session.user.emailVerifiedAt) {
+      return;
+    }
+
+    function syncVerifiedEmail() {
+      const verifiedAt = window.localStorage.getItem('vestgo-email-verified-at');
+
+      if (verifiedAt) {
+        void update({ user: { emailVerifiedAt: verifiedAt } });
+      }
+    }
+
+    syncVerifiedEmail();
+    window.addEventListener('focus', syncVerifiedEmail);
+    window.addEventListener('storage', syncVerifiedEmail);
+
+    return () => {
+      window.removeEventListener('focus', syncVerifiedEmail);
+      window.removeEventListener('storage', syncVerifiedEmail);
+    };
+  }, [session?.user?.accessToken, session?.user?.emailVerifiedAt, update]);
 
   if (!session?.user?.accessToken || session.user.emailVerifiedAt) {
     return null;
@@ -101,6 +125,7 @@ function AppShellChrome({
       <main className="mx-auto w-full max-w-shell pb-[calc(var(--mobile-nav-height)+0.75rem)] pt-[calc(var(--topbar-height)+0.75rem)] md:pb-8">
         <div className="min-h-[calc(100vh-var(--topbar-height)-1rem)]">
           <EmailVerificationBanner />
+          <EmailVerificationReminder />
           {children}
         </div>
       </main>

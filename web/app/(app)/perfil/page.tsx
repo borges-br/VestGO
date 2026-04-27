@@ -7,6 +7,7 @@ import {
   ArrowDown,
   Bell,
   Camera,
+  CheckCircle2,
   ChevronRight,
   Edit3,
   Flame,
@@ -16,6 +17,7 @@ import {
   Shield,
   Sparkles,
   TrendingUp,
+  AlertTriangle,
 } from 'lucide-react';
 import { AwardBadge, type AwardBadgeTier, type AwardBadgeType } from '@/components/ui/award-badge';
 import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
@@ -60,6 +62,24 @@ type BadgeEntry = {
   progressLabel?: string;
   subtitle?: string;
 };
+
+function EmailVerificationBadge({ verified }: { verified: boolean }) {
+  if (verified) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200">
+        <CheckCircle2 size={12} />
+        E-mail verificado
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+      <AlertTriangle size={12} />
+      Não verificado
+    </span>
+  );
+}
 
 function pickTier(value: number, thresholds: [number, number, number]): AwardBadgeTier {
   if (value >= thresholds[2]) return 'ouro';
@@ -273,6 +293,7 @@ export default function PerfilPage() {
         loading={loadingProfile}
         error={profileError}
         accessToken={session.user.accessToken}
+        emailVerifiedAt={session.user.emailVerifiedAt}
         onRefreshProfile={loadOperationalProfile}
       />
     );
@@ -281,6 +302,7 @@ export default function PerfilPage() {
   const userName = session?.user?.name ?? 'Usuário';
   const userEmail = session?.user?.email ?? '';
   const userRole = session?.user?.role ?? 'DONOR';
+  const emailVerified = Boolean(session?.user?.emailVerifiedAt);
   const userAvatar = session?.user?.image ?? profile?.avatarUrl ?? null;
   const initials = userName
     .split(' ')
@@ -419,7 +441,10 @@ export default function PerfilPage() {
               <h1 className="text-3xl font-bold tracking-tight text-primary-deeper sm:text-4xl">
                 {userName}
               </h1>
-              <p className="mt-1 text-sm text-gray-500">{userEmail}</p>
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                <p className="text-sm text-gray-500 dark:text-gray-300">{userEmail}</p>
+                <EmailVerificationBadge verified={emailVerified} />
+              </div>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-gray-700">
                 <span className="inline-flex items-center gap-1.5 font-medium">
                   <Sparkles size={14} className="text-primary" />
