@@ -64,6 +64,11 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Senha atual obrigatoria'),
+  newPassword: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+});
+
 type AuthSafeUser = {
   id: string;
   name: string;
@@ -538,6 +543,94 @@ export default async function authRoutes(fastify: FastifyInstance) {
       throw err;
     }
   });
+
+  fastify.post(
+    '/change-password',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        await enforceRateLimit({
+          fastify,
+          request,
+          key: 'auth:change-password',
+          limit: 5,
+          windowSeconds: 15 * 60,
+        });
+
+        const body = changePasswordSchema.parse(request.body);
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            passwordHash: true,
+          },
+        });
+
+        if (!user) {
+          throw new NotFoundError('Usuario');
+        }
+
+        const currentPasswordMatches = await bcrypt.compare(
+          body.currentPassword,
+          user.passwordHash,
+        );
+
+        if (!currentPasswordMatches) {
+          throw new AppError('Senha atual incorreta.', 400, 'INVALID_CURRENT_PASSWORD');
+        }
+
+        const newPasswordMatchesCurrent = await bcrypt.compare(
+          body.newPassword,
+          user.passwordHash,
+        );
+
+        if (newPasswordMatchesCurrent) {
+          throw new AppError(
+            'A nova senha precisa ser diferente da senha atual.',
+            422,
+            'PASSWORD_REUSED',
+          );
+        }
+
+        const passwordHash = await bcrypt.hash(body.newPassword, SALT_ROUNDS);
+        await fastify.prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash },
+        });
+
+        await fastify.redis.del(`${REFRESH_TOKEN_PREFIX}${user.id}`);
+
+        try {
+          await sendPasswordChangedEmail(user);
+        } catch (err) {
+          fastify.log.warn(
+            { err, userId: user.id },
+            'Password changed email delivery failed',
+          );
+        }
+
+        return reply.code(200).send({
+          message: 'Senha alterada com sucesso.',
+        });
+      } catch (err) {
+        if (err instanceof AppError) {
+          return reply.code(err.statusCode).send(toErrorResponse(err));
+        }
+
+        if (err instanceof z.ZodError) {
+          return reply.code(422).send({
+            error: 'VALIDATION_ERROR',
+            message: 'Dados invalidos',
+            issues: err.errors,
+          });
+        }
+
+        throw err;
+      }
+    },
+  );
 
   fastify.post('/refresh', async (request, reply) => {
     try {

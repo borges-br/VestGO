@@ -942,6 +942,17 @@ export async function markAllNotificationsAsRead(
   });
 }
 
+export async function changePassword(
+  input: { currentPassword: string; newPassword: string },
+  accessToken: string,
+): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
 export async function requestEmailVerification(
   accessToken: string,
 ): Promise<EmailVerificationResponse> {
