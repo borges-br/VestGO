@@ -38,7 +38,7 @@ const PUBLIC_REGISTERABLE_ROLES = [
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  email: z.string().email('E-mail invalido'),
+  email: z.string().email('E-mail inválido'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
   role: z.enum(PUBLIC_REGISTERABLE_ROLES).optional().default(UserRole.DONOR),
   phone: z.string().optional(),
@@ -68,7 +68,7 @@ const resetPasswordSchema = z.object({
 });
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Senha atual obrigatoria'),
+  currentPassword: z.string().min(1, 'Senha atual obrigatória'),
   newPassword: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
 });
 
@@ -253,7 +253,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
 
       if (existing) {
-        throw new ConflictError('E-mail ja cadastrado');
+        throw new ConflictError('E-mail já cadastrado');
       }
 
       const passwordHash = await bcrypt.hash(body.password, SALT_ROUNDS);
@@ -299,7 +299,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos',
+          message: 'Dados inválidos',
           issues: err.errors,
         });
       }
@@ -346,7 +346,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos',
+          message: 'Dados inválidos',
           issues: err.errors,
         });
       }
@@ -379,7 +379,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
 
         if (!user) {
-          throw new NotFoundError('Usuario');
+          throw new NotFoundError('Usuário');
         }
 
         if (user.emailVerifiedAt) {
@@ -401,7 +401,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             'Email verification delivery failed on request',
           );
           throw new AppError(
-            'Nao foi possivel enviar o e-mail de confirmacao agora. Tente novamente em instantes.',
+            'Não foi possível enviar o e-mail de confirmação agora. Tente novamente em instantes.',
             503,
             'EMAIL_DELIVERY_FAILED',
           );
@@ -442,7 +442,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
           },
           'Email verification token rejected',
         );
-        throw new AppError('Link de confirmacao invalido ou expirado.', 400, 'INVALID_TOKEN');
+        throw new AppError('Link de confirmação inválido ou expirado.', 400, 'INVALID_TOKEN');
       }
 
       const user = await fastify.prisma.user.update({
@@ -477,7 +477,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         return reply.code(400).send({
           error: 'INVALID_TOKEN',
-          message: 'Link de confirmacao invalido ou expirado.',
+          message: 'Link de confirmação inválido ou expirado.',
           statusCode: 400,
         });
       }
@@ -489,7 +489,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/request-password-reset', async (request, reply) => {
     const genericResponse = {
       message:
-        'Se o e-mail estiver cadastrado, enviaremos instrucoes para redefinir sua senha.',
+        'Se o e-mail estiver cadastrado, enviaremos instruções para redefinir sua senha.',
     };
 
     try {
@@ -555,7 +555,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
 
       if (!consumed) {
-        throw new AppError('Link de redefinicao invalido ou expirado.', 400, 'INVALID_TOKEN');
+        throw new AppError('Link de redefinição inválido ou expirado.', 400, 'INVALID_TOKEN');
       }
 
       const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -593,7 +593,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos',
+          message: 'Dados inválidos',
           issues: err.errors,
         });
       }
@@ -627,7 +627,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
 
         if (!user) {
-          throw new NotFoundError('Usuario');
+          throw new NotFoundError('Usuário');
         }
 
         const currentPasswordMatches = await bcrypt.compare(
@@ -680,7 +680,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         if (err instanceof z.ZodError) {
           return reply.code(422).send({
             error: 'VALIDATION_ERROR',
-            message: 'Dados invalidos',
+            message: 'Dados inválidos',
             issues: err.errors,
           });
         }
@@ -715,12 +715,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
 
         if (!user) {
-          throw new NotFoundError('Usuario');
+          throw new NotFoundError('Usuário');
         }
 
         if (user.anonymizedAt) {
           return reply.code(200).send({
-            message: 'Conta ja encerrada.',
+            message: 'Conta já encerrada.',
             accountDeletionEmailSent: false,
             requiresSupport: false,
           });
@@ -728,7 +728,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         if (user.role !== UserRole.DONOR) {
           throw new AppError(
-            'Este tipo de conta precisa de revisao manual do suporte para encerramento.',
+            'Este tipo de conta precisa de revisão manual do suporte para encerramento.',
             403,
             'ACCOUNT_DELETION_REQUIRES_SUPPORT',
           );
@@ -738,8 +738,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
           const delivery = await sendAccountDeletionRequestEmail(fastify, user);
           return reply.code(200).send({
             message: delivery.sent
-              ? 'Enviamos um link de confirmacao para seu e-mail.'
-              : 'Solicitacao registrada. Reenvie quando o envio de e-mails estiver ativo.',
+              ? 'Enviamos um link de confirmação para seu e-mail.'
+              : 'Solicitação registrada. Reenvie quando o envio de e-mails estiver ativo.',
             accountDeletionEmailSent: delivery.sent,
             requiresSupport: false,
           });
@@ -749,7 +749,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             'Account deletion confirmation email delivery failed',
           );
           throw new AppError(
-            'Nao foi possivel enviar o e-mail de confirmacao agora. Tente novamente em instantes.',
+            'Não foi possível enviar o e-mail de confirmação agora. Tente novamente em instantes.',
             503,
             'EMAIL_DELIVERY_FAILED',
           );
@@ -790,7 +790,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
           },
           'Account deletion token rejected',
         );
-        throw new AppError('Link de encerramento invalido ou expirado.', 400, 'INVALID_TOKEN');
+        throw new AppError('Link de encerramento inválido ou expirado.', 400, 'INVALID_TOKEN');
       }
 
       const user = await fastify.prisma.user.findUnique({
@@ -805,12 +805,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
 
       if (!user) {
-        throw new NotFoundError('Usuario');
+        throw new NotFoundError('Usuário');
       }
 
       if (user.role !== UserRole.DONOR) {
         throw new AppError(
-          'Este tipo de conta precisa de revisao manual do suporte para encerramento.',
+          'Este tipo de conta precisa de revisão manual do suporte para encerramento.',
           403,
           'ACCOUNT_DELETION_REQUIRES_SUPPORT',
         );
@@ -839,7 +839,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         fastify.prisma.user.update({
           where: { id: user.id },
           data: {
-            name: 'Usuario removido',
+            name: 'Usuário removido',
             email: buildAnonymizedEmail(user.id),
             passwordHash,
             birthDate: null,
@@ -927,7 +927,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         return reply.code(400).send({
           error: 'INVALID_TOKEN',
-          message: 'Link de encerramento invalido ou expirado.',
+          message: 'Link de encerramento inválido ou expirado.',
           statusCode: 400,
         });
       }
@@ -948,7 +948,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             : {}),
         }) as typeof payload;
       } catch {
-        throw new UnauthorizedError('Refresh token invalido ou expirado');
+        throw new UnauthorizedError('Refresh token inválido ou expirado');
       }
 
       const stored = await fastify.redis.get(`${REFRESH_TOKEN_PREFIX}${payload.id}`);
@@ -962,7 +962,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
 
       if (!user) {
-        throw new NotFoundError('Usuario');
+        throw new NotFoundError('Usuário');
       }
 
       if (user.anonymizedAt) {
@@ -984,7 +984,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos',
+          message: 'Dados inválidos',
           issues: err.errors,
         });
       }

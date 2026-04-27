@@ -31,6 +31,8 @@ const editableProfileSelect = {
   role: true,
   name: true,
   email: true,
+  emailVerifiedAt: true,
+  emailNotificationsEnabled: true,
   birthDate: true,
   phone: true,
   avatarUrl: true,
@@ -99,6 +101,10 @@ const editableProfileSelect = {
   },
 } satisfies Prisma.UserSelect;
 
+const emailPreferencesSchema = z.object({
+  emailNotificationsEnabled: z.boolean(),
+});
+
 type EditableProfileRecord = Prisma.UserGetPayload<{ select: typeof editableProfileSelect }>;
 
 type PendingPublicRevisionPayload = {
@@ -129,6 +135,8 @@ type EditableProfileView = {
   role: UserRole;
   name: string;
   email: string;
+  emailVerifiedAt: Date | null;
+  emailNotificationsEnabled: boolean;
   birthDate: Date | null;
   phone: string | null;
   avatarUrl: string | null;
@@ -497,6 +505,8 @@ function mapEditableProfile(user: EditableProfileRecord) {
     role: view.role,
     name: view.name,
     email: view.email,
+    emailVerifiedAt: view.emailVerifiedAt?.toISOString() ?? null,
+    emailNotificationsEnabled: view.emailNotificationsEnabled,
     birthDate: view.birthDate?.toISOString().slice(0, 10) ?? null,
     phone: view.phone,
     avatarUrl: view.avatarUrl,
@@ -580,6 +590,35 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     }
   });
 
+  fastify.patch('/me/email-preferences', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const body = emailPreferencesSchema.parse(request.body);
+      const updatedUser = await fastify.prisma.user.update({
+        where: { id: request.user.id },
+        data: {
+          emailNotificationsEnabled: body.emailNotificationsEnabled,
+        },
+        select: editableProfileSelect,
+      });
+
+      return reply.send(mapEditableProfile(updatedUser));
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.code(err.statusCode).send(toErrorResponse(err));
+      }
+
+      if (err instanceof z.ZodError) {
+        return reply.code(422).send({
+          error: 'VALIDATION_ERROR',
+          message: 'Preferências de e-mail inválidas',
+          issues: err.errors,
+        });
+      }
+
+      throw err;
+    }
+  });
+
   fastify.patch('/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
       const body = sanitizeProfileWriteInput(profileWriteSchema.parse(request.body));
@@ -639,11 +678,11 @@ export default async function profileRoutes(fastify: FastifyInstance) {
               role: existingUser.role,
               attempts: geocoding.attempts,
             },
-            'Geocoding nao encontrou resultado para o endereco informado.',
+            'Geocoding não encontrou resultado para o endereço informado.',
           );
 
           throw new AppError(
-            'Nao foi possivel localizar o endereco informado. Confira rua, numero, cidade e CEP antes de tentar novamente.',
+            'Não foi possível localizar o endereço informado. Confira rua, número, cidade e CEP antes de tentar novamente.',
             422,
             'GEOCODING_NOT_FOUND',
           );
@@ -787,8 +826,8 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         await createAdminNotifications(fastify, [
           {
             type: 'PROFILE_REVISION_PENDING' as const,
-            title: 'Revisao publica pendente',
-            body: `${updatedUser.organizationName ?? updatedUser.name} enviou alteracoes publicas para revisao (${changedGovernedFields.join(', ')}).`,
+            title: 'Revisão pública pendente',
+            body: `${updatedUser.organizationName ?? updatedUser.name} enviou alterações públicas para revisão (${changedGovernedFields.join(', ')}).`,
             href: '/admin/perfis',
             payload: {
               userId: updatedUser.id,
@@ -808,7 +847,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos para atualizar o perfil',
+          message: 'Dados inválidos para atualizar o perfil',
           issues: err.errors,
         });
       }

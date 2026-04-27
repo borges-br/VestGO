@@ -76,6 +76,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     subject: input.subject,
     text: input.text,
     html: input.html,
+    encoding: 'utf-8',
   });
 
   return { sent: true, skipped: false };

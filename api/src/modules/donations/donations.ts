@@ -21,6 +21,10 @@ import {
   getNewlyUnlockedBadges,
   loadDonorGamificationDonations,
 } from '../../shared/notifications';
+import {
+  sendDonationRegisteredOperationalEmail,
+  sendDonationStatusOperationalEmail,
+} from '../../shared/operational-emails';
 
 const createDonationSchema = z.object({
   collectionPointId: z.string().min(1),
@@ -142,12 +146,12 @@ const STATUS_POINTS: Record<DonationStatus, number> = {
 };
 
 const STATUS_EVENT_DESCRIPTION: Record<DonationStatus, string> = {
-  PENDING: 'Doacao registrada na plataforma.',
+  PENDING: 'Doação registrada na plataforma.',
   AT_POINT: 'Entrega confirmada no ponto de coleta.',
-  IN_TRANSIT: 'Doacao em deslocamento para a ONG parceira.',
-  DELIVERED: 'Doacao entregue para triagem da ONG.',
-  DISTRIBUTED: 'Doacao distribuida para atendimento social.',
-  CANCELLED: 'Doacao cancelada pelo usuario.',
+  IN_TRANSIT: 'Doação em deslocamento para a ONG parceira.',
+  DELIVERED: 'Doação entregue para triagem da ONG.',
+  DISTRIBUTED: 'Doação distribuída para atendimento social.',
+  CANCELLED: 'Doação cancelada pelo usuário.',
 };
 
 const STATUS_TRANSITIONS: Record<DonationStatus, DonationStatus[]> = {
@@ -185,13 +189,13 @@ function getDonationPoints(status: DonationStatus) {
 
 function ensureDonationCreationAllowed(user: { role: string }) {
   if (user.role !== UserRole.DONOR) {
-    throw new ForbiddenError('Apenas doadores podem registrar novas doacoes');
+    throw new ForbiddenError('Apenas doadores podem registrar novas doações');
   }
 }
 
 function ensureOperationalAccess(user: { role: string }) {
   if (user.role === UserRole.DONOR) {
-    throw new ForbiddenError('A area operacional nao esta disponivel para o perfil doador');
+    throw new ForbiddenError('A área operacional não está disponível para o perfil doador');
   }
 }
 
@@ -327,7 +331,7 @@ function mapDonation(donation: DonationRecord, viewer?: Viewer) {
     itemLabel:
       donation.items.length === 1
         ? donation.items[0].name
-        : `${donation.items[0]?.name ?? 'Doacao'} e mais ${donation.items.length - 1} item(ns)`,
+        : `${donation.items[0]?.name ?? 'Doação'} e mais ${donation.items.length - 1} item(ns)`,
     canCancel: donation.status === DonationStatus.PENDING,
     allowedNextStatuses: viewer ? getAllowedNextStatuses(donation, viewer) : [],
     collectionPoint: mapPoint(donation.collectionPoint, viewer),
@@ -360,33 +364,33 @@ function buildDonationStatusNotificationContent(params: {
   switch (params.status) {
     case DonationStatus.AT_POINT:
       return {
-        title: 'Sua doacao chegou ao ponto',
-        body: `A doacao ${params.donationCode} foi recebida em ${collectionPointName}.`,
+        title: 'Sua doação chegou ao ponto',
+        body: `A doação ${params.donationCode} foi recebida em ${collectionPointName}.`,
       };
     case DonationStatus.IN_TRANSIT:
       return {
-        title: 'Sua doacao saiu para a ONG',
-        body: `A doacao ${params.donationCode} saiu de ${collectionPointName} e esta a caminho de ${ngoName}.`,
+        title: 'Sua doação saiu para a ONG',
+        body: `A doação ${params.donationCode} saiu de ${collectionPointName} e está a caminho de ${ngoName}.`,
       };
     case DonationStatus.DELIVERED:
       return {
-        title: 'Sua doacao chegou a ONG',
-        body: `A doacao ${params.donationCode} foi entregue para triagem em ${ngoName}.`,
+        title: 'Sua doação chegou à ONG',
+        body: `A doação ${params.donationCode} foi entregue para triagem em ${ngoName}.`,
       };
     case DonationStatus.DISTRIBUTED:
       return {
-        title: 'Sua doacao foi distribuida',
-        body: `A doacao ${params.donationCode} concluiu a jornada e ja foi distribuida para atendimento social.`,
+        title: 'Sua doação foi distribuída',
+        body: `A doação ${params.donationCode} concluiu a jornada e já foi distribuída para atendimento social.`,
       };
     case DonationStatus.CANCELLED:
       return {
-        title: 'Sua doacao foi cancelada',
-        body: `A doacao ${params.donationCode} foi cancelada e nao seguira para operacao logistica.`,
+        title: 'Sua doação foi cancelada',
+        body: `A doação ${params.donationCode} foi cancelada e não seguirá para operação logística.`,
       };
     default:
       return {
-        title: 'Status da doacao atualizado',
-        body: `A doacao ${params.donationCode} recebeu uma nova atualizacao na jornada.`,
+        title: 'Status da doação atualizado',
+        body: `A doação ${params.donationCode} recebeu uma nova atualização na jornada.`,
       };
   }
 }
@@ -421,14 +425,14 @@ function ensureStatusUpdateAllowed(
       donation.status !== DonationStatus.PENDING ||
       nextStatus !== DonationStatus.CANCELLED
     ) {
-      throw new ForbiddenError('O doador so pode cancelar doacoes pendentes');
+      throw new ForbiddenError('O doador só pode cancelar doações pendentes');
     }
     return;
   }
 
   if (user.role === UserRole.COLLECTION_POINT) {
     if (donation.collectionPointId !== user.id) {
-      throw new ForbiddenError('Esta doacao nao pertence ao ponto autenticado');
+      throw new ForbiddenError('Esta doação não pertence ao ponto autenticado');
     }
 
     const allowedCollectionPointStatuses: DonationStatus[] = [
@@ -437,14 +441,14 @@ function ensureStatusUpdateAllowed(
     ];
 
     if (!allowedCollectionPointStatuses.includes(nextStatus)) {
-      throw new ForbiddenError('O ponto de coleta so pode confirmar recebimento e envio');
+      throw new ForbiddenError('O ponto de coleta só pode confirmar recebimento e envio');
     }
     return;
   }
 
   if (user.role === UserRole.NGO) {
     if (donation.ngoId !== user.id) {
-      throw new ForbiddenError('Esta doacao nao pertence a ONG autenticada');
+      throw new ForbiddenError('Esta doação não pertence à ONG autenticada');
     }
 
     const allowedNgoStatuses: DonationStatus[] = [
@@ -453,12 +457,12 @@ function ensureStatusUpdateAllowed(
     ];
 
     if (!allowedNgoStatuses.includes(nextStatus)) {
-      throw new ForbiddenError('A ONG so pode concluir e distribuir a doacao');
+      throw new ForbiddenError('A ONG só pode concluir e distribuir a doação');
     }
     return;
   }
 
-  throw new ForbiddenError('Perfil sem permissao para atualizar a doacao');
+  throw new ForbiddenError('Perfil sem permissão para atualizar a doação');
 }
 
 function ensureValidTransition(currentStatus: DonationStatus, nextStatus: DonationStatus) {
@@ -467,7 +471,7 @@ function ensureValidTransition(currentStatus: DonationStatus, nextStatus: Donati
   }
 
   if (!STATUS_TRANSITIONS[currentStatus].includes(nextStatus)) {
-    throw new ConflictError(`Transicao invalida de ${currentStatus} para ${nextStatus}`);
+    throw new ConflictError(`Transição inválida de ${currentStatus} para ${nextStatus}`);
   }
 }
 
@@ -566,7 +570,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
 
       if (!partnership) {
         throw new ConflictError(
-          'Este ponto de coleta ainda nao possui uma ONG parceira ativa configurada',
+          'Este ponto de coleta ainda não possui uma ONG parceira ativa configurada',
         );
       }
 
@@ -591,7 +595,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
           timeline: {
             create: {
               status: DonationStatus.PENDING,
-              description: `Doacao registrada para ${collectionPoint.organizationName ?? collectionPoint.name}.`,
+              description: `Doação registrada para ${collectionPoint.organizationName ?? collectionPoint.name}.`,
               createdBy: request.user.id,
               location: collectionPoint.organizationName ?? collectionPoint.name,
             },
@@ -617,8 +621,8 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         {
           userId: collectionPoint.id,
           type: 'DONATION_CREATED_FOR_POINT' as const,
-          title: 'Nova doacao recebida no ponto',
-          body: `A doacao ${createdDonation.code} foi registrada e ja aguarda recebimento em ${collectionPoint.organizationName ?? collectionPoint.name}.`,
+          title: 'Nova doação recebida no ponto',
+          body: `A doação ${createdDonation.code} foi registrada e já aguarda recebimento em ${collectionPoint.organizationName ?? collectionPoint.name}.`,
           href: `/operacoes`,
           payload: {
             donationId: createdDonation.id,
@@ -629,8 +633,8 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         {
           userId: request.user.id,
           type: 'DONATION_POINTS' as const,
-          title: 'Pontuacao atualizada',
-          body: `Sua nova doacao ${createdDonation.code} adicionou +${creationPoints} pontos ao seu impacto atual.`,
+          title: 'Pontuação atualizada',
+          body: `Sua nova doação ${createdDonation.code} adicionou +${creationPoints} pontos ao seu impacto atual.`,
           href: `/rastreio/${createdDonation.id}`,
           payload: {
             donationId: createdDonation.id,
@@ -651,6 +655,13 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         })),
       ]);
 
+      await sendDonationRegisteredOperationalEmail(fastify, {
+        userId: request.user.id,
+        donationId: createdDonation.id,
+        donationCode: createdDonation.code,
+        collectionPointName: collectionPoint.organizationName ?? collectionPoint.name,
+      });
+
       return reply.code(201).send(mapDonation(createdDonation, request.user));
     } catch (err) {
       if (err instanceof AppError) {
@@ -659,7 +670,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos para registrar a doacao',
+          message: 'Dados inválidos para registrar a doação',
           issues: err.errors,
         });
       }
@@ -693,7 +704,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Parametros invalidos',
+          message: 'Parâmetros inválidos',
           issues: err.errors,
         });
       }
@@ -750,7 +761,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Parametros invalidos para a fila operacional',
+          message: 'Parâmetros inválidos para a fila operacional',
           issues: err.errors,
         });
       }
@@ -764,7 +775,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       const donation = await getAccessibleDonation(fastify, id, request.user);
 
       if (!donation) {
-        throw new NotFoundError('Doacao');
+        throw new NotFoundError('Doação');
       }
 
       return reply.send(mapDonation(donation, request.user));
@@ -782,7 +793,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       const donation = await getAccessibleDonation(fastify, id, request.user);
 
       if (!donation) {
-        throw new NotFoundError('Doacao');
+        throw new NotFoundError('Doação');
       }
 
       return reply.send({
@@ -817,7 +828,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       });
 
       if (!donation) {
-        throw new NotFoundError('Doacao');
+        throw new NotFoundError('Doação');
       }
 
       ensureStatusUpdateAllowed(donation, request.user, body.status);
@@ -886,7 +897,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
               {
                 userId: donation.donorId,
                 type: 'DONATION_POINTS' as const,
-                title: 'Pontuacao atualizada',
+                title: 'Pontuação atualizada',
                 body: `A jornada ${updatedDonation.code} acrescentou +${pointsDelta} pontos ao seu impacto.`,
                 href: `/rastreio/${updatedDonation.id}`,
                 payload: {
@@ -911,6 +922,22 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         })),
       ]);
 
+      if (updatedDonation.status !== DonationStatus.CANCELLED) {
+        await sendDonationStatusOperationalEmail(fastify, {
+          userId: donation.donorId,
+          donationId: updatedDonation.id,
+          donationCode: updatedDonation.code,
+          status: updatedDonation.status,
+          collectionPointName:
+            updatedDonation.collectionPoint?.organizationName ??
+            updatedDonation.collectionPoint?.name ??
+            null,
+          ngoName:
+            updatedDonation.ngo?.organizationName ?? updatedDonation.ngo?.name ?? null,
+          pointsDelta,
+        });
+      }
+
       return reply.send(mapDonation(updatedDonation, request.user));
     } catch (err) {
       if (err instanceof AppError) {
@@ -919,7 +946,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       if (err instanceof z.ZodError) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos para atualizar o status',
+          message: 'Dados inválidos para atualizar o status',
           issues: err.errors,
         });
       }

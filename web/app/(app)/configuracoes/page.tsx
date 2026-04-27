@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { useTheme, type ThemePref } from '@/components/layout/theme-provider';
+import { getMyProfile, updateEmailPreferences } from '@/lib/api';
 import {
   Bell,
   ChevronRight,
@@ -48,10 +50,12 @@ const quickLinks = [
 ];
 
 export default function ConfiguracoesPage() {
+  const { data: session } = useSession();
   const { theme, setTheme: applyTheme } = useTheme();
   const [notifications, setNotifications] = useState<NotificationPrefs>(DEFAULT_NOTIFICATIONS);
   const [radius, setRadius] = useState(10);
   const [saved, setSaved] = useState<string | null>(null);
+  const accessToken = session?.user?.accessToken ?? '';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -72,6 +76,24 @@ export default function ConfiguracoesPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!accessToken) return;
+
+    async function loadEmailPreference() {
+      try {
+        const profile = await getMyProfile(accessToken);
+        setNotifications((current) => ({
+          ...current,
+          email: profile.emailNotificationsEnabled,
+        }));
+      } catch {
+        /* preferência local continua disponível se o perfil não carregar */
+      }
+    }
+
+    void loadEmailPreference();
+  }, [accessToken]);
+
   function persistTheme(next: ThemePref) {
     applyTheme(next);
     flashSaved('Aparência atualizada');
@@ -83,6 +105,20 @@ export default function ConfiguracoesPage() {
       window.localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(next));
     }
     flashSaved('Notificações atualizadas');
+  }
+
+  async function persistInformationalEmailPreference(value: boolean) {
+    persistNotifications({ ...notifications, email: value });
+
+    if (!accessToken) {
+      return;
+    }
+
+    try {
+      await updateEmailPreferences({ emailNotificationsEnabled: value }, accessToken);
+    } catch {
+      flashSaved('Não foi possível salvar no servidor agora.');
+    }
   }
 
   function persistRadius(value: number) {
@@ -179,10 +215,10 @@ export default function ConfiguracoesPage() {
           />
           <ToggleRow
             icon={Mail}
-            title="E-mails informativos/operacionais"
-            description="Resumos e lembretes do app. E-mails de segurança continuam obrigatórios."
+            title="E-mails informativos"
+            description="Atualizações operacionais do app. E-mails de segurança continuam obrigatórios."
             checked={notifications.email}
-            onChange={(value) => persistNotifications({ ...notifications, email: value })}
+            onChange={(value) => void persistInformationalEmailPreference(value)}
           />
           <ToggleRow
             icon={Mail}

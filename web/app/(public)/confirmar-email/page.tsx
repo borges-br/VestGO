@@ -16,22 +16,22 @@ type Status = 'loading' | 'success' | 'missing-token' | 'invalid-token' | 'error
 const statusContent: Record<Status, { title: string; message: string }> = {
   loading: {
     title: 'Confirmando e-mail',
-    message: 'Estamos validando seu link de confirmacao.',
+    message: 'Estamos validando seu link de confirmação.',
   },
   success: {
     title: 'E-mail confirmado',
-    message: 'Tudo certo. Sua conta VestGO ja esta com o e-mail confirmado.',
+    message: 'Tudo certo. Sua conta VestGO já está com o e-mail confirmado.',
   },
   'missing-token': {
     title: 'Link incompleto',
-    message: 'Nao encontramos um token de confirmacao neste link.',
+    message: 'Não encontramos um token de confirmação neste link.',
   },
   'invalid-token': {
-    title: 'Link invalido ou expirado',
-    message: 'Solicite um novo link de confirmacao para continuar.',
+    title: 'Link inválido ou expirado',
+    message: 'Solicite um novo link de confirmação para continuar.',
   },
   error: {
-    title: 'Nao foi possivel confirmar',
+    title: 'Não foi possível confirmar',
     message: 'Tente novamente em instantes ou solicite um novo link.',
   },
 };
@@ -41,7 +41,7 @@ function getSupportMailto() {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'indefinido';
   const userAgent = navigator.userAgent.slice(0, 140);
   const appUrl = `${window.location.origin}/confirmar-email`;
-  const subject = 'Suporte VestGO - confirmacao de e-mail';
+  const subject = 'Suporte VestGO - confirmação de e-mail';
   const body = [
     'Olá, suporte.',
     '',
@@ -99,12 +99,21 @@ function ConfirmarEmailInner() {
         if (response.user.emailVerifiedAt) {
           await update({ user: { emailVerifiedAt: response.user.emailVerifiedAt } });
           window.localStorage.setItem('vestgo-email-verified-at', response.user.emailVerifiedAt);
+          window.dispatchEvent(
+            new CustomEvent('vestgo:email-verified', {
+              detail: { emailVerifiedAt: response.user.emailVerifiedAt },
+            }),
+          );
           router.refresh();
         }
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message.toLowerCase() : '';
-        setStatus(message.includes('invalido') || message.includes('expirado') ? 'invalid-token' : 'error');
+        setStatus(
+          message.includes('inválido') || message.includes('invalido') || message.includes('expirado')
+            ? 'invalid-token'
+            : 'error',
+        );
       }
     }
 
@@ -113,7 +122,7 @@ function ConfirmarEmailInner() {
     return () => {
       cancelled = true;
     };
-  }, [token, update]);
+  }, [router, token, update]);
 
   const isLoading = status === 'loading';
   const isSuccess = status === 'success';
@@ -133,14 +142,14 @@ function ConfirmarEmailInner() {
                 <Sparkles size={13} /> Conta segura
               </span>
               <h2 className="mt-5 text-3xl font-extrabold leading-tight lg:text-[2.5rem] lg:leading-[1.05]">
-                A confirmacao protege sua jornada de doacao.
+                A confirmação protege sua jornada de doação.
               </h2>
               <p className="mt-4 text-sm leading-7 text-primary-muted lg:text-base">
-                Com o e-mail validado, avisos importantes da sua conta chegam com mais confianca.
+                Com o e-mail validado, avisos importantes da sua conta chegam com mais confiança.
               </p>
             </div>
             <div className="rounded-[1.25rem] border border-white/10 bg-white/10 px-4 py-3 text-xs text-white backdrop-blur-sm">
-              Links de seguranca expiram e so podem ser usados uma vez.
+              Links de segurança expiram e só podem ser usados uma vez.
             </div>
           </div>
         </aside>
@@ -184,7 +193,7 @@ function ConfirmarEmailInner() {
 
               {!isSuccess && !isLoading && (
                 <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200">
-                  Por seguranca, nenhum dado do link foi exibido nesta tela.
+                  Por segurança, nenhum dado do link foi exibido nesta tela.
                 </div>
               )}
 
@@ -201,7 +210,7 @@ function ConfirmarEmailInner() {
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10 dark:focus-visible:ring-offset-surface-inkSoft"
                 >
                   <MailCheck size={16} />
-                  Ir para o inicio
+                  Ir para o início
                 </Link>
                 {!isSuccess && !isLoading && (
                   <a

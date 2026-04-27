@@ -273,6 +273,8 @@ export type MyProfile = {
   role: string;
   name: string;
   email: string;
+  emailVerifiedAt: string | null;
+  emailNotificationsEnabled: boolean;
   birthDate: string | null;
   phone: string | null;
   avatarUrl: string | null;
@@ -514,7 +516,7 @@ function validateProfileImageFile(file: File) {
   const contentType = inferProfileImageContentType(file);
 
   if (!contentType) {
-    throw new Error('Formato de imagem invalido. Use JPG, PNG ou WEBP.');
+    throw new Error('Formato de imagem inválido. Use JPG, PNG ou WEBP.');
   }
 
   return contentType;
@@ -530,7 +532,7 @@ function readFileAsDataUrl(file: File) {
         return;
       }
 
-      reject(new Error('Nao foi possivel ler o arquivo selecionado.'));
+      reject(new Error('Não foi possível ler o arquivo selecionado.'));
     };
 
     reader.onerror = () => reject(new Error('Falha ao processar o arquivo selecionado.'));
@@ -682,6 +684,17 @@ export async function updateMyProfile(
   accessToken: string,
 ): Promise<MyProfile> {
   return apiFetch<MyProfile>('/profiles/me', {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function updateEmailPreferences(
+  input: { emailNotificationsEnabled: boolean },
+  accessToken: string,
+): Promise<MyProfile> {
+  return apiFetch<MyProfile>('/profiles/me/email-preferences', {
     method: 'PATCH',
     body: JSON.stringify(input),
     accessToken,

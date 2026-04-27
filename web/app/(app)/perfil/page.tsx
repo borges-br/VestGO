@@ -293,7 +293,7 @@ export default function PerfilPage() {
         loading={loadingProfile}
         error={profileError}
         accessToken={session.user.accessToken}
-        emailVerifiedAt={session.user.emailVerifiedAt}
+        emailVerifiedAt={session.user.emailVerifiedAt ?? profile?.emailVerifiedAt ?? null}
         onRefreshProfile={loadOperationalProfile}
       />
     );
@@ -302,7 +302,7 @@ export default function PerfilPage() {
   const userName = session?.user?.name ?? 'Usuário';
   const userEmail = session?.user?.email ?? '';
   const userRole = session?.user?.role ?? 'DONOR';
-  const emailVerified = Boolean(session?.user?.emailVerifiedAt);
+  const emailVerified = Boolean(session?.user?.emailVerifiedAt ?? profile?.emailVerifiedAt);
   const userAvatar = session?.user?.image ?? profile?.avatarUrl ?? null;
   const initials = userName
     .split(' ')
