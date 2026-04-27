@@ -24,6 +24,7 @@ import {
   type PartnershipRecord,
 } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
+import { SafeImage } from '@/components/ui/safe-image';
 
 const PROFILE_STATE_LABELS = {
   DRAFT: 'Rascunho',
@@ -57,6 +58,16 @@ type Props = {
   emailVerifiedAt?: string | null;
   onRefreshProfile?: () => Promise<void> | void;
 };
+
+function getPublishedImages(profile: MyProfile) {
+  return (
+    profile.publishedPublicProfile ?? {
+      avatarUrl: profile.avatarUrl,
+      coverImageUrl: profile.coverImageUrl,
+      galleryImageUrls: profile.galleryImageUrls ?? [],
+    }
+  );
+}
 
 export function OperationalProfileSummary({
   profile,
@@ -244,6 +255,7 @@ export function OperationalProfileSummary({
   const title = profile.organizationName ?? profile.name;
   const subtitle = profile.role === 'NGO' ? 'ONG Parceira' : 'Ponto de Coleta';
   const emailVerified = Boolean(emailVerifiedAt);
+  const publishedImages = getPublishedImages(profile);
   const initials = title
     .split(' ')
     .map((segment) => segment[0])
@@ -254,8 +266,20 @@ export function OperationalProfileSummary({
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-shell space-y-4">
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_360px]">
-          <div className="rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="relative overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
+            {publishedImages.coverImageUrl && (
+              <>
+                <SafeImage
+                  src={publishedImages.coverImageUrl}
+                  alt={`Capa publicada de ${title}`}
+                  className="absolute inset-0"
+                  imageClassName="h-full w-full object-cover"
+                  fallback={<div className="h-full w-full bg-primary-deeper" />}
+                />
+                <div className="absolute inset-0 bg-primary-deeper/70" />
+              </>
+            )}
+            <div className="relative z-10 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
                 <Sparkles size={14} />
                 Perfil publico
@@ -265,13 +289,14 @@ export function OperationalProfileSummary({
               </span>
             </div>
 
-            <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="relative z-10 mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.75rem] bg-primary text-white shadow-sm">
-                {profile.avatarUrl ? (
-                  <img
-                    src={profile.avatarUrl}
+                {publishedImages.avatarUrl ? (
+                  <SafeImage
+                    src={publishedImages.avatarUrl}
                     alt={title}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full"
+                    fallbackLabel="Avatar indisponível"
                   />
                 ) : (
                   initials ? (
@@ -305,7 +330,7 @@ export function OperationalProfileSummary({
               </div>
             </div>
 
-            <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+            <div className="relative z-10 mt-6 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-white">Resumo institucional</p>
               <p className="mt-2 text-sm leading-7 text-primary-muted">
                 {profile.description ??
@@ -340,7 +365,7 @@ export function OperationalProfileSummary({
               </div>
             )}
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-[1.5rem] bg-white/10 p-4">
                 <p className="text-3xl font-bold">{profile.stats.handledDonations}</p>
                 <p className="mt-1 text-sm text-primary-muted">Doacoes ligadas</p>
@@ -668,14 +693,15 @@ export function OperationalProfileSummary({
 
               <div className="rounded-[1.5rem] bg-surface px-4 py-4">
                 <p className="text-sm font-semibold text-primary-deeper">Galeria publica</p>
-                {profile.galleryImageUrls.length > 0 ? (
+                {publishedImages.galleryImageUrls.length > 0 ? (
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {profile.galleryImageUrls.slice(0, 4).map((imageUrl, index) => (
-                      <img
+                    {publishedImages.galleryImageUrls.slice(0, 4).map((imageUrl, index) => (
+                      <SafeImage
                         key={imageUrl}
                         src={imageUrl}
                         alt={`Foto publica ${index + 1} de ${title}`}
-                        className="h-36 w-full rounded-[1.25rem] object-cover"
+                        className="h-36 w-full rounded-[1.25rem]"
+                        fallbackLabel="Foto indisponível"
                       />
                     ))}
                   </div>

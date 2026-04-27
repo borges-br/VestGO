@@ -23,6 +23,7 @@ import {
   type PublicProfileRevisionStatus,
   type PublicProfileState,
 } from '@/lib/api';
+import { SafeImage } from '@/components/ui/safe-image';
 
 const STATUS_ICONS = {
   DRAFT: <FileWarning className="w-5 h-5 text-gray-400" />,
@@ -42,6 +43,177 @@ const ROLE_LABELS = {
   COLLECTION_POINT: 'Ponto de Coleta',
   NGO: 'ONG',
 };
+
+function getPendingImages(profile: AdminProfileRecord) {
+  const payload = profile.pendingPublicRevision?.payload;
+
+  return {
+    avatarUrl:
+      payload && 'avatarUrl' in payload
+        ? (payload.avatarUrl ?? null)
+        : profile.avatarUrl,
+    coverImageUrl:
+      payload && 'coverImageUrl' in payload
+        ? (payload.coverImageUrl ?? null)
+        : profile.coverImageUrl,
+    galleryImageUrls:
+      payload && Array.isArray(payload.galleryImageUrls)
+        ? payload.galleryImageUrls.filter((item): item is string => typeof item === 'string')
+        : profile.galleryImageUrls,
+  };
+}
+
+function imageChangeLabel(current: string | null, pending: string | null) {
+  if (!current && pending) return 'Imagem adicionada';
+  if (current && !pending) return 'Imagem removida';
+  if (current !== pending) return 'Imagem alterada';
+  return 'Sem alteração visual';
+}
+
+function galleryChangeLabel(current: string[], pending: string[]) {
+  if (current.length === 0 && pending.length > 0) return 'Galeria adicionada';
+  if (current.length > 0 && pending.length === 0) return 'Galeria removida';
+  if (JSON.stringify(current) !== JSON.stringify(pending)) return 'Galeria alterada';
+  return 'Sem alteração visual';
+}
+
+function MediaCompareCard({
+  title,
+  current,
+  pending,
+  alt,
+}: {
+  title: string;
+  current: string | null;
+  pending: string | null;
+  alt: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-deeper">{title}</p>
+        <span className="rounded-full bg-surface px-2.5 py-1 text-[10px] font-semibold text-gray-500">
+          {imageChangeLabel(current, pending)}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+            Atual
+          </p>
+          <SafeImage
+            src={current}
+            alt={`${alt} atual`}
+            className="h-28 rounded-xl border border-gray-100"
+            fallbackLabel="Sem imagem"
+          />
+        </div>
+        <div>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+            Pendente
+          </p>
+          <SafeImage
+            src={pending}
+            alt={`${alt} pendente`}
+            className="h-28 rounded-xl border border-amber-100"
+            fallbackLabel={pending ? 'Imagem indisponível' : 'Sem imagem'}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GalleryCompare({
+  current,
+  pending,
+  title,
+}: {
+  current: string[];
+  pending: string[];
+  title: string;
+}) {
+  const renderGallery = (images: string[], label: string) => (
+    <div>
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+        {label}
+      </p>
+      {images.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2">
+          {images.slice(0, 6).map((imageUrl, index) => (
+            <SafeImage
+              key={`${label}-${imageUrl}`}
+              src={imageUrl}
+              alt={`${title} ${label.toLowerCase()} ${index + 1}`}
+              className="h-20 rounded-xl border border-gray-100"
+              fallbackLabel="Falhou"
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex h-20 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-surface px-3 text-center text-xs font-semibold text-gray-400">
+          Sem fotos
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-deeper">
+          Galeria
+        </p>
+        <span className="rounded-full bg-surface px-2.5 py-1 text-[10px] font-semibold text-gray-500">
+          {galleryChangeLabel(current, pending)}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {renderGallery(current, 'Atual')}
+        {renderGallery(pending, 'Pendente')}
+      </div>
+    </div>
+  );
+}
+
+function RevisionMediaComparison({ profile }: { profile: AdminProfileRecord }) {
+  if (!profile.pendingPublicRevision) {
+    return null;
+  }
+
+  const title = profile.organizationName || profile.name;
+  const pending = getPendingImages(profile);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+      <p className="text-sm font-semibold text-primary-deeper">Imagens atuais vs pendentes</p>
+      <p className="mt-1 text-xs leading-5 text-gray-500">
+        A coluna pendente mostra exatamente o que será publicado se o admin aprovar a revisão.
+      </p>
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        <MediaCompareCard
+          title="Avatar"
+          current={profile.avatarUrl}
+          pending={pending.avatarUrl}
+          alt={`Avatar de ${title}`}
+        />
+        <MediaCompareCard
+          title="Capa"
+          current={profile.coverImageUrl}
+          pending={pending.coverImageUrl}
+          alt={`Capa de ${title}`}
+        />
+      </div>
+      <div className="mt-3">
+        <GalleryCompare
+          current={profile.galleryImageUrls}
+          pending={pending.galleryImageUrls}
+          title={`Galeria de ${title}`}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function AdminPerfisPage() {
   const { data: session, status } = useSession();
@@ -296,6 +468,7 @@ export default function AdminPerfisPage() {
                       Observacao anterior: {profile.pendingPublicRevision.reviewNotes}
                     </p>
                   )}
+                  <RevisionMediaComparison profile={profile} />
                 </div>
               )}
             </div>
