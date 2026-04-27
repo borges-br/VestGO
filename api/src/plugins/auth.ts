@@ -21,8 +21,17 @@ export default fp(async (fastify) => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         await request.jwtVerify();
+
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+          select: { anonymizedAt: true },
+        });
+
+        if (!user || user.anonymizedAt) {
+          return reply.code(401).send({ error: 'Unauthorized' });
+        }
       } catch (err) {
-        reply.code(401).send({ error: 'Unauthorized' });
+        return reply.code(401).send({ error: 'Unauthorized' });
       }
     },
   );

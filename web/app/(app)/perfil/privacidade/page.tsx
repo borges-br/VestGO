@@ -25,6 +25,7 @@ import {
   getMyProfile,
   getNotifications,
   getUserDonations,
+  requestAccountDeletion,
   requestEmailVerification,
   type DonationRecord,
   type MyProfile,
@@ -148,12 +149,17 @@ export default function PrivacidadePage() {
     newPassword: '',
     confirmPassword: '',
   });
+  const [deletionConfirmation, setDeletionConfirmation] = useState('');
+  const [deletionError, setDeletionError] = useState<string | null>(null);
+  const [deletionSuccess, setDeletionSuccess] = useState<string | null>(null);
+  const [requestingDeletion, setRequestingDeletion] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [changingPassword, setChangingPassword] = useState(false);
 
   const accessToken = session?.user?.accessToken ?? '';
   const emailVerified = Boolean(session?.user?.emailVerifiedAt);
+  const canSelfDelete = session?.user?.role === 'DONOR';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -371,6 +377,43 @@ export default function PrivacidadePage() {
     }
   }
 
+  async function handleRequestAccountDeletion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDeletionError(null);
+    setDeletionSuccess(null);
+
+    if (!canSelfDelete) {
+      setDeletionError('Este tipo de conta precisa de revisão manual do suporte.');
+      return;
+    }
+
+    if (deletionConfirmation !== 'ENCERRAR') {
+      setDeletionError('Digite ENCERRAR para solicitar o e-mail de confirmação.');
+      return;
+    }
+
+    if (!accessToken) {
+      setDeletionError('Sessão não encontrada. Entre novamente para solicitar o encerramento.');
+      return;
+    }
+
+    setRequestingDeletion(true);
+
+    try {
+      const response = await requestAccountDeletion(accessToken);
+      setDeletionSuccess(response.message);
+      setDeletionConfirmation('');
+    } catch (error) {
+      setDeletionError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível solicitar o encerramento agora.',
+      );
+    } finally {
+      setRequestingDeletion(false);
+    }
+  }
+
   return (
     <div className="pb-10">
       <section className="px-5 pt-6 pb-4">
@@ -524,8 +567,8 @@ export default function PrivacidadePage() {
                 Encerrar ou excluir conta
               </p>
               <p className="mt-1 text-xs leading-relaxed text-red-600/80 dark:text-red-200/80">
-                A exclusão real entra na próxima etapa. Por enquanto, solicite suporte para casos
-                urgentes.
+                Doadores podem solicitar encerramento por e-mail. Perfis operacionais passam por
+                revisão manual do suporte.
               </p>
             </div>
             <button
@@ -534,7 +577,7 @@ export default function PrivacidadePage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:bg-red-950/50 dark:text-red-100 dark:hover:bg-red-900/60"
             >
               <Trash2 size={15} />
-              Ver opções
+              Encerrar conta
             </button>
           </div>
         </div>
@@ -717,20 +760,87 @@ export default function PrivacidadePage() {
 
       {activeModal === 'danger' && (
         <Modal title="Encerrar conta" titleId="danger-title" onClose={() => setActiveModal(null)}>
-          <div className="space-y-4">
-            <InfoBlock
-              icon={AlertTriangle}
-              title="Exclusão real ainda não está ativa"
-              description="Para evitar uma ação incompleta ou destrutiva sem revisão, esta etapa mostra apenas o caminho de suporte até implementarmos o fluxo seguro de exclusão."
-              danger
-            />
-            <a
-              href="mailto:suporte@mosfet.com.br?subject=Solicitar%20encerramento%20de%20conta%20VestGO"
-              className="inline-flex w-full items-center justify-center rounded-xl bg-primary-deeper px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            >
-              Solicitar suporte
-            </a>
-          </div>
+          {canSelfDelete ? (
+            <form onSubmit={(event) => void handleRequestAccountDeletion(event)} className="space-y-4">
+              <InfoBlock
+                icon={AlertTriangle}
+                title="Confirmação por e-mail obrigatória"
+                description="Ao confirmar o link enviado por e-mail, seu acesso será encerrado e seus dados pessoais serão anonimizados. Doações e rastreios podem permanecer como histórico operacional não pessoal."
+                danger
+              />
+
+              <div className="space-y-2">
+                <label htmlFor="account-deletion-confirmation" className="text-sm font-semibold text-on-surface dark:text-white">
+                  Digite ENCERRAR para receber o link de confirmação
+                </label>
+                <input
+                  id="account-deletion-confirmation"
+                  value={deletionConfirmation}
+                  onChange={(event) => {
+                    setDeletionConfirmation(event.target.value);
+                    setDeletionError(null);
+                    setDeletionSuccess(null);
+                  }}
+                  aria-invalid={Boolean(deletionError)}
+                  aria-describedby="account-deletion-feedback"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-red-500 focus-visible:ring-2 focus-visible:ring-red-500/30 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                />
+              </div>
+
+              {deletionError && (
+                <p
+                  id="account-deletion-feedback"
+                  role="alert"
+                  className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200"
+                >
+                  {deletionError}
+                </p>
+              )}
+              {deletionSuccess && (
+                <p
+                  id="account-deletion-feedback"
+                  aria-live="polite"
+                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200"
+                >
+                  {deletionSuccess}
+                </p>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:border-gray-700 dark:text-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={requestingDeletion || deletionConfirmation !== 'ENCERRAR'}
+                  aria-busy={requestingDeletion}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                >
+                  {requestingDeletion && <Loader2 size={15} className="animate-spin" />}
+                  {requestingDeletion ? 'Enviando...' : 'Enviar e-mail de confirmação'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <InfoBlock
+                icon={AlertTriangle}
+                title="Encerramento com revisão manual"
+                description="Contas de ponto de coleta, ONG e administrador podem ter vínculos operacionais, perfis públicos, parcerias e governança. Por isso, o encerramento self-service não está liberado para este perfil."
+                danger
+              />
+              <a
+                href="mailto:suporte@mosfet.com.br?subject=Solicitar%20encerramento%20de%20conta%20VestGO"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-primary-deeper px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Solicitar suporte
+              </a>
+            </div>
+          )}
         </Modal>
       )}
     </div>

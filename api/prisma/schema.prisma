@@ -72,6 +72,7 @@ enum PublicProfileRevisionStatus {
 enum UserTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  ACCOUNT_DELETION
 }
 
 model User {
@@ -88,6 +89,7 @@ model User {
   cpf                       String?   @unique
   emailVerifiedAt           DateTime?
   emailNotificationsEnabled Boolean   @default(true)
+  anonymizedAt              DateTime?
 
   organizationName                 String?
   cnpj                             String?                      @unique
