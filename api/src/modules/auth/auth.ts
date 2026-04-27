@@ -16,7 +16,12 @@ import {
   passwordResetTemplate,
 } from '../../shared/email-templates';
 import { enforceRateLimit } from '../../shared/rate-limit';
-import { consumeUserToken, createUserToken } from '../../shared/user-tokens';
+import {
+  consumeUserToken,
+  consumeUserTokenWithDiagnostics,
+  createUserToken,
+  getTokenHashPrefix,
+} from '../../shared/user-tokens';
 import { getInitialProfileState } from '../profiles/profile-shared';
 
 const SALT_ROUNDS = 12;
@@ -47,7 +52,7 @@ const refreshSchema = z.object({
 });
 
 const tokenSchema = z.object({
-  token: z.string().min(24),
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
 
 const requestPasswordResetSchema = z.object({
@@ -360,13 +365,21 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
 
       const { token } = tokenSchema.parse(request.body);
-      const consumed = await consumeUserToken({
+      const consumed = await consumeUserTokenWithDiagnostics({
         prisma: fastify.prisma,
         type: UserTokenType.EMAIL_VERIFICATION,
         token,
       });
 
-      if (!consumed) {
+      if (!consumed.ok) {
+        fastify.log.warn(
+          {
+            tokenType: UserTokenType.EMAIL_VERIFICATION,
+            tokenHashPrefix: consumed.tokenHashPrefix,
+            reason: consumed.reason,
+          },
+          'Email verification token rejected',
+        );
         throw new AppError('Link de confirmacao invalido ou expirado.', 400, 'INVALID_TOKEN');
       }
 
@@ -386,10 +399,24 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
 
       if (err instanceof z.ZodError) {
-        return reply.code(422).send({
-          error: 'VALIDATION_ERROR',
-          message: 'Dados invalidos',
-          issues: err.errors,
+        const body = request.body;
+        const token = typeof body === 'object' && body !== null && 'token' in body
+          ? (body as { token?: unknown }).token
+          : null;
+
+        fastify.log.warn(
+          {
+            tokenType: UserTokenType.EMAIL_VERIFICATION,
+            tokenHashPrefix: typeof token === 'string' ? getTokenHashPrefix(token) : null,
+            reason: 'VALIDATION_FAILED',
+          },
+          'Email verification token rejected',
+        );
+
+        return reply.code(400).send({
+          error: 'INVALID_TOKEN',
+          message: 'Link de confirmacao invalido ou expirado.',
+          statusCode: 400,
         });
       }
 

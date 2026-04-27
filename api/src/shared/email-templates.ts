@@ -21,7 +21,7 @@ function escapeHtml(value: string) {
 function buildLayout(title: string, body: string, action?: { label: string; url: string }) {
   const safeTitle = escapeHtml(title);
   const actionHtml = action
-    ? `<p style="margin:28px 0"><a href="${escapeHtml(action.url)}" style="display:inline-block;background:#006a62;color:#ffffff;text-decoration:none;padding:14px 20px;border-radius:12px;font-weight:700">${escapeHtml(action.label)}</a></p>`
+    ? `<p style="margin:28px 0 12px"><a href="${escapeHtml(action.url)}" style="display:inline-block;background-color:#006a62;color:#ffffff;text-decoration:none;padding:14px 20px;border-radius:12px;font-weight:700;line-height:1.2;border:1px solid #006a62">${escapeHtml(action.label)}</a></p><p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">Se o botao nao abrir, copie e cole este link no navegador:<br><a href="${escapeHtml(action.url)}" style="color:#006a62;text-decoration:underline;word-break:break-all">${escapeHtml(action.url)}</a></p>`
     : '';
 
   return `<!doctype html>
