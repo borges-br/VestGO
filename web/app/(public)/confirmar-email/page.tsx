@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowRight, CheckCircle, Loader2, MailCheck, Sparkles, XCircle } from 'lucide-react';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { VestgoLogo } from '@/components/branding/vestgo-logo';
 import { AuthSplitScene } from '@/components/ui/auth-split-scene';
@@ -41,6 +41,7 @@ function ConfirmarEmailInner() {
   const token = searchParams.get('token') ?? '';
   const { update } = useSession();
   const [status, setStatus] = useState<Status>('loading');
+  const verificationStartedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +51,12 @@ function ConfirmarEmailInner() {
         setStatus('missing-token');
         return;
       }
+
+      if (verificationStartedRef.current) {
+        return;
+      }
+
+      verificationStartedRef.current = true;
 
       try {
         const response = await verifyEmail(token);
