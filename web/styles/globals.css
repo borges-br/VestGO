@@ -11,6 +11,10 @@
     --mobile-nav-height: 5.25rem;
   }
 
+  .dark {
+    color-scheme: dark;
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;

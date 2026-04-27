@@ -11,10 +11,42 @@ export type ImpactBadge = {
   progressLabel?: string;
 };
 
+export type DonorLevel = {
+  name: string;
+  /** Tailwind color token suffix used for chip bg/text (e.g. 'primary', 'amber', 'emerald') */
+  color: 'gray' | 'primary' | 'emerald' | 'amber' | 'indigo' | 'violet' | 'rose';
+  minPoints: number;
+  /** Threshold of the next level (undefined = max level reached) */
+  nextThreshold?: number;
+};
+
+export const DONOR_LEVELS: DonorLevel[] = [
+  { name: 'Futuro Doador',           color: 'gray',    minPoints: 0,    nextThreshold: 50 },
+  { name: 'Doador Iniciante',        color: 'primary',  minPoints: 50,   nextThreshold: 150 },
+  { name: 'Semeador Solidário',      color: 'emerald', minPoints: 150,  nextThreshold: 350 },
+  { name: 'Agente do Bem',           color: 'amber',   minPoints: 350,  nextThreshold: 700 },
+  { name: 'Multiplicador Solidário', color: 'indigo',  minPoints: 700,  nextThreshold: 1200 },
+  { name: 'Guardião da Generosidade',color: 'violet',  minPoints: 1200, nextThreshold: 2000 },
+  { name: 'Embaixador do Impacto',   color: 'rose',    minPoints: 2000 },
+];
+
+export function getDonorLevel(points: number): DonorLevel {
+  const level = [...DONOR_LEVELS].reverse().find((l) => points >= l.minPoints);
+  return level ?? DONOR_LEVELS[0];
+}
+
 export type ImpactSnapshot = {
   points: number;
   pointsLabel: string;
   levelTitle: string;
+  /** Short, human-readable level name (e.g. "Semeador Solidário") */
+  levelName: string;
+  /** Tailwind color key for the level chip */
+  levelColor: DonorLevel['color'];
+  /** Progress within the current level (0–1) */
+  levelProgress: number;
+  /** Points needed to reach the next level (0 if already at max) */
+  pointsToNextLevel: number;
   nextMilestone: {
     label: string;
     current: number;
@@ -67,11 +99,11 @@ export type PostDonationReward = {
 
 const MONTHLY_GOAL_TARGET = 4;
 const POINT_MILESTONES = [
-  { label: 'Primeiro marco solidario', target: 120 },
-  { label: 'Constancia em evolucao', target: 300 },
-  { label: 'Guardiao da recorrencia', target: 500 },
+  { label: 'Primeiro marco solidário', target: 120 },
+  { label: 'Constância em evolução', target: 300 },
+  { label: 'Guardião da recorrência', target: 500 },
   { label: 'Solidariedade recorrente', target: 800 },
-  { label: 'Referencia comunitaria', target: 1200 },
+  { label: 'Referência comunitária', target: 1200 },
 ];
 
 const STATUS_POINTS: Record<DonationStatus, number> = {
@@ -123,24 +155,22 @@ function getMonthlyStreak(donations: DonationRecord[]) {
   return streak;
 }
 
+/** Legacy descriptive title — kept for backward compat with any existing usage */
 function getLevelTitle(points: number) {
-  if (points >= 1200) {
-    return 'Constancia que multiplica a solidariedade';
-  }
+  const level = getDonorLevel(points);
+  return level.name;
+}
 
-  if (points >= 800) {
-    return 'Solidariedade recorrente em consolidacao';
+function computeLevelProgress(points: number, level: DonorLevel): { progress: number; pointsToNext: number } {
+  if (!level.nextThreshold) {
+    return { progress: 1, pointsToNext: 0 };
   }
-
-  if (points >= 300) {
-    return 'Participacao com ritmo consistente';
-  }
-
-  if (points >= 120) {
-    return 'Primeiros marcos solidarios';
-  }
-
-  return 'Primeiros passos solidarios';
+  const range = level.nextThreshold - level.minPoints;
+  const gained = points - level.minPoints;
+  return {
+    progress: Math.min(1, gained / range),
+    pointsToNext: Math.max(0, level.nextThreshold - points),
+  };
 }
 
 function getNextMilestone(points: number) {
@@ -148,10 +178,10 @@ function getNextMilestone(points: number) {
 
   if (!next) {
     return {
-      label: 'Referencia comunitaria',
+      label: 'Referência comunitária',
       current: points,
       target: points,
-      note: 'Voce ja ultrapassou os marcos iniciais desta fase.',
+      note: 'Você já ultrapassou os marcos iniciais desta fase.',
     };
   }
 
@@ -159,7 +189,7 @@ function getNextMilestone(points: number) {
     label: next.label,
     current: points,
     target: next.target,
-    note: `Faltam ${next.target - points} pontos para o proximo marco.`,
+    note: `Faltam ${next.target - points} pontos para o próximo marco.`,
   };
 }
 
@@ -184,33 +214,39 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
   ).size;
   const streakMonths = getMonthlyStreak(ordered);
   const nextMilestone = getNextMilestone(totalPoints);
+  const level = getDonorLevel(totalPoints);
+  const { progress: levelProgress, pointsToNext: pointsToNextLevel } = computeLevelProgress(totalPoints, level);
 
   return {
     points: totalPoints,
-    pointsLabel: 'Pontos solidarios',
+    pointsLabel: 'Pontos solidários',
     levelTitle: getLevelTitle(totalPoints),
+    levelName: level.name,
+    levelColor: level.color,
+    levelProgress,
+    pointsToNextLevel,
     nextMilestone,
     monthlyGoal: {
-      label: 'Meta do mes',
+      label: 'Meta do mês',
       current: monthlyDonations,
       target: MONTHLY_GOAL_TARGET,
       note:
         monthlyDonations === 0
-          ? 'Sua meta mensal comeca na primeira doacao registrada.'
-          : 'Meta calculada a partir das doacoes reais deste mes.',
+          ? 'Sua meta mensal começa na primeira doação registrada.'
+          : 'Meta calculada a partir das doações reais deste mês.',
     },
     streak: {
       value: streakMonths,
-      label: 'meses consecutivos com participacao',
-      note: 'A constancia considera meses seguidos com ao menos uma doacao registrada.',
+      label: 'meses consecutivos com participação',
+      note: 'A constância considera meses seguidos com ao menos uma doação registrada.',
     },
     ranking: {
       position: null,
       scope: 'comunidade local',
-      note: 'Ranking opt-in segue preparado para uma integracao futura com dados de comunidade.',
+      note: 'Ranking opt-in segue preparado para uma integração futura com dados de comunidade.',
     },
     stats: [
-      { value: String(completed.length), label: 'doacoes concluidas' },
+      { value: String(completed.length), label: 'doações concluídas' },
       { value: String(itemCount), label: 'itens registrados' },
       { value: String(usedDropOffPoints), label: 'pontos parceiros usados' },
       { value: String(active.length), label: 'jornadas em andamento' },
@@ -219,22 +255,22 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
       {
         id: 'first-donation',
         label: 'Primeira entrega',
-        description: 'Reconhece a primeira doacao registrada na plataforma.',
+        description: 'Reconhece a primeira doação registrada na plataforma.',
         tone: 'primary',
         earned: ordered.length >= 1,
       },
       {
         id: 'tracked-impact',
         label: 'Jornada rastreada',
-        description: 'Doacao acompanhada ate uma etapa real da jornada logistica.',
+        description: 'Doação acompanhada até uma etapa real da jornada logística.',
         tone: 'indigo',
         earned: tracked.length >= 1,
         progressLabel: tracked.length === 0 ? 'Aguardando a primeira jornada acompanhada' : undefined,
       },
       {
         id: 'steady-donor',
-        label: 'Constancia solidaria',
-        description: 'Participacao recorrente em mais de um ciclo mensal.',
+        label: 'Constância solidária',
+        description: 'Participação recorrente em mais de um ciclo mensal.',
         tone: 'emerald',
         earned: streakMonths >= 2,
         progressLabel: streakMonths < 2 ? `${streakMonths} de 2 meses consecutivos` : undefined,
@@ -255,7 +291,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
       title: donation.itemLabel,
       detail:
         donation.latestEvent?.description ??
-        'Doacao registrada e pronta para acompanhar.',
+        'Doação registrada e pronta para acompanhar.',
       date: formatDateLabel(donation.createdAt),
       points: `+${donation.pointsAwarded} pts`,
     })),
@@ -270,8 +306,8 @@ export function buildPostDonationReward(donations: DonationRecord[]): PostDonati
 
   return {
     points: predictedPoints,
-    label: 'Pontuacao prevista desta entrega',
-    note: 'Ao registrar a doacao, seu progresso passa a refletir esta nova jornada no sistema.',
+    label: 'Pontuação prevista desta entrega',
+    note: 'Ao registrar a doação, seu progresso passa a refletir esta nova jornada no sistema.',
     milestone: {
       label: nextMilestone.label,
       current: currentPointsAfterCreate,

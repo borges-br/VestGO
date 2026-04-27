@@ -12,11 +12,23 @@ import {
   Sparkles,
   Target,
   Truck,
+  TrendingUp,
 } from 'lucide-react';
 import type { CollectionPoint, DonationRecord, DonationStatus } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
-import { buildImpactSnapshot } from '@/lib/gamification';
+import { buildImpactSnapshot, type DonorLevel } from '@/lib/gamification';
 import { cn } from '@/lib/utils';
+
+/** Map DonorLevel color token → Tailwind utility classes for the chip and progress bar */
+const LEVEL_CHIP_STYLES: Record<DonorLevel['color'], { bg: string; text: string; ring: string; bar: string }> = {
+  gray:    { bg: 'bg-gray-100',       text: 'text-gray-600',       ring: 'ring-gray-200',    bar: 'bg-gray-300' },
+  primary: { bg: 'bg-primary-light',  text: 'text-primary-deeper', ring: 'ring-primary/20',  bar: 'bg-primary-muted' },
+  emerald: { bg: 'bg-emerald-50',     text: 'text-emerald-700',    ring: 'ring-emerald-200', bar: 'bg-emerald-300' },
+  amber:   { bg: 'bg-amber-50',       text: 'text-amber-700',      ring: 'ring-amber-200',   bar: 'bg-amber-300' },
+  indigo:  { bg: 'bg-indigo-50',      text: 'text-indigo-700',     ring: 'ring-indigo-200',  bar: 'bg-indigo-300' },
+  violet:  { bg: 'bg-violet-50',      text: 'text-violet-700',     ring: 'ring-violet-200',  bar: 'bg-violet-300' },
+  rose:    { bg: 'bg-rose-50',        text: 'text-rose-700',       ring: 'ring-rose-200',    bar: 'bg-rose-300' },
+};
 
 const CATEGORY_LABELS: Record<string, string> = {
   CLOTHING: 'Roupas',
@@ -160,10 +172,39 @@ export function DonorHome({ firstName, donations, nearbyPoints }: DonorHomeProps
                     pontos
                   </span>
                 </h1>
-                <p className="mt-4 max-w-xl text-base leading-7 text-gray-600">
-                  {snapshot.levelTitle}. Continue doando para manter o ritmo e alcançar o
-                  próximo marco.
-                </p>
+
+                {/* Level chip + progress to next level */}
+                {(() => {
+                  const chip = LEVEL_CHIP_STYLES[snapshot.levelColor];
+                  return (
+                    <div className="mt-4 flex flex-col gap-2">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ring-1',
+                            chip.bg, chip.text, chip.ring,
+                          )}
+                        >
+                          <TrendingUp size={11} />
+                          {snapshot.levelName}
+                        </span>
+                        {snapshot.pointsToNextLevel > 0 && (
+                          <span className="text-xs text-gray-400">
+                            +{snapshot.pointsToNextLevel} pts para o próximo nível
+                          </span>
+                        )}
+                      </div>
+                      {snapshot.levelProgress < 1 && (
+                        <div className="h-1.5 w-48 overflow-hidden rounded-full bg-gray-100">
+                          <div
+                            className={cn('h-full rounded-full transition-all duration-700', chip.bar)}
+                            style={{ width: `${Math.round(snapshot.levelProgress * 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Inline metric chips — flowing, not boxed */}

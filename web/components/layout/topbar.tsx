@@ -18,25 +18,28 @@ interface TopBarProps {
   unreadCount: number;
   notifPreview: AppNotification[];
   onNotifRead: (id: string) => Promise<void>;
+  onMarkAllRead: () => Promise<void>;
 }
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return 'agora';
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `ha ${minutes}min`;
+  if (minutes < 60) return `há ${minutes}min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `ha ${hours}h`;
+  if (hours < 24) return `há ${hours}h`;
   const days = Math.floor(hours / 24);
-  return `ha ${days}d`;
+  return `há ${days}d`;
 }
 
-export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: TopBarProps) {
+export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onMarkAllRead }: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [hiddenOnMobile, setHiddenOnMobile] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const lastScrollRef = useRef(0);
 
   const userName = session?.user?.name ?? 'VestGO';
   const userRole = session?.user?.role ?? 'DONOR';
@@ -67,25 +70,66 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
     setDropdownOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const SCROLL_THRESHOLD = 12;
+    const REVEAL_AT_TOP = 40;
+    let ticking = false;
+
+    function handleScroll() {
+      if (ticking) return;
+      ticking = true;
+
+      window.requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const delta = currentY - lastScrollRef.current;
+
+        if (currentY <= REVEAL_AT_TOP) {
+          setHiddenOnMobile(false);
+        } else if (delta > SCROLL_THRESHOLD) {
+          setHiddenOnMobile(true);
+        } else if (delta < -SCROLL_THRESHOLD) {
+          setHiddenOnMobile(false);
+        }
+
+        lastScrollRef.current = currentY;
+        ticking = false;
+      });
+    }
+
+    lastScrollRef.current = window.scrollY;
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    setHiddenOnMobile(false);
+  }, [pathname]);
+
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl">
+    <header
+      className={`fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl transition-transform duration-300 ease-out dark:border-white/10 dark:bg-surface-inkSoft/95 dark:shadow-none md:translate-y-0 ${
+        hiddenOnMobile ? '-translate-y-full' : 'translate-y-0'
+      }`}
+    >
       <div className="mx-auto flex h-topbar max-w-shell items-center gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-[1.1]">
           <Link href="/inicio" className="flex min-w-0 items-center gap-3">
             <VestgoMark className="h-11 w-11" />
             <div className="min-w-0">
-              <p className="truncate text-lg font-bold tracking-tight text-primary-deeper">
+              <p className="truncate text-lg font-bold tracking-tight text-primary-deeper dark:text-primary-muted">
                 VestGO
               </p>
-              <p className="hidden text-[11px] uppercase tracking-[0.28em] text-gray-400 lg:block">
-                Doacoes rastreaveis
+              <p className="hidden text-[11px] uppercase tracking-[0.28em] text-gray-400 dark:text-gray-500 lg:block">
+                Doações rastreáveis
               </p>
             </div>
           </Link>
         </div>
 
         <nav className="hidden flex-1 items-center justify-center md:flex">
-          <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white/85 p-1 shadow-sm">
+          <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white/85 p-1 shadow-sm dark:border-white/10 dark:bg-surface-ink/80 dark:shadow-none">
             {primaryNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavigationItemActive(pathname, item);
@@ -96,8 +140,8 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
                   href={item.href}
                   className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors lg:px-5 ${
                     isActive
-                      ? 'bg-primary-deeper text-white'
-                      : 'text-gray-500 hover:bg-surface hover:text-primary-deeper'
+                      ? 'bg-primary-deeper text-white dark:bg-primary dark:text-white'
+                      : 'text-gray-500 hover:bg-surface hover:text-primary-deeper dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-primary-muted'
                   }`}
                 >
                   <Icon size={16} />
@@ -112,9 +156,9 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
           <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setDropdownOpen((value) => !value)}
-              aria-label="Abrir notificacoes"
+              aria-label="Abrir notificações"
               aria-expanded={dropdownOpen}
-              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary"
+              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-300 dark:shadow-none dark:hover:border-primary-muted/40 dark:hover:text-primary-muted"
             >
               <Bell size={18} />
               {unreadCount > 0 && (
@@ -125,19 +169,23 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
             </button>
 
             {dropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[19rem] overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-panel">
-                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                  <p className="text-sm font-bold text-on-surface">Notificacoes</p>
+              <div className="absolute right-0 top-full mt-2 w-[19rem] overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-panel dark:border-white/10 dark:bg-surface-inkSoft">
+                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-white/10">
+                  <p className="text-sm font-bold text-on-surface dark:text-gray-100">Notificações</p>
                   {unreadCount > 0 && (
-                    <span className="rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-semibold text-primary">
-                      {unreadCount} novas
-                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => { await onMarkAllRead(); }}
+                      className="rounded-full bg-primary-light px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary hover:text-white dark:bg-primary/20 dark:text-primary-muted dark:hover:bg-primary dark:hover:text-white"
+                    >
+                      Ler todas
+                    </button>
                   )}
                 </div>
 
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-gray-50 dark:divide-white/5">
                   {notifPreview.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-gray-400">Nenhuma notificacao</p>
+                    <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Nenhuma notificação</p>
                   ) : (
                     notifPreview.map((notification) => (
                       <button
@@ -149,8 +197,8 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
                             router.push(notification.href);
                           }
                         }}
-                        className={`w-full px-4 py-3 text-left transition-colors hover:bg-surface ${
-                          !notification.read ? 'bg-primary-light/30' : ''
+                        className={`w-full px-4 py-3 text-left transition-colors hover:bg-surface dark:hover:bg-white/5 ${
+                          !notification.read ? 'bg-primary-light/30 dark:bg-primary/10' : ''
                         }`}
                       >
                         <div className="flex items-start gap-2">
@@ -158,13 +206,13 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
                             <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
                           )}
                           <div className={`min-w-0 flex-1 ${notification.read ? 'pl-3.5' : ''}`}>
-                            <p className="truncate text-xs font-semibold leading-snug text-on-surface">
+                            <p className="truncate text-xs font-semibold leading-snug text-on-surface dark:text-gray-100">
                               {notification.title}
                             </p>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-gray-400">
+                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-gray-400 dark:text-gray-400">
                               {notification.body}
                             </p>
-                            <p className="mt-1 text-[10px] text-gray-300">
+                            <p className="mt-1 text-[10px] text-gray-300 dark:text-gray-500">
                               {timeAgo(notification.createdAt)}
                             </p>
                           </div>
@@ -174,13 +222,13 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
                   )}
                 </div>
 
-                <div className="border-t border-gray-100">
+                <div className="border-t border-gray-100 dark:border-white/10">
                   <Link
                     href="/notificacoes"
                     onClick={() => setDropdownOpen(false)}
-                    className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary-light"
+                    className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary-light dark:text-primary-muted dark:hover:bg-primary/10"
                   >
-                    Ver todas as notificacoes
+                    Ver todas as notificações
                     <ChevronRight size={13} />
                   </Link>
                 </div>
@@ -190,17 +238,17 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
 
           <button
             onClick={onMenuOpen}
-            aria-label="Abrir menu de conta e configuracoes"
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary"
+            aria-label="Abrir menu de conta e configurações"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-300 dark:shadow-none dark:hover:border-primary-muted/40 dark:hover:text-primary-muted"
           >
             <Settings2 size={18} />
           </button>
 
           <Link
             href="/perfil"
-            className="hidden items-center gap-3 rounded-2xl border border-gray-200 bg-white py-1.5 pl-2 pr-3 shadow-sm transition-colors hover:border-primary/30 sm:flex"
+            className="hidden items-center gap-3 rounded-2xl border border-gray-200 bg-white py-1.5 pl-2 pr-3 shadow-sm transition-colors hover:border-primary/30 dark:border-white/10 dark:bg-surface-ink dark:shadow-none dark:hover:border-primary-muted/40 sm:flex"
           >
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-primary-light text-sm font-semibold text-primary">
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-primary-light text-sm font-semibold text-primary dark:bg-primary/20 dark:text-primary-muted">
               {userImage ? (
                 <img src={userImage} alt={userName} className="h-full w-full object-cover" />
               ) : (
@@ -208,8 +256,8 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead }: T
               )}
             </div>
             <div className="hidden leading-tight lg:block">
-              <p className="text-sm font-semibold text-on-surface">{firstName}</p>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{firstName}</p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">
                 {ROLE_LABELS[userRole] ?? userRole}
               </p>
             </div>

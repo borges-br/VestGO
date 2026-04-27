@@ -1,4 +1,5 @@
 import {
+  CircleUser,
   ClipboardList,
   HelpCircle,
   Home,
@@ -185,8 +186,16 @@ export function getPrimaryNavItems(role: string) {
   return DONOR_PRIMARY_NAV_ITEMS;
 }
 
+const PROFILE_MOBILE_NAV_ITEM: NavigationItem = {
+  href: '/perfil',
+  label: 'Perfil',
+  mobileLabel: 'Perfil',
+  icon: CircleUser,
+  matchers: ['/perfil'],
+};
+
 export function getMobileNavItems(role: string) {
-  return getPrimaryNavItems(role);
+  return [...getPrimaryNavItems(role), PROFILE_MOBILE_NAV_ITEM];
 }
 
 export function isNavigationItemActive(pathname: string, item: NavigationItem) {

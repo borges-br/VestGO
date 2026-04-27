@@ -53,7 +53,7 @@ export default async function RastreioPage() {
     const summaryCards = [
       { label: 'Total', value: String(response.meta.count), color: 'text-on-surface' },
       {
-        label: 'Aguardando acao',
+        label: 'Aguardando ação',
         value: String(response.meta.actionableCount),
         color: 'text-amber-600',
       },
@@ -63,7 +63,7 @@ export default async function RastreioPage() {
         color: 'text-blue-600',
       },
       {
-        label: 'Distribuidas',
+        label: 'Distribuídas',
         value: String(statusCounts.DISTRIBUTED ?? 0),
         color: 'text-primary',
       },
@@ -80,7 +80,7 @@ export default async function RastreioPage() {
               Acompanhamento da jornada
             </h1>
             <p className="mt-2 text-sm text-gray-500 sm:text-base">
-              Esta tela mostra a evolucao das doacoes sob sua rede. Use <strong>/operacoes</strong>{' '}
+              Esta tela mostra a evolução das doações sob sua rede. Use <strong>/operacoes</strong>{' '}
               para executar a fila e <strong>/rastreio</strong> para acompanhar a timeline sem
               misturar os dois contextos.
             </p>
@@ -103,7 +103,7 @@ export default async function RastreioPage() {
                     Timeline operacional
                   </p>
                   <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
-                    Doacoes mais recentes
+                    Doações mais recentes
                   </h2>
                 </div>
                 <Link href="/operacoes" className="text-sm font-semibold text-primary">
@@ -115,7 +115,7 @@ export default async function RastreioPage() {
                 <div className="py-16 text-center">
                   <Route size={40} className="mx-auto mb-4 text-gray-200" />
                   <p className="text-base font-semibold text-gray-400">
-                    Nenhuma doacao operacional ainda
+                    Nenhuma doação operacional ainda
                   </p>
                   <p className="mb-6 mt-1 text-sm text-gray-300">
                     Quando a rede gerar movimento real, o rastreio operacional aparece aqui.
@@ -125,7 +125,7 @@ export default async function RastreioPage() {
                     className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 font-semibold text-white"
                   >
                     <ClipboardList size={16} />
-                    Ir para operacoes
+                    Ir para operações
                   </Link>
                 </div>
               ) : (
@@ -154,7 +154,7 @@ export default async function RastreioPage() {
                                 <p className="mt-1 truncate text-sm text-gray-400">
                                   {donation.dropOffPoint?.organizationName ??
                                     donation.dropOffPoint?.name ??
-                                    'Destino em definicao'}
+                                    'Destino em definição'}
                                 </p>
                               </div>
 
@@ -196,10 +196,10 @@ export default async function RastreioPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                      Distincao de contexto
+                      Distinção de contexto
                     </p>
                     <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
-                      Rastreio vs operacoes
+                      Rastreio vs operações
                     </h2>
                   </div>
                   <Target size={20} className="text-primary" />
@@ -208,14 +208,14 @@ export default async function RastreioPage() {
                 <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
                   <p className="text-sm font-semibold text-primary-deeper">Rastreio</p>
                   <p className="mt-2 text-sm leading-7 text-gray-500">
-                    Visao de acompanhamento, historico e leitura da jornada das doacoes.
+                    Visão de acompanhamento, histórico e leitura da jornada das doações.
                   </p>
                 </div>
 
                 <div className="mt-4 rounded-[1.75rem] bg-primary-light/45 p-5">
                   <p className="text-sm font-semibold text-primary-deeper">Operacoes</p>
                   <p className="mt-2 text-sm leading-7 text-gray-500">
-                    Fila acionavel para mudar status, responder pedidos e executar a rotina do papel.
+                    Fila acionável para mudar status, responder pedidos e executar a rotina do papel.
                   </p>
                 </div>
               </div>
@@ -268,7 +268,7 @@ export default async function RastreioPage() {
       color: 'text-primary',
     },
     {
-      label: 'Pontos solidarios',
+      label: 'Pontos solidários',
       value: String(snapshot.points),
       color: 'text-primary-deeper',
     },
@@ -282,7 +282,7 @@ export default async function RastreioPage() {
             Rastreio
           </p>
           <h1 className="mt-2 text-3xl font-bold text-primary-deeper sm:text-4xl">
-            Minhas doacoes
+            Minhas doações
           </h1>
           <p className="mt-2 text-sm text-gray-500 sm:text-base">
             Acompanhe o status real de cada entrega e como isso movimenta seu impacto.
@@ -303,30 +303,30 @@ export default async function RastreioPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Jornada das doacoes
+                  Jornada das doações
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
                   Status de cada entrega
                 </h2>
               </div>
               <Link href="/doar" className="text-sm font-semibold text-primary">
-                Nova doacao
+                Nova doação
               </Link>
             </div>
 
             {donations.length === 0 ? (
               <div className="py-16 text-center">
                 <Package size={40} className="mx-auto mb-4 text-gray-200" />
-                <p className="text-base font-semibold text-gray-400">Nenhuma doacao ainda</p>
+                <p className="text-base font-semibold text-gray-400">Nenhuma doação ainda</p>
                 <p className="mb-6 mt-1 text-sm text-gray-300">
-                  Comece sua primeira doacao agora.
+                  Comece sua primeira doação agora.
                 </p>
                 <Link
                   href="/doar"
                   className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 font-semibold text-white"
                 >
                   <Plus size={16} />
-                  Nova doacao
+                  Nova doação
                 </Link>
               </div>
             ) : (
@@ -355,7 +355,7 @@ export default async function RastreioPage() {
                               <p className="mt-1 truncate text-sm text-gray-400">
                                 {donation.dropOffPoint?.organizationName ??
                                   donation.dropOffPoint?.name ??
-                                  'Destino em definicao'}
+                                  'Destino em definição'}
                               </p>
                             </div>
 
@@ -438,7 +438,7 @@ export default async function RastreioPage() {
               </div>
 
               <div className="mt-4 rounded-[1.75rem] bg-primary-light/45 p-5">
-                <p className="text-sm font-semibold text-primary-deeper">Meta do mes em andamento</p>
+                <p className="text-sm font-semibold text-primary-deeper">Meta do mês em andamento</p>
                 <p className="mt-2 text-sm leading-7 text-gray-500">
                   {snapshot.monthlyGoal.current}/{snapshot.monthlyGoal.target} entregas
                   registradas neste ciclo.
@@ -451,7 +451,7 @@ export default async function RastreioPage() {
               className="flex items-center justify-center gap-2 rounded-[2rem] bg-primary-deeper px-5 py-4 font-semibold text-white transition-colors hover:bg-primary-dark"
             >
               <Plus size={18} />
-              Registrar nova doacao
+              Registrar nova doação
             </Link>
           </aside>
         </section>

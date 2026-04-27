@@ -14,9 +14,9 @@ import { getCollectionPoint } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
 
 const CATEGORY_LABELS: Record<string, string> = {
-  CLOTHING: 'Roupas e vestuario',
-  SHOES: 'Calcados',
-  ACCESSORIES: 'Acessorios',
+  CLOTHING: 'Roupas e vestuário',
+  SHOES: 'Calçados',
+  ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas e mochilas',
   OTHER: 'Outros itens',
 };
@@ -30,10 +30,10 @@ const PROFILE_STATE_LABELS = {
 
 const ACCESSIBILITY_LABELS: Record<string, string> = {
   RAMP_ACCESS: 'Acesso por rampa',
-  ACCESSIBLE_RESTROOM: 'Banheiro acessivel',
-  ACCESSIBLE_PARKING: 'Estacionamento acessivel',
+  ACCESSIBLE_RESTROOM: 'Banheiro acessível',
+  ACCESSIBLE_PARKING: 'Estacionamento acessível',
   PRIORITY_SERVICE: 'Atendimento preferencial',
-  GROUND_FLOOR: 'Acesso terreo',
+  GROUND_FLOOR: 'Acesso térreo',
   SIGN_LANGUAGE_SUPPORT: 'Suporte em Libras',
 };
 
@@ -142,12 +142,12 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-primary-muted sm:text-base">
                   {point.description ??
-                    'Parceiro ativo do VestGO com operacao preparada para receber doacoes com organizacao e rastreio.'}
+                    'Parceiro ativo do VestGO com operação preparada para receber doações com organização e rastreio.'}
                 </p>
 
                 {point.purpose && (
                   <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-white/8 p-5">
-                    <p className="text-sm font-semibold text-white">Proposito</p>
+                    <p className="text-sm font-semibold text-white">Propósito</p>
                     <p className="mt-2 text-sm leading-7 text-primary-muted">{point.purpose}</p>
                   </div>
                 )}
@@ -157,7 +157,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
             <div className="grid gap-4 p-5 lg:grid-cols-2 lg:p-6">
               <div className="rounded-[1.75rem] bg-surface p-5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Localizacao e contato
+                  Localização e contato
                 </p>
                 <div className="mt-4 space-y-3 text-sm leading-7 text-gray-600">
                   <div className="flex items-start gap-3">
@@ -165,16 +165,16 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                     <span>
                       {hideSensitiveNgoLocation
                         ? point.serviceRegions && point.serviceRegions.length > 0
-                          ? `Atuacao regional: ${point.serviceRegions.join(', ')}`
-                          : 'Localizacao precisa protegida para viewers publicos e doadores.'
-                        : formatAddressSummary(point) ?? 'Endereco nao informado'}
+                          ? `Atuação regional: ${point.serviceRegions.join(', ')}`
+                          : 'Localização precisa protegida para viewers públicos e doadores.'
+                        : formatAddressSummary(point) ?? 'Endereço não informado'}
                     </span>
                   </div>
 
                   {!hideSensitiveNgoLocation && (
                     <div className="flex items-start gap-3">
                       <Phone size={16} className="mt-1 text-primary" />
-                      <span>{point.phone ?? 'Telefone nao informado'}</span>
+                      <span>{point.phone ?? 'Telefone não informado'}</span>
                     </div>
                   )}
 
@@ -189,14 +189,14 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
               <div className="rounded-[1.75rem] bg-surface p-5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Operacao publica
+                  Operação pública
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-[1.25rem] bg-white px-4 py-4">
                     <p className="text-2xl font-bold text-primary-deeper">
                       {point.totalDonations ?? 0}
                     </p>
-                    <p className="mt-1 text-sm text-gray-500">Doacoes ligadas a este perfil</p>
+                    <p className="mt-1 text-sm text-gray-500">Doações ligadas a este perfil</p>
                   </div>
                   <div className="rounded-[1.25rem] bg-white px-4 py-4">
                     <p className="text-2xl font-bold text-primary-deeper">
@@ -243,7 +243,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                           {partnerNgo.organizationName ?? partnerNgo.name}
                         </p>
                         <p className="mt-1 text-sm text-gray-500">
-                          Parceria ativa para triagem e encaminhamento das doacoes.
+                          Parceria ativa para triagem e encaminhamento das doações.
                         </p>
                       </div>
                     </div>
@@ -273,7 +273,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
                 {point.accessibilityFeatures && point.accessibilityFeatures.length > 0 && (
                   <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
-                    <p className="text-sm font-semibold text-primary-deeper">Recursos disponiveis</p>
+                    <p className="text-sm font-semibold text-primary-deeper">Recursos disponíveis</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {point.accessibilityFeatures.map((feature) => (
                         <span
@@ -289,7 +289,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
                 {point.publicNotes && (
                   <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4">
-                    <p className="text-sm font-semibold text-primary-deeper">Observacoes</p>
+                    <p className="text-sm font-semibold text-primary-deeper">Observações</p>
                     <p className="mt-2 text-sm leading-7 text-gray-500">{point.publicNotes}</p>
                   </div>
                 )}
@@ -331,7 +331,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
               {point.nonAcceptedItems && point.nonAcceptedItems.length > 0 && (
                 <div className="mt-5 rounded-[1.5rem] bg-surface px-4 py-4">
-                  <p className="text-sm font-semibold text-primary-deeper">Nao aceitamos</p>
+                  <p className="text-sm font-semibold text-primary-deeper">Não aceitamos</p>
                   <div className="mt-3 space-y-2 text-sm text-gray-500">
                     {point.nonAcceptedItems.map((item) => (
                       <p key={item}>- {item}</p>
@@ -360,7 +360,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
             {isNgo && point.serviceRegions && point.serviceRegions.length > 0 && (
               <div className="rounded-[2rem] bg-white p-6 shadow-card">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Regioes atendidas
+                  Regiões atendidas
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {point.serviceRegions.map((region) => (
@@ -382,7 +382,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   <div>
                     <p className="text-sm font-semibold">Perfil verificado pelo VestGO</p>
                     <p className="mt-2 text-sm leading-7">
-                      Este parceiro ja possui dados completos e operacao ativa na plataforma.
+                      Este parceiro já possui dados completos e operação ativa na plataforma.
                     </p>
                   </div>
                 </div>
@@ -394,7 +394,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                 <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-center text-sm text-indigo-800">
                   <p className="font-semibold">ONG parceira</p>
                   <p className="mt-2 leading-7">
-                    A ONG continua publica como entidade parceira, mas sua localizacao precisa nao e exibida para doadores e viewers anonimos.
+                    A ONG continua pública como entidade parceira, mas sua localização precisa não é exibida para doadores e viewers anônimos.
                   </p>
                 </div>
               ) : point.donationEligibility?.canDonateHere === false ? (
@@ -404,9 +404,9 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                 </div>
               ) : isOperationalViewer ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-center text-sm text-slate-700">
-                  <p className="font-semibold">Fluxo doador indisponivel para este perfil</p>
+                  <p className="font-semibold">Fluxo doador indisponível para este perfil</p>
                   <p className="mt-2 leading-7">
-                    Perfis operacionais e administracao podem acompanhar parceiros e operacoes, mas nao iniciam doacoes por este CTA.
+                    Perfis operacionais e administração podem acompanhar parceiros e operações, mas não iniciam doações por este CTA.
                   </p>
                 </div>
               ) : isDonor ? (
@@ -414,14 +414,14 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   href={donationShortcutHref}
                   className="block rounded-2xl bg-primary px-5 py-4 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
                 >
-                  Iniciar doacao
+                  Iniciar doação
                 </Link>
               ) : (
                 <Link
                   href={`/login?callbackUrl=${encodeURIComponent(donationShortcutHref)}`}
                   className="block rounded-2xl bg-primary px-5 py-4 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
                 >
-                  Iniciar doacao
+                  Iniciar doação
                 </Link>
               )}
 

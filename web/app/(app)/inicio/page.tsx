@@ -47,8 +47,8 @@ import { formatAddressSummary } from '@/lib/address';
 const quickActions = [
   {
     href: '/doar',
-    label: 'Nova doacao',
-    description: 'Registrar pecas',
+    label: 'Nova doação',
+    description: 'Registrar peças',
     icon: Plus,
     tone: 'bg-primary-deeper text-white',
   },
@@ -77,8 +77,8 @@ const quickActions = [
 
 const CATEGORY_LABELS: Record<string, string> = {
   CLOTHING: 'Roupas',
-  SHOES: 'Calcados',
-  ACCESSORIES: 'Acessorios',
+  SHOES: 'Calçados',
+  ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas',
   OTHER: 'Outros',
 };
@@ -110,21 +110,21 @@ const operationalActionMap: Record<
     {
       href: '/operacoes',
       label: 'Fila operacional',
-      description: 'Receber e atualizar doacoes',
+      description: 'Receber e atualizar doações',
       icon: ClipboardList,
       tone: 'bg-primary-deeper text-white',
     },
     {
       href: '/perfil/operacional',
-      label: 'Perfil publico',
-      description: 'Endereco, status e checklist',
+      label: 'Perfil público',
+      description: 'Endereço, status e checklist',
       icon: Store,
       tone: 'bg-primary-light text-primary',
     },
     {
       href: '/mapa',
       label: 'Explorar pontos',
-      description: 'Validar descoberta publica',
+      description: 'Validar descoberta pública',
       icon: Map,
       tone: 'bg-blue-50 text-blue-600',
     },
@@ -146,7 +146,7 @@ const operationalActionMap: Record<
     },
     {
       href: '/perfil/operacional',
-      label: 'Perfil publico',
+      label: 'Perfil público',
       description: 'Base, cobertura e status',
       icon: Users,
       tone: 'bg-primary-light text-primary',
@@ -161,7 +161,7 @@ const operationalActionMap: Record<
     {
       href: '/rastreio',
       label: 'Rastreio',
-      description: 'Acompanhar distribuicoes',
+      description: 'Acompanhar distribuições',
       icon: Truck,
       tone: 'bg-amber-50 text-amber-600',
     },
@@ -169,21 +169,21 @@ const operationalActionMap: Record<
   ADMIN: [
     {
       href: '/admin/perfis',
-      label: 'Governanca',
+      label: 'Governança',
       description: 'Revisar perfis operacionais',
       icon: ShieldCheck,
       tone: 'bg-primary-deeper text-white',
     },
     {
       href: '/operacoes',
-      label: 'Operacoes',
-      description: 'Visao ampla da operacao',
+      label: 'Operações',
+      description: 'Visão ampla da operação',
       icon: ClipboardList,
       tone: 'bg-primary-light text-primary',
     },
     {
       href: '/mapa',
-      label: 'Descoberta publica',
+      label: 'Descoberta pública',
       description: 'Validar mapa e busca',
       icon: Map,
       tone: 'bg-blue-50 text-blue-600',
@@ -191,7 +191,7 @@ const operationalActionMap: Record<
     {
       href: '/perfil',
       label: 'Minha conta',
-      description: 'Dados da sessao atual',
+      description: 'Dados da sessão atual',
       icon: User,
       tone: 'bg-amber-50 text-amber-600',
     },
@@ -204,9 +204,9 @@ const STATUS_META: Record<
 > = {
   PENDING: { label: 'Pendente', tone: 'bg-amber-50 text-amber-600', stepIndex: 0 },
   AT_POINT: { label: 'No ponto', tone: 'bg-blue-50 text-blue-600', stepIndex: 1 },
-  IN_TRANSIT: { label: 'Em transito', tone: 'bg-indigo-50 text-indigo-600', stepIndex: 2 },
+  IN_TRANSIT: { label: 'Em trânsito', tone: 'bg-indigo-50 text-indigo-600', stepIndex: 2 },
   DELIVERED: { label: 'Entregue', tone: 'bg-primary-light text-primary', stepIndex: 3 },
-  DISTRIBUTED: { label: 'Distribuida', tone: 'bg-emerald-50 text-emerald-600', stepIndex: 3 },
+  DISTRIBUTED: { label: 'Distribuída', tone: 'bg-emerald-50 text-emerald-600', stepIndex: 3 },
   CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-500', stepIndex: 0 },
 };
 
@@ -265,9 +265,9 @@ function OperationalHome({
 
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
               <div>
-                <p className="text-3xl font-bold tracking-tight sm:text-4xl">Ola, {firstName}.</p>
+                <p className="text-3xl font-bold tracking-tight sm:text-4xl">Olá, {firstName}.</p>
                 <p className="mt-3 max-w-2xl text-base leading-8 text-primary-muted">
-                  Seu painel agora reconhece o papel operacional da conta e prioriza status do perfil, fila de operacao e descoberta publica real.
+                  Seu painel agora reconhece o papel operacional da conta e prioriza status do perfil, fila de operação e descoberta pública real.
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -285,7 +285,7 @@ function OperationalHome({
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   {[
-                    `${stats.handledDonations} doacoes ligadas ao perfil`,
+                    `${stats.handledDonations} doações ligadas ao perfil`,
                     `${stats.activePartnerships} parcerias ativas`,
                     completion?.totalItems
                       ? `${completion.completedItems}/${completion.totalItems} itens essenciais preenchidos`
@@ -303,13 +303,13 @@ function OperationalHome({
 
               <div className="rounded-[1.75rem] bg-white/10 p-5 backdrop-blur">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-muted">
-                  Estado visivel
+                  Estado visível
                 </p>
                 <p className="mt-3 text-xl font-semibold">{profileStateLabel}</p>
                 <p className="mt-3 text-sm leading-7 text-primary-muted">
                   {role === 'ADMIN'
-                    ? 'Use este painel para revisar perfis, acompanhar operacoes e validar a descoberta publica.'
-                    : 'Este estado controla a prontidao publica do seu perfil e ajuda a entender por que ele aparece, ou nao, na descoberta do produto.'}
+                    ? 'Use este painel para revisar perfis, acompanhar operações e validar a descoberta pública.'
+                    : 'Este estado controla a prontidão pública do seu perfil e ajuda a entender por que ele aparece, ou não, na descoberta do produto.'}
                 </p>
 
                 {profile && role !== 'ADMIN' && (
@@ -317,8 +317,8 @@ function OperationalHome({
                     <p className="text-sm font-semibold">Checklist operacional</p>
                     <p className="mt-1 text-sm text-gray-400">
                       {completion?.totalItems
-                        ? `${completion.completedItems} de ${completion.totalItems} itens essenciais concluidos.`
-                        : 'Sem checklist operacional disponivel.'}
+                        ? `${completion.completedItems} de ${completion.totalItems} itens essenciais concluídos.`
+                        : 'Sem checklist operacional disponível.'}
                     </p>
                   </div>
                 )}
@@ -335,7 +335,7 @@ function OperationalHome({
                 <>
                   <div className="rounded-3xl bg-surface p-4">
                     <p className="text-sm font-semibold text-primary-deeper">
-                      Governanca e operacao continuam centralizadas entre `/admin/perfis` e `/operacoes`
+                      Governança e operação continuam centralizadas entre `/admin/perfis` e `/operacoes`
                     </p>
                   </div>
                   <div className="rounded-3xl bg-surface p-4">
@@ -345,7 +345,7 @@ function OperationalHome({
                   </div>
                   <div className="rounded-3xl bg-surface p-4">
                     <p className="text-sm font-semibold text-primary-deeper">
-                      A administracao segue acompanhando a descoberta publica e a fila completa
+                      A administração segue acompanhando a descoberta pública e a fila completa
                     </p>
                   </div>
                 </>
@@ -362,13 +362,13 @@ function OperationalHome({
                   </div>
                   <div className="rounded-3xl bg-surface p-4">
                     <p className="text-sm font-semibold text-primary-deeper">
-                      {pendingPickupRequests.length} solicitacao(oes) de retirada pendente(s)
+                      {pendingPickupRequests.length} solicitação(ões) de retirada pendente(s)
                     </p>
                   </div>
                   <div className="rounded-3xl bg-surface p-4">
                     <p className="text-sm font-semibold text-primary-deeper">
                       {role === 'COLLECTION_POINT'
-                        ? 'Aprovacoes de retirada ficam neste dashboard'
+                        ? 'Aprovações de retirada ficam neste dashboard'
                         : 'Novas retiradas podem ser solicitadas neste dashboard'}
                     </p>
                   </div>
@@ -383,7 +383,7 @@ function OperationalHome({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Acoes rapidas
+                  Ações rápidas
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Atalhos do seu papel</h2>
               </div>
@@ -423,7 +423,7 @@ function OperationalHome({
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-[1.5rem] bg-surface p-4">
                 <p className="text-3xl font-bold text-primary-deeper">{stats.handledDonations}</p>
-                <p className="mt-1 text-sm text-gray-500">Doacoes ligadas ao perfil</p>
+                <p className="mt-1 text-sm text-gray-500">Doações ligadas ao perfil</p>
               </div>
               <div className="rounded-[1.5rem] bg-surface p-4">
                 <p className="text-3xl font-bold text-primary-deeper">{stats.activePartnerships}</p>
@@ -433,7 +433,7 @@ function OperationalHome({
 
             {role !== 'ADMIN' && completion && completion.missingFields.length > 0 && (
               <div className="mt-5 rounded-[1.75rem] border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-semibold text-amber-800">Campos que ainda afetam a publicacao</p>
+                <p className="text-sm font-semibold text-amber-800">Campos que ainda afetam a publicação</p>
                 <div className="mt-3 space-y-2 text-sm text-amber-700">
                   {completion.missingFields.slice(0, 5).map((field) => (
                     <div key={field}>{field}</div>
@@ -449,7 +449,7 @@ function OperationalHome({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Descoberta publica
+                  Descoberta pública
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Mapa e busca vivos</h2>
               </div>
@@ -467,7 +467,7 @@ function OperationalHome({
                         </p>
                         <p className="mt-1 text-sm text-gray-400">
                           {point.distanceKm ? `${point.distanceKm} km - ` : ''}
-                          {formatAddressSummary(point) ?? 'Endereco nao informado'}
+                          {formatAddressSummary(point) ?? 'Endereço não informado'}
                         </p>
                         <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
                           {point.acceptedCategories
@@ -485,7 +485,7 @@ function OperationalHome({
               ) : (
                 <div className="rounded-[1.75rem] bg-surface p-5">
                   <p className="text-sm font-semibold text-primary-deeper">
-                    Ainda nao ha parceiros publicos nessa busca.
+                    Ainda não há parceiros públicos nessa busca.
                   </p>
                   <p className="mt-2 text-sm leading-7 text-gray-500">
                     Assim que um ponto ou ONG verificado surgir por aqui, ele aparece nessa lista e no mapa.
@@ -507,10 +507,10 @@ function OperationalHome({
             <h2 className="mt-2 text-2xl font-bold text-primary-deeper">O que este painel coordena agora</h2>
             <div className="mt-5 space-y-3">
               {[
-                'retiradas com data prevista, faixa de horario e resposta do parceiro',
-                'distincao entre rastreio operacional e fila de operacoes',
-                'parcerias ativas que tornam o ponto elegivel para doacoes',
-                'perfil publico, checklist e status acompanhados no mesmo fluxo',
+                'retiradas com data prevista, faixa de horário e resposta do parceiro',
+                'distinção entre rastreio operacional e fila de operações',
+                'parcerias ativas que tornam o ponto elegível para doações',
+                'perfil público, checklist e status acompanhados no mesmo fluxo',
               ].map((item) => (
                 <div key={item} className="rounded-3xl bg-surface p-4">
                   <p className="text-sm font-semibold text-on-surface">{item}</p>
@@ -547,21 +547,21 @@ function AdminHome({
   const actionCards = [
     {
       href: '/admin/perfis',
-      label: 'Governanca',
-      description: 'Aprovar novos perfis e revisar mudancas publicas',
+      label: 'Governança',
+      description: 'Aprovar novos perfis e revisar mudanças públicas',
       icon: ShieldCheck,
       tone: 'bg-primary-deeper text-white',
     },
     {
       href: '/operacoes',
-      label: 'Operacoes',
+      label: 'Operações',
       description: 'Abrir a fila operacional compartilhada',
       icon: ClipboardList,
       tone: 'bg-primary-light text-primary',
     },
     {
       href: '/mapa',
-      label: 'Mapa publico',
+      label: 'Mapa público',
       description: 'Validar como pontos e ONGs aparecem para doadores',
       icon: Map,
       tone: 'bg-blue-50 text-blue-600',
@@ -576,7 +576,7 @@ function AdminHome({
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
                 <ShieldCheck size={14} />
-                Governanca ativa
+                Governança ativa
               </span>
               <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
                 Administrador
@@ -585,9 +585,9 @@ function AdminHome({
 
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
               <div>
-                <p className="text-3xl font-bold tracking-tight sm:text-4xl">Ola, {firstName}.</p>
+                <p className="text-3xl font-bold tracking-tight sm:text-4xl">Olá, {firstName}.</p>
                 <p className="mt-3 max-w-2xl text-base leading-8 text-primary-muted">
-                  Este painel centraliza aprovacoes iniciais, revisoes publicas pendentes e alertas recentes de governanca, sem misturar a administracao com o fluxo doador.
+                  Este painel centraliza aprovações iniciais, revisões públicas pendentes e alertas recentes de governança, sem misturar a administração com o fluxo doador.
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -605,9 +605,9 @@ function AdminHome({
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   {[
-                    `${pendingApprovals.length} perfis aguardando aprovacao`,
-                    `${pendingRevisions.length} revisoes publicas pendentes`,
-                    `${notifications.length} alertas recentes de governanca`,
+                    `${pendingApprovals.length} perfis aguardando aprovação`,
+                    `${pendingRevisions.length} revisões públicas pendentes`,
+                    `${notifications.length} alertas recentes de governança`,
                   ].map((item) => (
                     <span
                       key={item}
@@ -623,9 +623,9 @@ function AdminHome({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-muted">
                   Painel administrativo
                 </p>
-                <p className="mt-3 text-xl font-semibold">Governanca, mapa e fila</p>
+                <p className="mt-3 text-xl font-semibold">Governança, mapa e fila</p>
                 <p className="mt-3 text-sm leading-7 text-primary-muted">
-                  O admin nao recebe CTA de doacao nem rastreio operacional como papel principal. Aqui, a prioridade e aprovar perfis, revisar alteracoes publicas e acompanhar a saude da operacao.
+                  O admin não recebe CTA de doação nem rastreio operacional como papel principal. Aqui, a prioridade é aprovar perfis, revisar alterações públicas e acompanhar a saúde da operação.
                 </p>
               </div>
             </div>
@@ -633,24 +633,24 @@ function AdminHome({
 
           <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Resumo rapido
+              Resumo rápido
             </p>
             <div className="mt-4 space-y-3">
               <div className="rounded-3xl bg-surface p-4">
                 <p className="text-sm font-semibold text-primary-deeper">
-                  {pendingApprovals.length} perfis novos aguardando aprovacao
+                  {pendingApprovals.length} perfis novos aguardando aprovação
                 </p>
               </div>
               <div className="rounded-3xl bg-surface p-4">
                 <p className="text-sm font-semibold text-primary-deeper">
-                  {pendingRevisions.length} revisoes publicas aguardando avaliacao
+                  {pendingRevisions.length} revisões públicas aguardando avaliação
                 </p>
               </div>
               <div className="rounded-3xl bg-surface p-4">
                 <p className="text-sm font-semibold text-primary-deeper">
                   {notifications.length > 0
-                    ? 'Ha alertas recentes prontos para abrir'
-                    : 'Nenhum alerta novo de governanca no momento'}
+                    ? 'Há alertas recentes prontos para abrir'
+                    : 'Nenhum alerta novo de governança no momento'}
                 </p>
               </div>
             </div>
@@ -662,12 +662,12 @@ function AdminHome({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Aprovacao inicial
+                  Aprovação inicial
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Perfis aguardando aprovacao</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Perfis aguardando aprovação</h2>
               </div>
               <Link href="/admin/perfis" className="text-sm font-semibold text-primary">
-                Abrir governanca
+                Abrir governança
               </Link>
             </div>
 
@@ -687,7 +687,7 @@ function AdminHome({
               ) : (
                 <div className="rounded-[1.75rem] bg-surface p-5">
                   <p className="text-sm font-semibold text-primary-deeper">
-                    Nenhum perfil novo aguardando aprovacao.
+                    Nenhum perfil novo aguardando aprovação.
                   </p>
                 </div>
               )}
@@ -698,9 +698,9 @@ function AdminHome({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Revisoes publicas
+                  Revisões públicas
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Alteracoes pendentes</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Alterações pendentes</h2>
               </div>
               <Link href="/admin/perfis" className="text-sm font-semibold text-primary">
                 Revisar agora
@@ -717,14 +717,14 @@ function AdminHome({
                     <p className="mt-1 text-sm text-gray-400">
                       {profile.pendingPublicRevision?.fields.length
                         ? profile.pendingPublicRevision.fields.join(', ')
-                        : 'Alteracoes publicas aguardando avaliacao'}
+                        : 'Alterações públicas aguardando avaliação'}
                     </p>
                   </div>
                 ))
               ) : (
                 <div className="rounded-[1.75rem] bg-surface p-5">
                   <p className="text-sm font-semibold text-primary-deeper">
-                    Nenhuma revisao publica pendente no momento.
+                    Nenhuma revisão pública pendente no momento.
                   </p>
                 </div>
               )}
@@ -737,7 +737,7 @@ function AdminHome({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Acoes rapidas
+                  Ações rápidas
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Atalhos do admin</h2>
               </div>
@@ -769,7 +769,7 @@ function AdminHome({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
                   Alertas recentes
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Notificacoes de governanca</h2>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Notificações de governança</h2>
               </div>
               <ArrowRight size={18} className="text-primary" />
             </div>
@@ -789,7 +789,7 @@ function AdminHome({
               ) : (
                 <div className="rounded-[1.75rem] bg-surface p-5">
                   <p className="text-sm font-semibold text-primary-deeper">
-                    Nenhum alerta de governanca no momento.
+                    Nenhum alerta de governança no momento.
                   </p>
                 </div>
               )}
@@ -803,7 +803,7 @@ function AdminHome({
 
 export default async function InicioPage() {
   const session = await auth();
-  const firstName = session?.user?.name?.split(' ')[0] ?? 'voce';
+  const firstName = session?.user?.name?.split(' ')[0] ?? 'você';
   const accessToken = session?.user?.accessToken ?? '';
   const role = session?.user?.role ?? 'DONOR';
 
