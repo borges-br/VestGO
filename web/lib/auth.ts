@@ -14,6 +14,7 @@ declare module 'next-auth' {
       role: string;
       accessToken: string;
       accessTokenExpiresAt: number;
+      emailVerifiedAt: string | null;
     } & DefaultSession['user'];
     error?: 'RefreshAccessTokenError';
   }
@@ -24,6 +25,7 @@ declare module 'next-auth' {
     accessToken: string;
     refreshToken: string;
     accessTokenExpiresAt: number;
+    emailVerifiedAt: string | null;
     image?: string | null;
   }
 }
@@ -34,6 +36,7 @@ type AppAuthUser = {
   accessToken: string;
   refreshToken: string;
   accessTokenExpiresAt: number;
+  emailVerifiedAt: string | null;
   image?: string | null;
   name?: string | null;
   email?: string | null;
@@ -50,6 +53,7 @@ type SessionUpdateUser = {
   name?: string | null;
   email?: string | null;
   image?: string | null;
+  emailVerifiedAt?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -77,6 +81,14 @@ function resolveSessionUpdateUser(value: unknown): SessionUpdateUser | null {
 
   if ('image' in candidate && (typeof candidate.image === 'string' || candidate.image === null)) {
     update.image = candidate.image;
+    hasKnownField = true;
+  }
+
+  if (
+    'emailVerifiedAt' in candidate &&
+    (typeof candidate.emailVerifiedAt === 'string' || candidate.emailVerifiedAt === null)
+  ) {
+    update.emailVerifiedAt = candidate.emailVerifiedAt;
     hasKnownField = true;
   }
 
@@ -209,6 +221,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: data.user.email,
             role: data.user.role,
             image: data.user.avatarUrl ?? null,
+            emailVerifiedAt: data.user.emailVerifiedAt ?? null,
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
             accessTokenExpiresAt: getAccessTokenExpiresAt(data.accessToken),
@@ -245,6 +258,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         mutableToken.email = appUser.email ?? mutableToken.email;
         mutableToken.picture = appUser.image ?? null;
         mutableToken.role = appUser.role;
+        mutableToken.emailVerifiedAt = appUser.emailVerifiedAt ?? null;
         mutableToken.accessToken = appUser.accessToken;
         mutableToken.refreshToken = appUser.refreshToken;
         mutableToken.accessTokenExpiresAt = appUser.accessTokenExpiresAt;
@@ -263,6 +277,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if ('image' in sessionUpdate) {
           mutableToken.picture = sessionUpdate.image ?? null;
+        }
+
+        if ('emailVerifiedAt' in sessionUpdate) {
+          mutableToken.emailVerifiedAt = sessionUpdate.emailVerifiedAt ?? null;
         }
       }
 
@@ -288,6 +306,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           ? appToken.picture
           : session.user.image ?? null;
       session.user.role = appToken.role ?? 'DONOR';
+      session.user.emailVerifiedAt =
+        typeof appToken.emailVerifiedAt === 'string' ? appToken.emailVerifiedAt : null;
       session.user.accessToken = appToken.accessToken ?? '';
       session.user.accessTokenExpiresAt = appToken.accessTokenExpiresAt ?? 0;
       session.error = appToken.error;

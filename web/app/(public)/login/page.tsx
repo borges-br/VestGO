@@ -243,7 +243,7 @@ function LoginInner() {
                   </Field>
 
                   <Field label="Senha" htmlFor="senha" hint={
-                    <Link href="#" className="text-xs font-semibold text-primary hover:text-primary-deeper">
+                    <Link href="/esqueci-senha" className="text-xs font-semibold text-primary hover:text-primary-deeper">
                       Esqueci minha senha
                     </Link>
                   }>
