@@ -512,6 +512,11 @@ function mapEditableProfile(user: EditableProfileRecord) {
     avatarUrl: view.avatarUrl,
     coverImageUrl: view.coverImageUrl,
     galleryImageUrls: view.galleryImageUrls,
+    publishedPublicProfile: {
+      avatarUrl: user.avatarUrl,
+      coverImageUrl: user.coverImageUrl,
+      galleryImageUrls: user.galleryImageUrls ?? [],
+    },
     organizationName: view.organizationName,
     description: view.description,
     purpose: view.purpose,

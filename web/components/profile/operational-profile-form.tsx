@@ -25,6 +25,7 @@ import {
   type OpeningScheduleEntry,
 } from '@/lib/api';
 import { useAddressSuggestions } from '@/hooks/use-address-suggestions';
+import { SafeImage } from '@/components/ui/safe-image';
 
 type StepKey = 'identity' | 'location' | 'acceptance';
 
@@ -244,6 +245,181 @@ function getRoleLabel(role: string) {
 
 function getRoleIcon(role: string) {
   return role === 'NGO' ? Users : Store;
+}
+
+function getPublishedImages(profile: MyProfile) {
+  return (
+    profile.publishedPublicProfile ?? {
+      avatarUrl: profile.avatarUrl,
+      coverImageUrl: profile.coverImageUrl,
+      galleryImageUrls: profile.galleryImageUrls ?? [],
+    }
+  );
+}
+
+function getPendingImages(profile: MyProfile) {
+  const payload = profile.pendingPublicRevision?.payload;
+
+  if (!payload || profile.pendingPublicRevision?.status !== 'PENDING') {
+    return null;
+  }
+
+  return {
+    avatarUrl:
+      typeof payload.avatarUrl === 'string' || payload.avatarUrl === null
+        ? payload.avatarUrl
+        : undefined,
+    coverImageUrl:
+      typeof payload.coverImageUrl === 'string' || payload.coverImageUrl === null
+        ? payload.coverImageUrl
+        : undefined,
+    galleryImageUrls: Array.isArray(payload.galleryImageUrls)
+      ? payload.galleryImageUrls.filter((item): item is string => typeof item === 'string')
+      : undefined,
+  };
+}
+
+function sameGallery(left: string[], right: string[]) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function hasPendingImageChanges(profile: MyProfile) {
+  const published = getPublishedImages(profile);
+  const pending = getPendingImages(profile);
+
+  if (!pending) {
+    return false;
+  }
+
+  return (
+    (pending.avatarUrl !== undefined && pending.avatarUrl !== published.avatarUrl) ||
+    (pending.coverImageUrl !== undefined && pending.coverImageUrl !== published.coverImageUrl) ||
+    (pending.galleryImageUrls !== undefined &&
+      !sameGallery(pending.galleryImageUrls, published.galleryImageUrls ?? []))
+  );
+}
+
+function MediaThumb({
+  src,
+  alt,
+  label,
+  className = 'h-24',
+}: {
+  src?: string | null;
+  alt: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      <SafeImage
+        src={src}
+        alt={alt}
+        className={className}
+        fallbackLabel="Sem imagem"
+      />
+      <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function ProfileMediaReview({ profile }: { profile: MyProfile }) {
+  const title = profile.organizationName ?? profile.name;
+  const published = getPublishedImages(profile);
+  const pending = getPendingImages(profile);
+  const showPending = pending && hasPendingImageChanges(profile);
+  const pendingGallery = pending?.galleryImageUrls;
+
+  return (
+    <section className="mb-5 rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-card">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-primary-deeper">Imagens do perfil</p>
+          <p className="mt-1 text-sm leading-6 text-gray-500">
+            A coluna publicada é a versão visível no mapa. Imagens pendentes só vão ao ar após
+            aprovação administrativa.
+          </p>
+        </div>
+        {showPending && (
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+            mídia em revisão
+          </span>
+        )}
+      </div>
+
+      <div className={`mt-4 grid gap-4 ${showPending ? 'lg:grid-cols-2' : ''}`}>
+        <div className="rounded-[1.5rem] bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+            Publicado
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+            <MediaThumb src={published.avatarUrl} alt={`Avatar publicado de ${title}`} label="Avatar" />
+            <MediaThumb
+              src={published.coverImageUrl}
+              alt={`Capa publicada de ${title}`}
+              label="Capa"
+            />
+          </div>
+          {published.galleryImageUrls.length > 0 ? (
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {published.galleryImageUrls.slice(0, 6).map((imageUrl, index) => (
+                <MediaThumb
+                  key={imageUrl}
+                  src={imageUrl}
+                  alt={`Foto publicada ${index + 1} de ${title}`}
+                  label={`Foto ${index + 1}`}
+                  className="h-20"
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-5 text-sm text-gray-500">
+              Galeria publicada vazia.
+            </p>
+          )}
+        </div>
+
+        {showPending && (
+          <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+              Pendente
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+              <MediaThumb
+                src={pending.avatarUrl ?? null}
+                alt={`Avatar pendente de ${title}`}
+                label={pending.avatarUrl === null ? 'Avatar removido' : 'Avatar'}
+              />
+              <MediaThumb
+                src={pending.coverImageUrl ?? null}
+                alt={`Capa pendente de ${title}`}
+                label={pending.coverImageUrl === null ? 'Capa removida' : 'Capa'}
+              />
+            </div>
+            {pendingGallery && pendingGallery.length > 0 ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {pendingGallery.slice(0, 6).map((imageUrl, index) => (
+                  <MediaThumb
+                    key={imageUrl}
+                    src={imageUrl}
+                    alt={`Foto pendente ${index + 1} de ${title}`}
+                    label={`Foto ${index + 1}`}
+                    className="h-20"
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-2xl border border-dashed border-amber-200 bg-white/70 px-4 py-5 text-sm text-amber-800">
+                Galeria pendente vazia ou removida.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
 function buildPayload(role: string, form: FormState) {
@@ -801,6 +977,8 @@ export function OperationalProfileForm() {
           </div>
         </div>
 
+        <ProfileMediaReview profile={profile} />
+
         {profile.pendingPublicRevision && (
           <div
             className={`mb-5 rounded-[1.75rem] border px-5 py-4 text-sm ${
@@ -947,10 +1125,11 @@ export function OperationalProfileForm() {
                       </div>
                       <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white text-sm font-bold text-primary shadow-sm">
                         {form.avatarUrl ? (
-                          <img
+                          <SafeImage
                             src={form.avatarUrl}
                             alt={profile.organizationName ?? profile.name}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full"
+                            fallbackLabel="Avatar indisponível"
                           />
                         ) : (
                           (profile.organizationName ?? profile.name)
@@ -1000,10 +1179,11 @@ export function OperationalProfileForm() {
 
                     <div className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white">
                       {form.coverImageUrl ? (
-                        <img
+                        <SafeImage
                           src={form.coverImageUrl}
                           alt={`Capa de ${profile.organizationName ?? profile.name}`}
-                          className="h-32 w-full object-cover"
+                          className="h-32 w-full"
+                          fallbackLabel="Capa indisponível"
                         />
                       ) : (
                         <div className="flex h-32 w-full items-center justify-center bg-primary-light text-sm font-semibold text-primary">
@@ -1095,10 +1275,11 @@ export function OperationalProfileForm() {
                           key={imageUrl}
                           className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white"
                         >
-                          <img
+                          <SafeImage
                             src={imageUrl}
                             alt={`Foto adicional ${index + 1} de ${profile.organizationName ?? profile.name}`}
-                            className="h-40 w-full object-cover"
+                            className="h-40 w-full"
+                            fallbackLabel="Foto indisponível"
                           />
                           <div className="flex items-center justify-between gap-3 px-3 py-3">
                             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">

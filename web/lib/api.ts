@@ -93,6 +93,29 @@ export type OpeningScheduleEntry = {
   close?: string;
 };
 
+export type PublicRevisionPayload = {
+  phone?: string | null;
+  avatarUrl?: string | null;
+  coverImageUrl?: string | null;
+  galleryImageUrls?: string[];
+  address?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  neighborhood?: string | null;
+  zipCode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  openingHours?: string | null;
+  openingSchedule?: unknown;
+  openingHoursExceptions?: string | null;
+  publicNotes?: string | null;
+  accessibilityDetails?: string | null;
+  accessibilityFeatures?: string[];
+  rules?: string[];
+};
+
 export type DonationPoint = {
   id: string;
   name: string;
@@ -280,6 +303,11 @@ export type MyProfile = {
   avatarUrl: string | null;
   coverImageUrl: string | null;
   galleryImageUrls: string[];
+  publishedPublicProfile: {
+    avatarUrl: string | null;
+    coverImageUrl: string | null;
+    galleryImageUrls: string[];
+  };
   organizationName: string | null;
   description: string | null;
   purpose: string | null;
@@ -316,7 +344,7 @@ export type MyProfile = {
     submittedAt: string | null;
     reviewedAt: string | null;
     reviewNotes: string | null;
-    payload: Record<string, unknown> | null;
+    payload: PublicRevisionPayload | null;
   } | null;
   profileCompletion: {
     completedItems: number;
@@ -856,6 +884,9 @@ export type AdminProfileRecord = {
   phone: string | null;
   organizationName: string | null;
   description: string | null;
+  avatarUrl: string | null;
+  coverImageUrl: string | null;
+  galleryImageUrls: string[];
   city: string | null;
   state: string | null;
   address: string | null;
