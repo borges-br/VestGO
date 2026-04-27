@@ -100,3 +100,46 @@ export function passwordChangedTemplate(input: SecurityTemplateInput): EmailTemp
     ),
   };
 }
+
+export function accountDeletionRequestTemplate(input: SecurityTemplateInput): EmailTemplate {
+  const name = input.name.trim() || 'tudo bem';
+  const actionUrl = input.actionUrl ?? '';
+
+  return {
+    subject: 'Confirme o encerramento da sua conta VestGO',
+    text: [
+      `Ola, ${name}.`,
+      '',
+      'Recebemos uma solicitacao para encerrar sua conta VestGO.',
+      'Esta acao e permanente: seu acesso sera encerrado e seus dados pessoais serao anonimizados.',
+      'Historicos operacionais de doacoes e rastreios podem ser preservados de forma nao pessoal para manter a consistencia dos registros.',
+      actionUrl ? `Link de confirmacao: ${actionUrl}` : '',
+      '',
+      'Se voce nao solicitou esta acao, ignore este e-mail.',
+    ].filter(Boolean).join('\n'),
+    html: buildLayout(
+      'Confirme o encerramento da conta',
+      `<p style="margin:0 0 12px;color:#374151;font-size:15px;line-height:1.7">Ola, ${escapeHtml(name)}. Recebemos uma solicitacao para encerrar sua conta VestGO.</p><p style="margin:0 0 12px;color:#374151;font-size:15px;line-height:1.7">Esta acao e permanente: seu acesso sera encerrado e seus dados pessoais serao anonimizados.</p><p style="margin:0;color:#374151;font-size:15px;line-height:1.7">Historicos operacionais de doacoes e rastreios podem ser preservados de forma nao pessoal para manter a consistencia dos registros.</p>`,
+      actionUrl ? { label: 'Confirmar encerramento', url: actionUrl } : undefined,
+    ),
+  };
+}
+
+export function accountDeletedTemplate(input: SecurityTemplateInput): EmailTemplate {
+  const name = input.name.trim() || 'tudo bem';
+
+  return {
+    subject: 'Sua conta VestGO foi encerrada',
+    text: [
+      `Ola, ${name}.`,
+      '',
+      'Sua conta VestGO foi encerrada e seus dados pessoais foram anonimizados.',
+      'Historicos operacionais de doacoes e rastreios podem ser preservados de forma nao pessoal para manter a consistencia dos registros.',
+      'Se voce nao confirmou esta acao, entre em contato com o suporte.',
+    ].join('\n'),
+    html: buildLayout(
+      'Conta encerrada',
+      `<p style="margin:0 0 12px;color:#374151;font-size:15px;line-height:1.7">Ola, ${escapeHtml(name)}. Sua conta VestGO foi encerrada e seus dados pessoais foram anonimizados.</p><p style="margin:0;color:#374151;font-size:15px;line-height:1.7">Historicos operacionais de doacoes e rastreios podem ser preservados de forma nao pessoal para manter a consistencia dos registros. Se voce nao confirmou esta acao, entre em contato com o suporte.</p>`,
+    ),
+  };
+}

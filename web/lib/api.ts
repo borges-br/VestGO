@@ -953,6 +953,28 @@ export async function changePassword(
   });
 }
 
+export async function requestAccountDeletion(accessToken: string): Promise<{
+  message: string;
+  accountDeletionEmailSent: boolean;
+  requiresSupport: boolean;
+}> {
+  return apiFetch<{
+    message: string;
+    accountDeletionEmailSent: boolean;
+    requiresSupport: boolean;
+  }>('/auth/request-account-deletion', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function confirmAccountDeletion(token: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/auth/confirm-account-deletion', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
 export async function requestEmailVerification(
   accessToken: string,
 ): Promise<EmailVerificationResponse> {
