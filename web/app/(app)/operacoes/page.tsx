@@ -1,8 +1,10 @@
 import { Route } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { OperationalBoard } from '@/components/donations/operational-board';
+import { OperationalBatchesPanel } from '@/components/operations/operational-batches-panel';
 import { auth } from '@/lib/auth';
 import {
+  getOperationalBatches,
   getOperationalDonations,
   type DonationStatus,
   type OperationalFilters,
@@ -57,7 +59,10 @@ export default async function OperacoesPage({
     redirect('/rastreio');
   }
 
-  const response = await getOperationalDonations(accessToken, buildFiltersFromSearchParams(searchParams));
+  const [response, batchesResponse] = await Promise.all([
+    getOperationalDonations(accessToken, buildFiltersFromSearchParams(searchParams)),
+    getOperationalBatches(accessToken, { limit: 50 }),
+  ]);
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -115,6 +120,14 @@ export default async function OperacoesPage({
             </div>
           </aside>
         </section>
+
+        <OperationalBatchesPanel
+          accessToken={accessToken}
+          role={role}
+          initialBatches={batchesResponse.data}
+          availableCollectionPoints={response.meta.availableCollectionPoints}
+          availableNgos={response.meta.availableNgos}
+        />
 
         <OperationalBoard
           initialDonations={response.data}

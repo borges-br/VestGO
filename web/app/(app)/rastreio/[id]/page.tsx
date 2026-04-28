@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   Award,
+  ClipboardList,
   Info,
   MapPin,
   Package,
@@ -14,6 +15,7 @@ import {
   formatDonationDateLabel,
 } from '@/components/donations/donation-status';
 import { PostDonationRating } from '@/components/donations/post-donation-rating';
+import { StatusActionPanel } from '@/components/donations/status-action-panel';
 import { auth } from '@/lib/auth';
 import { getDonation, getUserDonations, type DonationRecord } from '@/lib/api';
 import { buildImpactSnapshot } from '@/lib/gamification';
@@ -75,6 +77,10 @@ export default async function RastreioDetalhePage({
   const isCancelled = donation.status === 'CANCELLED';
   const showCelebrate = searchParams?.celebrate === '1';
   const isOperationalRole = role !== 'DONOR';
+  const hasOperationalAction = isOperationalRole && donation.allowedNextStatuses.length > 0;
+  const operationHref = hasOperationalAction
+    ? `/operacoes?actionableOnly=true&status=${donation.status}`
+    : `/operacoes?status=${donation.status}`;
   const ngoLocationSummary =
     role === 'DONOR' && donation.ngo?.role === 'NGO'
       ? donation.ngo.serviceRegions && donation.ngo.serviceRegions.length > 0
@@ -186,6 +192,11 @@ export default async function RastreioDetalhePage({
             {donation.latestEvent && (
               <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-primary-deeper">
                 Última atualização: {formatDonationDateLabel(donation.latestEvent.createdAt)}
+              </p>
+            )}
+            {donation.operationalBatch && (
+              <p className="mt-2 inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-primary-deeper">
+                Vinculada à carga {donation.operationalBatch.code} - {donation.operationalBatch.name}
               </p>
             )}
           </div>
@@ -371,6 +382,20 @@ export default async function RastreioDetalhePage({
                       {ngoLocationSummary}
                     </p>
                   </div>
+
+                  {donation.operationalBatch && (
+                    <div className="rounded-[1.5rem] bg-primary-light/45 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+                        Carga operacional
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-semibold text-primary-deeper">
+                        {donation.operationalBatch.code}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {donation.operationalBatch.name}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <Link
@@ -388,33 +413,47 @@ export default async function RastreioDetalhePage({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                      Visão operacional
+                      Operação ativa
                     </p>
                     <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
-                      Etapa sob controle
+                      Próximo passo da coleta
                     </h2>
                   </div>
-                  <Target size={20} className="text-primary" />
+                  <ClipboardList size={20} className="text-primary" />
                 </div>
 
-                <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
-                    {donation.allowedNextStatuses.length > 0
-                      ? 'Esta doação possui próxima etapa disponível.'
-                      : 'Aguardando o próximo ator do fluxo.'}
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
-                    {donation.latestEvent?.description ??
-                      'O histórico desta doação será atualizado sempre que uma etapa mudar.'}
-                  </p>
-                  <Link
-                    href="/operacoes"
-                    className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary"
-                  >
-                    Voltar para o painel operacional
-                    <ArrowLeft size={14} />
-                  </Link>
-                </div>
+                {hasOperationalAction ? (
+                  <div className="mt-5 rounded-[1.75rem] border border-primary/15 bg-primary-light/30 p-4">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      Esta coleta possui ação permitida para seu perfil.
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-gray-500">
+                      Use a ação rápida abaixo para atualizar o status. A mudança atualiza este
+                      rastreio e também aparece na fila operacional.
+                    </p>
+                    <div className="mt-4">
+                      <StatusActionPanel compact donation={donation} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
+                    <p className="text-sm font-semibold text-primary-deeper">
+                      Nenhuma ação operacional disponível para seu perfil neste momento.
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-gray-500">
+                      A coleta pode estar aguardando outro ator do fluxo ou já ter concluído a
+                      etapa sob responsabilidade deste perfil.
+                    </p>
+                  </div>
+                )}
+
+                <Link
+                  href={operationHref}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+                >
+                  <ClipboardList size={16} />
+                  {hasOperationalAction ? 'Abrir na fila operacional' : 'Ver em operações'}
+                </Link>
               </div>
             ) : (
               <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">

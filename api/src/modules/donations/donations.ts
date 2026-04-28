@@ -89,7 +89,7 @@ const operationalPartnershipSelect = {
   notes: true,
 } satisfies Prisma.OperationalPartnershipSelect;
 
-const donationSelect = {
+export const donationSelect = {
   id: true,
   code: true,
   status: true,
@@ -127,14 +127,26 @@ const donationSelect = {
   collectionPoint: { select: pointSelect },
   ngo: { select: pointSelect },
   operationalPartnership: { select: operationalPartnershipSelect },
+  operationalBatchItem: {
+    select: {
+      batch: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          status: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.DonationSelect;
 
-type DonationRecord = Prisma.DonationGetPayload<{ select: typeof donationSelect }>;
-type DonationAccessRecord = Pick<
+export type DonationRecord = Prisma.DonationGetPayload<{ select: typeof donationSelect }>;
+export type DonationAccessRecord = Pick<
   DonationRecord,
   'status' | 'donorId' | 'collectionPointId' | 'ngoId'
 >;
-type Viewer = { id: string; role: string };
+export type Viewer = { id: string; role: string };
 
 const STATUS_POINTS: Record<DonationStatus, number> = {
   PENDING: 60,
@@ -215,7 +227,7 @@ function getRoleScopeWhere(user: Viewer): Prisma.DonationWhereInput {
   return { donorId: user.id };
 }
 
-function getAllowedNextStatuses(donation: DonationAccessRecord, user: Viewer) {
+export function getAllowedNextStatuses(donation: DonationAccessRecord, user: Viewer) {
   if (user.role === UserRole.ADMIN) {
     return STATUS_TRANSITIONS[donation.status];
   }
@@ -314,7 +326,7 @@ function mapTimelineEvent(event: DonationRecord['timeline'][number]) {
   };
 }
 
-function mapDonation(donation: DonationRecord, viewer?: Viewer) {
+export function mapDonation(donation: DonationRecord, viewer?: Viewer) {
   const totalQuantity = donation.items.reduce((sum, item) => sum + item.quantity, 0);
   const latestEvent = donation.timeline[donation.timeline.length - 1] ?? null;
 
@@ -337,6 +349,14 @@ function mapDonation(donation: DonationRecord, viewer?: Viewer) {
     collectionPoint: mapPoint(donation.collectionPoint, viewer),
     ngo: mapPoint(donation.ngo, viewer),
     partnership: mapPartnership(donation.operationalPartnership),
+    operationalBatch: donation.operationalBatchItem
+      ? {
+          id: donation.operationalBatchItem.batch.id,
+          code: donation.operationalBatchItem.batch.code,
+          name: donation.operationalBatchItem.batch.name,
+          status: donation.operationalBatchItem.batch.status,
+        }
+      : null,
     dropOffPoint: mapPoint(donation.collectionPoint, viewer),
     items: donation.items.map((item) => ({
       id: item.id,

@@ -64,6 +64,15 @@ enum PickupRequestStatus {
   REJECTED
 }
 
+enum OperationalBatchStatus {
+  OPEN
+  READY_TO_SHIP
+  IN_TRANSIT
+  DELIVERED
+  CLOSED
+  CANCELLED
+}
+
 enum PublicProfileRevisionStatus {
   PENDING
   REJECTED
@@ -127,15 +136,21 @@ model User {
   pendingPublicRevisionReviewedAt  DateTime?
   pendingPublicRevisionReviewNotes String?
 
-  donations                       Donation[]               @relation("DonorDonations")
-  collectedAt                     Donation[]               @relation("CollectionPointDonations")
-  receivedAt                      Donation[]               @relation("NgoDonations")
-  outgoingOperationalPartnerships OperationalPartnership[] @relation("CollectionPointOperationalPartnerships")
-  incomingOperationalPartnerships OperationalPartnership[] @relation("NgoOperationalPartnerships")
-  pickupRequestsToApprove         PickupRequest[]          @relation("CollectionPointPickupRequests")
-  pickupRequestsRequested         PickupRequest[]          @relation("NgoPickupRequests")
-  notifications                   Notification[]
-  tokens                          UserToken[]
+  donations                           Donation[]               @relation("DonorDonations")
+  collectedAt                         Donation[]               @relation("CollectionPointDonations")
+  receivedAt                          Donation[]               @relation("NgoDonations")
+  outgoingOperationalPartnerships     OperationalPartnership[] @relation("CollectionPointOperationalPartnerships")
+  incomingOperationalPartnerships     OperationalPartnership[] @relation("NgoOperationalPartnerships")
+  operationalBatchesAsCollectionPoint OperationalBatch[]       @relation("OperationalBatchCollectionPoint")
+  operationalBatchesAsNgo             OperationalBatch[]       @relation("OperationalBatchNgo")
+  createdOperationalBatches           OperationalBatch[]       @relation("OperationalBatchCreatedBy")
+  dispatchedOperationalBatches        OperationalBatch[]       @relation("OperationalBatchDispatchedBy")
+  deliveredOperationalBatches         OperationalBatch[]       @relation("OperationalBatchDeliveredBy")
+  addedOperationalBatchItems          OperationalBatchItem[]   @relation("OperationalBatchItemAddedBy")
+  pickupRequestsToApprove             PickupRequest[]          @relation("CollectionPointPickupRequests")
+  pickupRequestsRequested             PickupRequest[]          @relation("NgoPickupRequests")
+  notifications                       Notification[]
+  tokens                              UserToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -175,8 +190,9 @@ model Donation {
   operationalPartnership   OperationalPartnership? @relation("DonationOperationalPartnership", fields: [operationalPartnershipId], references: [id])
   operationalPartnershipId String?
 
-  items    DonationItem[]
-  timeline DonationEvent[]
+  items                DonationItem[]
+  timeline             DonationEvent[]
+  operationalBatchItem OperationalBatchItem?
 
   notes       String?
   scheduledAt DateTime?
@@ -208,6 +224,54 @@ model OperationalPartnership {
   @@index([collectionPointId, status, priority])
   @@index([ngoId, status, priority])
   @@map("operational_partnerships")
+}
+
+model OperationalBatch {
+  id                String                 @id @default(cuid())
+  code              String                 @unique
+  name              String
+  collectionPoint   User                   @relation("OperationalBatchCollectionPoint", fields: [collectionPointId], references: [id], onDelete: Restrict)
+  collectionPointId String
+  ngo               User                   @relation("OperationalBatchNgo", fields: [ngoId], references: [id], onDelete: Restrict)
+  ngoId             String
+  primaryCategory   ItemCategory?
+  status            OperationalBatchStatus @default(OPEN)
+  notes             String?
+
+  createdBy      User    @relation("OperationalBatchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdById    String
+  dispatchedBy   User?   @relation("OperationalBatchDispatchedBy", fields: [dispatchedById], references: [id], onDelete: Restrict)
+  dispatchedById String?
+  deliveredBy    User?   @relation("OperationalBatchDeliveredBy", fields: [deliveredById], references: [id], onDelete: Restrict)
+  deliveredById  String?
+
+  dispatchedAt DateTime?
+  deliveredAt  DateTime?
+  closedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OperationalBatchItem[]
+
+  @@index([collectionPointId, status, createdAt])
+  @@index([ngoId, status, createdAt])
+  @@map("operational_batches")
+}
+
+model OperationalBatchItem {
+  id         String           @id @default(cuid())
+  batch      OperationalBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId    String
+  donation   Donation         @relation(fields: [donationId], references: [id], onDelete: Restrict)
+  donationId String
+  addedBy    User             @relation("OperationalBatchItemAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
+  addedById  String
+  addedAt    DateTime         @default(now())
+
+  @@unique([donationId])
+  @@index([batchId])
+  @@map("operational_batch_items")
 }
 
 model DonationItem {
