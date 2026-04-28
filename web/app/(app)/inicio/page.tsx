@@ -27,6 +27,7 @@ import { auth } from '@/lib/auth';
 import {
   getAdminProfiles,
   getMyProfile,
+  getOperationalDonations,
   getMyPartnerships,
   getNearbyPoints,
   getNotifications,
@@ -38,6 +39,7 @@ import {
   type DonationStatus,
   type MyProfile,
   type NotificationRecord,
+  type OperationalDonationListResponse,
   type PartnershipRecord,
   type PickupRequestRecord,
 } from '@/lib/api';
@@ -210,11 +212,78 @@ const STATUS_META: Record<
   CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-500', stepIndex: 0 },
 };
 
+const NEXT_ACTION_LABELS: Partial<Record<DonationStatus, string>> = {
+  AT_POINT: 'Confirmar recebimento',
+  IN_TRANSIT: 'Enviar para ONG',
+  DELIVERED: 'Confirmar entrega',
+  DISTRIBUTED: 'Marcar distribuição',
+};
+
 function formatDateLabel(input: string) {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: 'short',
   }).format(new Date(input));
+}
+
+function getOperationPartnerLabel(role: string, donation: DonationRecord) {
+  if (role === 'COLLECTION_POINT') {
+    return donation.ngo?.organizationName ?? donation.ngo?.name ?? 'ONG destino pendente';
+  }
+
+  if (role === 'NGO') {
+    return (
+      donation.collectionPoint?.organizationName ??
+      donation.collectionPoint?.name ??
+      'Ponto de origem pendente'
+    );
+  }
+
+  return `${donation.collectionPoint?.organizationName ?? donation.collectionPoint?.name ?? 'Origem'} -> ${
+    donation.ngo?.organizationName ?? donation.ngo?.name ?? 'Destino'
+  }`;
+}
+
+function getNextActionLabel(donation: DonationRecord) {
+  const nextStatus = donation.allowedNextStatuses[0];
+  return nextStatus ? NEXT_ACTION_LABELS[nextStatus] ?? STATUS_META[nextStatus].label : null;
+}
+
+function OperationalDonationMiniCard({
+  donation,
+  role,
+}: {
+  donation: DonationRecord;
+  role: string;
+}) {
+  const status = STATUS_META[donation.status];
+  const actionLabel = getNextActionLabel(donation);
+
+  return (
+    <Link
+      href={`/operacoes?actionableOnly=true&status=${donation.status}`}
+      className="block rounded-[1.35rem] border border-gray-100 bg-white px-4 py-3 transition-colors hover:border-primary/30 hover:bg-primary-light/20"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-xs font-bold text-primary-deeper">{donation.code}</span>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${status.tone}`}>
+          {status.label}
+        </span>
+      </div>
+      <p className="mt-2 truncate text-sm font-semibold text-on-surface">{donation.itemLabel}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span>{donation.itemCount} item(ns)</span>
+        <span>{formatDateLabel(donation.updatedAt)}</span>
+      </div>
+      <p className="mt-2 truncate text-xs text-gray-400">{getOperationPartnerLabel(role, donation)}</p>
+      {actionLabel && (
+        <span className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary">
+          {actionLabel}
+          <ArrowRight size={13} />
+        </span>
+      )}
+    </Link>
+  );
 }
 
 function OperationalHome({
@@ -224,6 +293,8 @@ function OperationalHome({
   nearbyPoints,
   partnerships,
   pickupRequests,
+  operationQueue,
+  operationMeta,
   accessToken,
 }: {
   firstName: string;
@@ -232,6 +303,8 @@ function OperationalHome({
   nearbyPoints: CollectionPoint[];
   partnerships: PartnershipRecord[];
   pickupRequests: PickupRequestRecord[];
+  operationQueue: DonationRecord[];
+  operationMeta: OperationalDonationListResponse['meta'] | null;
   accessToken: string;
 }) {
   const actions = operationalActionMap[role] ?? operationalActionMap.ADMIN;
@@ -247,6 +320,18 @@ function OperationalHome({
   const pendingPickupRequests = pickupRequests.filter(
     (pickupRequest) => pickupRequest.status === 'PENDING',
   );
+  const actionableOperations = operationQueue.filter(
+    (donation) => donation.allowedNextStatuses.length > 0,
+  );
+  const recentOperations = operationQueue.slice(0, 4);
+  const nextAction = actionableOperations[0] ?? null;
+  const statusCounts = operationMeta?.statusCounts ?? {};
+  const operationalStageCards = [
+    { status: 'PENDING' as DonationStatus, label: 'Pendentes' },
+    { status: 'AT_POINT' as DonationStatus, label: 'No ponto' },
+    { status: 'IN_TRANSIT' as DonationStatus, label: 'Em trânsito' },
+    { status: 'DELIVERED' as DonationStatus, label: 'Entregues' },
+  ];
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
@@ -267,7 +352,7 @@ function OperationalHome({
               <div>
                 <p className="text-3xl font-bold tracking-tight sm:text-4xl">Olá, {firstName}.</p>
                 <p className="mt-3 max-w-2xl text-base leading-8 text-primary-muted">
-                  Seu painel agora reconhece o papel operacional da conta e prioriza status do perfil, fila de operação e descoberta pública real.
+                  Acompanhe pendências reais, próximos passos e atalhos do seu papel sem sair da rotina operacional.
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -285,8 +370,8 @@ function OperationalHome({
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   {[
-                    `${stats.handledDonations} doações ligadas ao perfil`,
-                    `${stats.activePartnerships} parcerias ativas`,
+                    `${operationMeta?.actionableCount ?? actionableOperations.length} pendência(s) de ação`,
+                    `${operationMeta?.count ?? operationQueue.length} coleta(s) no recorte recente`,
                     completion?.totalItems
                       ? `${completion.completedItems}/${completion.totalItems} itens essenciais preenchidos`
                       : 'checklist operacional em monitoramento',
@@ -303,33 +388,67 @@ function OperationalHome({
 
               <div className="rounded-[1.75rem] bg-white/10 p-5 backdrop-blur">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-muted">
-                  Estado visível
+                  Próxima ação
                 </p>
-                <p className="mt-3 text-xl font-semibold">{profileStateLabel}</p>
-                <p className="mt-3 text-sm leading-7 text-primary-muted">
-                  {role === 'ADMIN'
-                    ? 'Use este painel para revisar perfis, acompanhar operações e validar a descoberta pública.'
-                    : 'Este estado controla a prontidão pública do seu perfil e ajuda a entender por que ele aparece, ou não, na descoberta do produto.'}
-                </p>
-
-                {profile && role !== 'ADMIN' && (
-                  <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-on-surface">
-                    <p className="text-sm font-semibold">Checklist operacional</p>
-                    <p className="mt-1 text-sm text-gray-400">
-                      {completion?.totalItems
-                        ? `${completion.completedItems} de ${completion.totalItems} itens essenciais concluídos.`
-                        : 'Sem checklist operacional disponível.'}
+                {nextAction ? (
+                  <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-on-surface">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-mono text-sm font-bold text-primary-deeper">
+                        {nextAction.code}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                          STATUS_META[nextAction.status].tone
+                        }`}
+                      >
+                        {STATUS_META[nextAction.status].label}
+                      </span>
+                    </div>
+                    <p className="mt-2 truncate text-sm font-semibold">{nextAction.itemLabel}</p>
+                    <p className="mt-1 truncate text-xs text-gray-500">
+                      {getOperationPartnerLabel(role, nextAction)}
+                    </p>
+                    <Link
+                      href="/operacoes?actionableOnly=true"
+                      className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-primary"
+                    >
+                      {getNextActionLabel(nextAction) ?? 'Abrir operação'}
+                      <ArrowRight size={14} />
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-2xl bg-white/10 px-4 py-4">
+                    <p className="text-sm font-semibold text-white">Sem ação imediata</p>
+                    <p className="mt-2 text-sm leading-6 text-primary-muted">
+                      Quando uma coleta exigir seu próximo passo, ela aparece aqui.
                     </p>
                   </div>
                 )}
+                <p className="mt-4 text-xs leading-6 text-primary-muted">
+                  Perfil: {profileStateLabel}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Painel do papel
+              Fila agora
             </p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {operationalStageCards.map(({ status, label }) => (
+                <Link
+                  key={status}
+                  href={`/operacoes?status=${status}`}
+                  className="rounded-[1.25rem] bg-surface p-4 transition-colors hover:bg-primary-light/50"
+                >
+                  <p className="text-2xl font-bold text-primary-deeper">
+                    {statusCounts[status] ?? 0}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-gray-500">{label}</p>
+                </Link>
+              ))}
+            </div>
             <div className="mt-4 space-y-3">
               {role === 'ADMIN' ? (
                 <>
@@ -373,6 +492,62 @@ function OperationalHome({
                     </p>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                  Pendências de ação
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                  Coletas para resolver agora
+                </h2>
+              </div>
+              <Link href="/operacoes?actionableOnly=true" className="text-sm font-semibold text-primary">
+                Ver fila
+              </Link>
+            </div>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              {actionableOperations.length > 0 ? (
+                actionableOperations
+                  .slice(0, 4)
+                  .map((donation) => (
+                    <OperationalDonationMiniCard key={donation.id} donation={donation} role={role} />
+                  ))
+              ) : (
+                <div className="rounded-[1.75rem] bg-surface px-5 py-8 text-sm text-gray-500 lg:col-span-2">
+                  Nenhuma coleta exige ação deste perfil no momento.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                  Atualizações recentes
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Últimas coletas</h2>
+              </div>
+              <Package size={18} className="text-primary" />
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {recentOperations.length > 0 ? (
+                recentOperations.map((donation) => (
+                  <OperationalDonationMiniCard key={donation.id} donation={donation} role={role} />
+                ))
+              ) : (
+                <div className="rounded-[1.75rem] bg-surface px-5 py-8 text-sm text-gray-500">
+                  A fila operacional ainda não tem coletas neste recorte.
+                </div>
               )}
             </div>
           </div>
@@ -854,18 +1029,32 @@ export default async function InicioPage() {
     let nearbyPoints: CollectionPoint[] = [];
     let partnerships: PartnershipRecord[] = [];
     let pickupRequests: PickupRequestRecord[] = [];
+    let operationQueue: DonationRecord[] = [];
+    let operationMeta: OperationalDonationListResponse['meta'] | null = null;
 
     if (accessToken) {
       try {
-        const [profileResponse, partnershipsResponse, pickupRequestsResponse] = await Promise.all([
+        const [
+          profileResponse,
+          partnershipsResponse,
+          pickupRequestsResponse,
+          operationResponse,
+        ] = await Promise.all([
           getMyProfile(accessToken),
           role === 'ADMIN' ? Promise.resolve(null) : getMyPartnerships(accessToken),
           role === 'ADMIN' ? Promise.resolve(null) : getPickupRequests(accessToken),
+          getOperationalDonations(accessToken, {
+            limit: 8,
+            sortBy: 'updatedAt',
+            direction: 'desc',
+          }),
         ]);
 
         profile = profileResponse;
         partnerships = partnershipsResponse?.data ?? [];
         pickupRequests = pickupRequestsResponse?.data ?? [];
+        operationQueue = operationResponse.data;
+        operationMeta = operationResponse.meta;
 
         const pointsResponse =
           profile.latitude != null && profile.longitude != null
@@ -889,6 +1078,8 @@ export default async function InicioPage() {
         nearbyPoints = [];
         partnerships = [];
         pickupRequests = [];
+        operationQueue = [];
+        operationMeta = null;
       }
     }
 
@@ -901,6 +1092,8 @@ export default async function InicioPage() {
         nearbyPoints={nearbyPoints}
         partnerships={partnerships}
         pickupRequests={pickupRequests}
+        operationQueue={operationQueue}
+        operationMeta={operationMeta}
       />
     );
   }

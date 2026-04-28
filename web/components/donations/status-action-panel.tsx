@@ -87,6 +87,41 @@ export function StatusActionPanel({
     }
   }
 
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        {availableActions.map((status) => {
+          const action = DONATION_STATUS_ACTIONS[status];
+          const isPending = pendingStatus === status;
+
+          return (
+            <button
+              key={status}
+              onClick={() => handleStatusUpdate(status)}
+              disabled={Boolean(pendingStatus)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-surface disabled:text-gray-300"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                action.label
+              )}
+            </button>
+          );
+        })}
+
+        {error && (
+          <div className="rounded-[1.25rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`rounded-[2rem] bg-white p-5 shadow-card ${compact ? '' : 'lg:p-6'}`}>
       <div className="flex items-center justify-between gap-3">
