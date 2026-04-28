@@ -121,8 +121,40 @@ export function OperationalBatchesPanel({
   const [batchName, setBatchName] = useState('');
   const [loadingCode, setLoadingCode] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [expandedBatchIds, setExpandedBatchIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const orderedBatches = useMemo(() => {
+    const priority: Record<OperationalBatchStatus, number> =
+      role === 'NGO'
+        ? {
+            IN_TRANSIT: 0,
+            DELIVERED: 1,
+            OPEN: 2,
+            READY_TO_SHIP: 3,
+            CLOSED: 4,
+            CANCELLED: 5,
+          }
+        : {
+            OPEN: 0,
+            READY_TO_SHIP: 1,
+            IN_TRANSIT: 2,
+            DELIVERED: 3,
+            CLOSED: 4,
+            CANCELLED: 5,
+          };
+
+    return [...batches].sort((left, right) => {
+      const statusDiff = priority[left.status] - priority[right.status];
+
+      if (statusDiff !== 0) {
+        return statusDiff;
+      }
+
+      return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+    });
+  }, [batches, role]);
 
   const eligibleBatches = useMemo(() => {
     if (!donation) {
@@ -162,6 +194,14 @@ export function OperationalBatchesPanel({
     startTransition(() => {
       router.refresh();
     });
+  }
+
+  function toggleBatch(batchId: string) {
+    setExpandedBatchIds((current) =>
+      current.includes(batchId)
+        ? current.filter((id) => id !== batchId)
+        : [...current, batchId],
+    );
   }
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -318,6 +358,15 @@ export function OperationalBatchesPanel({
     batch: OperationalBatchRecord,
     action: 'ready' | 'dispatch' | 'deliver' | 'close' | 'cancel',
   ) {
+    if (
+      action === 'deliver' &&
+      !window.confirm(
+        `Confirmar recebimento da carga ${batch.code}? As ${batch.donationCount} doações vinculadas elegíveis avançarão para entregue.`,
+      )
+    ) {
+      return;
+    }
+
     setPendingAction(`${action}:${batch.id}`);
     setError(null);
     setMessage(null);
@@ -349,7 +398,11 @@ export function OperationalBatchesPanel({
           },
         };
       });
-      setMessage(`Carga ${updatedBatch.code} atualizada.`);
+      setMessage(
+        updatedBatch.operationSummary
+          ? `Carga ${updatedBatch.code} atualizada: ${updatedBatch.operationSummary.updated}/${updatedBatch.operationSummary.total} doações avançaram.`
+          : `Carga ${updatedBatch.code} atualizada.`,
+      );
       refreshUi();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nao foi possivel atualizar a carga.');
@@ -536,8 +589,13 @@ export function OperationalBatchesPanel({
               Cargas operacionais
             </p>
             <h2 className="mt-1 text-2xl font-bold text-primary-deeper">
-              Lotes em andamento
+              {role === 'NGO' ? 'Cargas em trânsito para sua ONG' : 'Lotes em andamento'}
             </h2>
+            {role === 'NGO' && (
+              <p className="mt-2 text-sm leading-6 text-gray-500">
+                Confirme o recebimento pelo lote para evitar atualização item a item.
+              </p>
+            )}
           </div>
           <Truck size={22} className="text-primary" />
         </div>
@@ -554,11 +612,19 @@ export function OperationalBatchesPanel({
           </div>
         ) : (
           <div className="mt-5 space-y-3">
-            {batches.slice(0, 8).map((batch) => {
+            {orderedBatches.slice(0, 8).map((batch) => {
               const actionKey = pendingAction?.endsWith(`:${batch.id}`) ? pendingAction : null;
+              const isExpanded = expandedBatchIds.includes(batch.id);
 
               return (
-                <article key={batch.id} className="rounded-[1.35rem] border border-gray-100 p-4">
+                <article
+                  key={batch.id}
+                  className={`rounded-[1.35rem] border p-4 ${
+                    batch.allowedActions.canConfirmDelivery
+                      ? 'border-primary/25 bg-primary-light/20'
+                      : 'border-gray-100'
+                  }`}
+                >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -577,7 +643,13 @@ export function OperationalBatchesPanel({
                         {batch.name}
                       </p>
                       <p className="mt-1 text-xs leading-5 text-gray-500">
-                        {batch.itemCount} doacao(oes) {'->'} {pointLabel(batch.ngo)}
+                        {batch.donationCount} doacao(oes), {batch.totalItemQuantity} peça(s) {'->'} {pointLabel(batch.ngo)}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        Origem: {pointLabel(batch.collectionPoint)}
+                        {batch.dispatchedAt
+                          ? ` · Saída: ${formatDonationDateLabel(batch.dispatchedAt)}`
+                          : ''}
                       </p>
                       <p className="mt-1 text-[11px] text-gray-400">
                         Atualizada {formatDonationDateLabel(batch.updatedAt)}
@@ -625,11 +697,19 @@ export function OperationalBatchesPanel({
                         ) : (
                           <>
                             <CheckCircle2 size={13} />
-                            Confirmar entrega
+                            Confirmar recebimento da carga
                           </>
                         )}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => toggleBatch(batch.id)}
+                      className="rounded-2xl bg-surface px-3 py-2 text-xs font-semibold text-primary-deeper transition-colors hover:bg-primary-light/40"
+                      aria-expanded={isExpanded}
+                    >
+                      {isExpanded ? 'Ocultar doações' : 'Ver doações'}
+                    </button>
                     {batch.allowedActions.canClose && (
                       <button
                         type="button"
@@ -652,6 +732,35 @@ export function OperationalBatchesPanel({
                       </button>
                     )}
                   </div>
+
+                  {isExpanded && (
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <div className="space-y-2">
+                        {batch.items.map((item) => {
+                          const statusConfig = DONATION_STATUS_CONFIG[item.donation.status];
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="grid gap-2 rounded-2xl bg-surface px-3 py-3 text-xs sm:grid-cols-[110px_minmax(0,1fr)_90px] sm:items-center"
+                            >
+                              <span className="font-mono font-semibold text-primary-deeper">
+                                {item.donation.code}
+                              </span>
+                              <span className="min-w-0 truncate text-gray-600">
+                                {item.donation.itemLabel} · {item.donation.itemCount} item(ns)
+                              </span>
+                              <span
+                                className={`w-fit rounded-full px-2 py-1 text-[10px] font-semibold ${statusConfig.bg} ${statusConfig.color}`}
+                              >
+                                {statusConfig.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </article>
               );
             })}

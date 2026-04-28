@@ -315,6 +315,8 @@ export type OperationalBatchRecord = {
   collectionPoint: DonationPoint;
   ngo: DonationPoint;
   itemCount: number;
+  donationCount: number;
+  totalItemQuantity: number;
   allowedActions: {
     canAddItems: boolean;
     canRemoveItems: boolean;
@@ -324,6 +326,16 @@ export type OperationalBatchRecord = {
     canClose: boolean;
     canCancel: boolean;
   };
+  operationSummary: {
+    total: number;
+    updated: number;
+    skipped: number;
+    skippedItems: Array<{
+      donationId: string;
+      donationCode: string;
+      reason: string;
+    }>;
+  } | null;
   items: OperationalBatchItemRecord[];
 };
 

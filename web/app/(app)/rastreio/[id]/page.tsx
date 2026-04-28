@@ -16,8 +16,15 @@ import {
 } from '@/components/donations/donation-status';
 import { PostDonationRating } from '@/components/donations/post-donation-rating';
 import { StatusActionPanel } from '@/components/donations/status-action-panel';
+import { OperationalBatchTraceCard } from '@/components/operations/operational-batch-trace-card';
 import { auth } from '@/lib/auth';
-import { getDonation, getUserDonations, type DonationRecord } from '@/lib/api';
+import {
+  getDonation,
+  getOperationalBatch,
+  getUserDonations,
+  type DonationRecord,
+  type OperationalBatchRecord,
+} from '@/lib/api';
 import { buildImpactSnapshot } from '@/lib/gamification';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -45,17 +52,23 @@ export default async function RastreioDetalhePage({
 
   let donation: DonationRecord | null = null;
   let allDonations: DonationRecord[] = [];
+  let linkedBatch: OperationalBatchRecord | null = null;
 
   try {
-    const [donationResponse, donationsResponse] = await Promise.all([
-      getDonation(params.id, accessToken),
+    const donationResponse = await getDonation(params.id, accessToken);
+    const [donationsResponse, linkedBatchResponse] = await Promise.all([
       getUserDonations(accessToken, { limit: 50 }),
+      role !== 'DONOR' && donationResponse.operationalBatch
+        ? getOperationalBatch(donationResponse.operationalBatch.id, accessToken).catch(() => null)
+        : Promise.resolve(null),
     ]);
     donation = donationResponse;
     allDonations = donationsResponse.data;
+    linkedBatch = linkedBatchResponse;
   } catch {
     donation = null;
     allDonations = [];
+    linkedBatch = null;
   }
 
   if (!donation) {
@@ -78,6 +91,11 @@ export default async function RastreioDetalhePage({
   const showCelebrate = searchParams?.celebrate === '1';
   const isOperationalRole = role !== 'DONOR';
   const hasOperationalAction = isOperationalRole && donation.allowedNextStatuses.length > 0;
+  const hasBatchPrimaryAction =
+    linkedBatch != null &&
+    (linkedBatch.allowedActions.canDispatch ||
+      linkedBatch.allowedActions.canConfirmDelivery ||
+      linkedBatch.allowedActions.canClose);
   const operationHref = hasOperationalAction
     ? `/operacoes?actionableOnly=true&status=${donation.status}`
     : `/operacoes?status=${donation.status}`;
@@ -204,6 +222,14 @@ export default async function RastreioDetalhePage({
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4">
+            {linkedBatch && (
+              <OperationalBatchTraceCard
+                initialBatch={linkedBatch}
+                viewerRole={role}
+                defaultExpanded={false}
+              />
+            )}
+
             {!isCancelled && (
               <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
@@ -425,11 +451,14 @@ export default async function RastreioDetalhePage({
                 {hasOperationalAction ? (
                   <div className="mt-5 rounded-[1.75rem] border border-primary/15 bg-primary-light/30 p-4">
                     <p className="text-sm font-semibold text-primary-deeper">
-                      Esta coleta possui ação permitida para seu perfil.
+                      {hasBatchPrimaryAction
+                        ? 'Esta coleta faz parte de uma carga com ação principal por lote.'
+                        : 'Esta coleta possui ação permitida para seu perfil.'}
                     </p>
                     <p className="mt-2 text-sm leading-7 text-gray-500">
-                      Use a ação rápida abaixo para atualizar o status. A mudança atualiza este
-                      rastreio e também aparece na fila operacional.
+                      {hasBatchPrimaryAction
+                        ? 'Use o painel da carga como caminho principal. A ação individual continua disponível como fallback para ajuste pontual.'
+                        : 'Use a ação rápida abaixo para atualizar o status. A mudança atualiza este rastreio e também aparece na fila operacional.'}
                     </p>
                     <div className="mt-4">
                       <StatusActionPanel compact donation={donation} />

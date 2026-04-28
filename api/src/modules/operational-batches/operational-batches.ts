@@ -67,6 +67,17 @@ type OperationalBatchRecord = Prisma.OperationalBatchGetPayload<{
   select: typeof operationalBatchSelect;
 }>;
 
+type BatchOperationSummary = {
+  total: number;
+  updated: number;
+  skipped: number;
+  skippedItems: Array<{
+    donationId: string;
+    donationCode: string;
+    reason: string;
+  }>;
+};
+
 const ITEM_MUTABLE_BATCH_STATUSES: OperationalBatchStatus[] = [
   OperationalBatchStatus.OPEN,
   OperationalBatchStatus.READY_TO_SHIP,
@@ -169,7 +180,16 @@ function getAllowedBatchActions(batch: OperationalBatchRecord, user: Viewer) {
   };
 }
 
-function mapBatch(batch: OperationalBatchRecord, user: Viewer) {
+function mapBatch(
+  batch: OperationalBatchRecord,
+  user: Viewer,
+  operationSummary?: BatchOperationSummary,
+) {
+  const totalItemQuantity = batch.items.reduce(
+    (sum, item) => sum + item.donation.items.reduce((itemSum, donationItem) => itemSum + donationItem.quantity, 0),
+    0,
+  );
+
   return {
     id: batch.id,
     code: batch.code,
@@ -190,7 +210,10 @@ function mapBatch(batch: OperationalBatchRecord, user: Viewer) {
     collectionPoint: mapPartner(batch.collectionPoint),
     ngo: mapPartner(batch.ngo),
     itemCount: batch.items.length,
+    donationCount: batch.items.length,
+    totalItemQuantity,
     allowedActions: getAllowedBatchActions(batch, user),
+    operationSummary: operationSummary ?? null,
     items: batch.items.map((item) => ({
       id: item.id,
       addedById: item.addedById,
@@ -233,20 +256,43 @@ function assertCanMutateItems(batch: OperationalBatchRecord, user: Viewer) {
   }
 }
 
+function getBatchMovePlan(
+  batch: OperationalBatchRecord,
+  user: Viewer,
+  targetStatus: DonationStatus,
+) {
+  const blockedItems = batch.items
+    .filter((item) => !getAllowedNextStatuses(item.donation, user).includes(targetStatus))
+    .map((item) => ({
+      donationId: item.donation.id,
+      donationCode: item.donation.code,
+      reason: `Status atual ${item.donation.status} nao permite avancar para ${targetStatus}`,
+    }));
+
+  return {
+    total: batch.items.length,
+    updated: blockedItems.length === 0 ? batch.items.length : 0,
+    skipped: blockedItems.length,
+    skippedItems: blockedItems,
+  };
+}
+
 function assertDonationsCanMove(
   batch: OperationalBatchRecord,
   user: Viewer,
   targetStatus: DonationStatus,
 ) {
-  const blockedCodes = batch.items
-    .filter((item) => !getAllowedNextStatuses(item.donation, user).includes(targetStatus))
-    .map((item) => item.donation.code);
+  const plan = getBatchMovePlan(batch, user, targetStatus);
 
-  if (blockedCodes.length > 0) {
+  if (plan.skippedItems.length > 0) {
     throw new ConflictError(
-      `Existem doacoes sem permissao ou transicao valida para ${targetStatus}: ${blockedCodes.join(', ')}`,
+      `Existem doacoes sem permissao ou transicao valida para ${targetStatus}: ${plan.skippedItems
+        .map((item) => item.donationCode)
+        .join(', ')}`,
     );
   }
+
+  return plan;
 }
 
 function getBatchTimelineLocation(batch: OperationalBatchRecord, targetStatus: DonationStatus) {
@@ -282,7 +328,7 @@ async function moveBatchDonations(
   targetStatus: DonationStatus,
   batchData: Prisma.OperationalBatchUpdateInput,
 ) {
-  assertDonationsCanMove(batch, user, targetStatus);
+  const operationSummary = assertDonationsCanMove(batch, user, targetStatus);
   const location = getBatchTimelineLocation(batch, targetStatus);
 
   const updatedBatch = await fastify.prisma.$transaction(async (tx) => {
@@ -340,7 +386,7 @@ async function moveBatchDonations(
     }),
   );
 
-  return updatedBatch;
+  return { batch: updatedBatch, operationSummary };
 }
 
 function isUniqueConstraintError(error: unknown) {
@@ -612,7 +658,7 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         throw new ConflictError('A carga precisa estar aberta/pronta e conter doacoes para despacho');
       }
 
-      const updatedBatch = await moveBatchDonations(
+      const result = await moveBatchDonations(
         fastify,
         batch,
         request.user,
@@ -624,7 +670,7 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         },
       );
 
-      return reply.send(mapBatch(updatedBatch, request.user));
+      return reply.send(mapBatch(result.batch, request.user, result.operationSummary));
     } catch (err) {
       if (err instanceof AppError) {
         return reply.code(err.statusCode).send(toErrorResponse(err));
@@ -644,7 +690,7 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         throw new ConflictError('Esta carga nao esta disponivel para confirmacao de entrega');
       }
 
-      const updatedBatch = await moveBatchDonations(
+      const result = await moveBatchDonations(
         fastify,
         batch,
         request.user,
@@ -656,7 +702,7 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         },
       );
 
-      return reply.send(mapBatch(updatedBatch, request.user));
+      return reply.send(mapBatch(result.batch, request.user, result.operationSummary));
     } catch (err) {
       if (err instanceof AppError) {
         return reply.code(err.statusCode).send(toErrorResponse(err));

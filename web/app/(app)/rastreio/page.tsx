@@ -5,11 +5,14 @@ import {
   DONATION_STATUS_CONFIG,
   formatDonationDateLabel,
 } from '@/components/donations/donation-status';
+import { OperationalBatchTraceCard } from '@/components/operations/operational-batch-trace-card';
 import { auth } from '@/lib/auth';
 import {
+  getOperationalBatches,
   getOperationalDonations,
   getUserDonations,
   type DonationRecord,
+  type OperationalBatchRecord,
 } from '@/lib/api';
 import { buildImpactSnapshot } from '@/lib/gamification';
 
@@ -37,16 +40,34 @@ export default async function RastreioPage() {
         },
       },
     };
+    const fallbackBatchesResponse = {
+      data: [] as OperationalBatchRecord[],
+      meta: {
+        count: 0,
+        statusCounts: {
+          OPEN: 0,
+          READY_TO_SHIP: 0,
+          IN_TRANSIT: 0,
+          DELIVERED: 0,
+          CLOSED: 0,
+          CANCELLED: 0,
+        },
+      },
+    };
 
-    const response = accessToken
-      ? await getOperationalDonations(accessToken, {
-          limit: 30,
-          sortBy: 'updatedAt',
-          direction: 'desc',
-        }).catch(() => fallbackResponse)
-      : fallbackResponse;
+    const [response, batchesResponse] = accessToken
+      ? await Promise.all([
+          getOperationalDonations(accessToken, {
+            limit: 30,
+            sortBy: 'updatedAt',
+            direction: 'desc',
+          }).catch(() => fallbackResponse),
+          getOperationalBatches(accessToken, { limit: 30 }).catch(() => fallbackBatchesResponse),
+        ])
+      : [fallbackResponse, fallbackBatchesResponse];
 
     const donations = response.data;
+    const batches = batchesResponse.data;
     const statusCounts: Partial<Record<'PENDING' | 'AT_POINT' | 'IN_TRANSIT' | 'DELIVERED' | 'DISTRIBUTED' | 'CANCELLED', number>> =
       response.meta.statusCounts ?? {};
 
@@ -94,6 +115,34 @@ export default async function RastreioPage() {
               </div>
             ))}
           </section>
+
+          {batches.length > 0 && (
+            <section className="rounded-[2rem] bg-white p-5 shadow-card lg:p-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                    Cargas acompanhadas
+                  </p>
+                  <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
+                    Lotes operacionais recentes
+                  </h2>
+                </div>
+                <Link href="/operacoes" className="text-sm font-semibold text-primary">
+                  Gerenciar cargas
+                </Link>
+              </div>
+              <div className="mt-5 grid gap-3 xl:grid-cols-2">
+                {batches.slice(0, 4).map((batch) => (
+                  <OperationalBatchTraceCard
+                    key={batch.id}
+                    compact
+                    initialBatch={batch}
+                    viewerRole={role}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_360px]">
             <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
