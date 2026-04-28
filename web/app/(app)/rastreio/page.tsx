@@ -1,4 +1,4 @@
-import { ClipboardList, Package, Plus, Route, Target } from 'lucide-react';
+import { ArrowRight, ClipboardList, Package, Plus, Route, Target } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
@@ -133,12 +133,15 @@ export default async function RastreioPage() {
                   {donations.map((donation) => {
                     const statusConfig = DONATION_STATUS_CONFIG[donation.status];
                     const StatusIcon = statusConfig.icon;
+                    const hasOperationalAction = donation.allowedNextStatuses.length > 0;
+                    const operationHref = hasOperationalAction
+                      ? `/operacoes?actionableOnly=true&status=${donation.status}`
+                      : `/operacoes?status=${donation.status}`;
 
                     return (
-                      <Link
+                      <article
                         key={donation.id}
-                        href={`/rastreio/${donation.id}`}
-                        className="block rounded-[1.75rem] border border-gray-100 bg-white p-4 transition-all hover:shadow-card-lg"
+                        className="rounded-[1.75rem] border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-card-lg"
                       >
                         <div className="flex items-start gap-4">
                           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary">
@@ -167,6 +170,16 @@ export default async function RastreioPage() {
                                 <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                                   {donation.code}
                                 </span>
+                                {hasOperationalAction && (
+                                  <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+                                    ação disponível
+                                  </span>
+                                )}
+                                {donation.operationalBatch && (
+                                  <span className="rounded-full bg-primary-light/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-deeper">
+                                    carga {donation.operationalBatch.code}
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -182,9 +195,32 @@ export default async function RastreioPage() {
                                 {donation.latestEvent.description}
                               </p>
                             )}
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <Link
+                                href={`/rastreio/${donation.id}`}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
+                              >
+                                Ver rastreio
+                                <ArrowRight size={14} />
+                              </Link>
+                              <Link
+                                href={operationHref}
+                                className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition-colors ${
+                                  hasOperationalAction
+                                    ? 'bg-primary-deeper text-white hover:bg-primary-dark'
+                                    : 'bg-surface text-gray-500 hover:text-primary-deeper'
+                                }`}
+                              >
+                                {hasOperationalAction
+                                  ? 'Abrir operação desta coleta'
+                                  : 'Ver em operações'}
+                                <ClipboardList size={14} />
+                              </Link>
+                            </div>
                           </div>
                         </div>
-                      </Link>
+                      </article>
                     );
                   })}
                 </div>
@@ -368,6 +404,11 @@ export default async function RastreioPage() {
                               <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
                                 +{donation.pointsAwarded} pts
                               </span>
+                              {donation.operationalBatch && (
+                                <span className="rounded-full bg-primary-light/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-deeper">
+                                  carga {donation.operationalBatch.code}
+                                </span>
+                              )}
                             </div>
                           </div>
 

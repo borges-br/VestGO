@@ -73,6 +73,15 @@ export type DonationStatus =
   | 'DISTRIBUTED'
   | 'CANCELLED';
 
+export type ItemCategory = 'CLOTHING' | 'SHOES' | 'ACCESSORIES' | 'BAGS' | 'OTHER';
+export type OperationalBatchStatus =
+  | 'OPEN'
+  | 'READY_TO_SHIP'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'CLOSED'
+  | 'CANCELLED';
+
 export type PublicProfileState = 'DRAFT' | 'PENDING' | 'ACTIVE' | 'VERIFIED';
 export type PartnershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
 export type PickupRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -168,6 +177,13 @@ export type DonationPartnership = {
   notes: string | null;
 };
 
+export type DonationBatchSummary = {
+  id: string;
+  code: string;
+  name: string;
+  status: OperationalBatchStatus;
+};
+
 export type DonationRecord = {
   id: string;
   code: string;
@@ -184,6 +200,7 @@ export type DonationRecord = {
   collectionPoint: DonationPoint | null;
   ngo: DonationPoint | null;
   partnership: DonationPartnership | null;
+  operationalBatch: DonationBatchSummary | null;
   dropOffPoint: DonationPoint | null;
   items: DonationItem[];
   latestEvent: DonationEvent | null;
@@ -269,6 +286,61 @@ export type OperationalDonationListResponse = {
       direction: 'asc' | 'desc';
     };
   };
+};
+
+export type OperationalBatchItemRecord = {
+  id: string;
+  addedById: string;
+  addedAt: string;
+  donation: DonationRecord;
+};
+
+export type OperationalBatchRecord = {
+  id: string;
+  code: string;
+  name: string;
+  status: OperationalBatchStatus;
+  primaryCategory: ItemCategory | null;
+  notes: string | null;
+  collectionPointId: string;
+  ngoId: string;
+  createdById: string;
+  dispatchedById: string | null;
+  deliveredById: string | null;
+  dispatchedAt: string | null;
+  deliveredAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  collectionPoint: DonationPoint;
+  ngo: DonationPoint;
+  itemCount: number;
+  allowedActions: {
+    canAddItems: boolean;
+    canRemoveItems: boolean;
+    canMarkReady: boolean;
+    canDispatch: boolean;
+    canConfirmDelivery: boolean;
+    canClose: boolean;
+    canCancel: boolean;
+  };
+  items: OperationalBatchItemRecord[];
+};
+
+export type OperationalBatchListResponse = {
+  data: OperationalBatchRecord[];
+  meta: {
+    count: number;
+    statusCounts: Record<OperationalBatchStatus, number>;
+  };
+};
+
+export type CreateOperationalBatchInput = {
+  name: string;
+  ngoId: string;
+  collectionPointId?: string;
+  primaryCategory?: ItemCategory;
+  notes?: string;
 };
 
 export type DonationTimelineResponse = {
@@ -769,6 +841,122 @@ export async function getOperationalDonations(
 
   const suffix = qs.toString() ? `?${qs}` : '';
   return apiFetch<OperationalDonationListResponse>(`/donations/operations${suffix}`, {
+    accessToken,
+  });
+}
+
+export async function getOperationalDonationByCode(
+  code: string,
+  accessToken: string,
+): Promise<DonationRecord> {
+  return apiFetch<DonationRecord>(
+    `/operational-donations/by-code/${encodeURIComponent(code.trim().toUpperCase())}`,
+    { accessToken },
+  );
+}
+
+export async function getOperationalBatches(
+  accessToken: string,
+  params?: { status?: OperationalBatchStatus; limit?: number },
+): Promise<OperationalBatchListResponse> {
+  const qs = new URLSearchParams({
+    ...(params?.status ? { status: params.status } : {}),
+    ...(params?.limit ? { limit: String(params.limit) } : {}),
+  });
+
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiFetch<OperationalBatchListResponse>(`/operational-batches${suffix}`, {
+    accessToken,
+  });
+}
+
+export async function getOperationalBatch(
+  id: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}`, { accessToken });
+}
+
+export async function createOperationalBatch(
+  input: CreateOperationalBatchInput,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>('/operational-batches', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function addOperationalBatchItem(
+  batchId: string,
+  donationId: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${batchId}/items`, {
+    method: 'POST',
+    body: JSON.stringify({ donationId }),
+    accessToken,
+  });
+}
+
+export async function removeOperationalBatchItem(
+  batchId: string,
+  itemId: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${batchId}/items/${itemId}`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function markOperationalBatchReady(
+  id: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/mark-ready`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function dispatchOperationalBatch(
+  id: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/dispatch`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function confirmOperationalBatchDelivery(
+  id: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/confirm-delivery`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function closeOperationalBatch(
+  id: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/close`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function cancelOperationalBatch(
+  id: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/cancel`, {
+    method: 'POST',
     accessToken,
   });
 }
