@@ -264,9 +264,9 @@ export function OperationalProfileSummary({
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-shell space-y-4">
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_360px]">
-          <div className="relative overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
+      <div className="mx-auto max-w-[1500px] space-y-4">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_380px]">
+          <div className="relative overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-7">
             {publishedImages.coverImageUrl && (
               <>
                 <SafeImage
@@ -330,7 +330,7 @@ export function OperationalProfileSummary({
               </div>
             </div>
 
-            <div className="relative z-10 mt-6 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+            <div className="relative z-10 mt-6 rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
               <p className="text-sm font-semibold text-white">Resumo institucional</p>
               <p className="mt-2 text-sm leading-7 text-primary-muted">
                 {profile.description ??
@@ -365,16 +365,16 @@ export function OperationalProfileSummary({
               </div>
             )}
 
-            <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.5rem] bg-white/10 p-4">
+            <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[1.25rem] bg-white/10 p-4">
                 <p className="text-3xl font-bold">{profile.stats.handledDonations}</p>
                 <p className="mt-1 text-sm text-primary-muted">Doacoes ligadas</p>
               </div>
-              <div className="rounded-[1.5rem] bg-white/10 p-4">
+              <div className="rounded-[1.25rem] bg-white/10 p-4">
                 <p className="text-3xl font-bold">{profile.stats.activePartnerships}</p>
                 <p className="mt-1 text-sm text-primary-muted">Parcerias ativas</p>
               </div>
-              <div className="rounded-[1.5rem] bg-white/10 p-4">
+              <div className="rounded-[1.25rem] bg-white/10 p-4">
                 <p className="text-3xl font-bold">
                   {profile.profileCompletion.completedItems}/{profile.profileCompletion.totalItems}
                 </p>

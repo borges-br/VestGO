@@ -104,7 +104,7 @@ function MediaCompareCard({
           <SafeImage
             src={current}
             alt={`${alt} atual`}
-            className="h-28 rounded-xl border border-gray-100"
+            className="h-24 rounded-xl border border-gray-100"
             fallbackLabel="Sem imagem"
           />
         </div>
@@ -115,7 +115,7 @@ function MediaCompareCard({
           <SafeImage
             src={pending}
             alt={`${alt} pendente`}
-            className="h-28 rounded-xl border border-amber-100"
+            className="h-24 rounded-xl border border-amber-100"
             fallbackLabel={pending ? 'Imagem indisponível' : 'Sem imagem'}
           />
         </div>
@@ -145,7 +145,7 @@ function GalleryCompare({
               key={`${label}-${imageUrl}`}
               src={imageUrl}
               alt={`${title} ${label.toLowerCase()} ${index + 1}`}
-              className="h-20 rounded-xl border border-gray-100"
+              className="h-16 rounded-xl border border-gray-100"
               fallbackLabel="Falhou"
             />
           ))}
@@ -185,12 +185,12 @@ function RevisionMediaComparison({ profile }: { profile: AdminProfileRecord }) {
   const pending = getPendingImages(profile);
 
   return (
-    <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+    <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/60 p-3">
       <p className="text-sm font-semibold text-primary-deeper">Imagens atuais vs pendentes</p>
       <p className="mt-1 text-xs leading-5 text-gray-500">
         A coluna pendente mostra exatamente o que será publicado se o admin aprovar a revisão.
       </p>
-      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+      <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <MediaCompareCard
           title="Avatar"
           current={profile.avatarUrl}
@@ -291,8 +291,8 @@ export default function AdminPerfisPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8">
-      <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+    <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mb-5 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="text-2xl font-bold text-primary-deeper">Governanca de Perfis</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -302,7 +302,7 @@ export default function AdminPerfisPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex flex-wrap gap-4 rounded-3xl bg-white p-4 shadow-sm">
+      <div className="mb-5 flex flex-wrap gap-3 rounded-[1.5rem] bg-white p-3 shadow-sm">
         <select
           value={filterRole}
           onChange={(e) => setFilterRole(e.target.value)}
@@ -345,7 +345,10 @@ export default function AdminPerfisPage() {
           </div>
         ) : (
           profiles.map((profile) => (
-            <div key={profile.id} className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-sm sm:flex-row sm:items-center">
+            <div
+              key={profile.id}
+              className="grid gap-4 rounded-[1.5rem] bg-white p-4 shadow-sm lg:grid-cols-[minmax(260px,1fr)_180px_minmax(260px,auto)] lg:items-center"
+            >
               {/* Info Column */}
               <div className="flex flex-1 items-center gap-4">
                 <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-surface text-gray-500">
@@ -456,18 +459,20 @@ export default function AdminPerfisPage() {
               </div>
 
               {profile.pendingPublicRevision && (
-                <div className="rounded-2xl bg-surface px-4 py-4 text-sm text-gray-600 sm:basis-full">
-                  <p className="font-semibold text-primary-deeper">Campos em revisao</p>
-                  <p className="mt-2 leading-7">
-                    {profile.pendingPublicRevision.fields.length > 0
-                      ? profile.pendingPublicRevision.fields.join(', ')
-                      : 'Alteracoes publicas aguardando avaliacao.'}
-                  </p>
-                  {profile.pendingPublicRevision.reviewNotes && (
-                    <p className="mt-2 text-xs text-gray-500">
-                      Observacao anterior: {profile.pendingPublicRevision.reviewNotes}
+                <div className="rounded-2xl bg-surface px-4 py-4 text-sm text-gray-600 lg:col-span-3 xl:grid xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-4">
+                  <div>
+                    <p className="font-semibold text-primary-deeper">Campos em revisao</p>
+                    <p className="mt-2 leading-7">
+                      {profile.pendingPublicRevision.fields.length > 0
+                        ? profile.pendingPublicRevision.fields.join(', ')
+                        : 'Alteracoes publicas aguardando avaliacao.'}
                     </p>
-                  )}
+                    {profile.pendingPublicRevision.reviewNotes && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Observacao anterior: {profile.pendingPublicRevision.reviewNotes}
+                      </p>
+                    )}
+                  </div>
                   <RevisionMediaComparison profile={profile} />
                 </div>
               )}
