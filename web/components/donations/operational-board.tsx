@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ArrowUpDown, Filter, Target } from 'lucide-react';
 import {
+  DONATION_STATUS_ACTIONS,
   DONATION_STATUS_CONFIG,
+  DONATION_STATUS_ORDER,
   formatDonationDateLabel,
 } from '@/components/donations/donation-status';
 import { StatusActionPanel } from '@/components/donations/status-action-panel';
@@ -15,9 +17,9 @@ const FILTER_OPTIONS: { value: 'ALL' | DonationStatus; label: string }[] = [
   { value: 'ALL', label: 'Todas' },
   { value: 'PENDING', label: 'Pendentes' },
   { value: 'AT_POINT', label: 'No ponto' },
-  { value: 'IN_TRANSIT', label: 'Em transito' },
+  { value: 'IN_TRANSIT', label: 'Em trânsito' },
   { value: 'DELIVERED', label: 'Entregues' },
-  { value: 'DISTRIBUTED', label: 'Distribuidas' },
+  { value: 'DISTRIBUTED', label: 'Distribuídas' },
 ];
 
 interface OperationalBoardProps {
@@ -38,14 +40,14 @@ interface OperationalBoardProps {
 
 function getOperationalLabel(role: string, donation: DonationRecord) {
   if (role === 'COLLECTION_POINT') {
-    return donation.ngo?.organizationName ?? donation.ngo?.name ?? 'ONG ainda nao vinculada';
+    return donation.ngo?.organizationName ?? donation.ngo?.name ?? 'ONG ainda não vinculada';
   }
 
   if (role === 'NGO') {
     return (
       donation.collectionPoint?.organizationName ??
       donation.collectionPoint?.name ??
-      'Ponto de origem nao informado'
+      'Ponto de origem não informado'
     );
   }
 
@@ -56,6 +58,32 @@ function getOperationalLabel(role: string, donation: DonationRecord) {
 
 function pointLabel(point: DonationPoint) {
   return point.organizationName ?? point.name;
+}
+
+function getNextActionLabel(donation: DonationRecord) {
+  const nextStatus = donation.allowedNextStatuses[0];
+  return nextStatus ? DONATION_STATUS_ACTIONS[nextStatus]?.label : null;
+}
+
+function OperationProgress({ status }: { status: DonationStatus }) {
+  const activeIndex = DONATION_STATUS_ORDER.indexOf(status);
+
+  return (
+    <div className="flex items-center gap-1.5" aria-label={`Etapa atual: ${DONATION_STATUS_CONFIG[status].label}`}>
+      {DONATION_STATUS_ORDER.map((step, index) => {
+        const active = index <= activeIndex && activeIndex >= 0;
+
+        return (
+          <span
+            key={step}
+            className={`h-1.5 flex-1 rounded-full ${
+              active ? 'bg-primary' : 'bg-gray-200'
+            }`}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 export function OperationalBoard({
@@ -79,6 +107,8 @@ export function OperationalBoard({
     () => ({
       total: donations.length,
       actionable: actionableCount,
+      inMotion: donations.filter((donation) => ['AT_POINT', 'IN_TRANSIT'].includes(donation.status))
+        .length,
       completed: donations.filter((donation) =>
         ['DELIVERED', 'DISTRIBUTED'].includes(donation.status),
       ).length,
@@ -106,35 +136,31 @@ export function OperationalBoard({
 
   return (
     <div className="space-y-4">
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-[1.75rem] bg-white p-4 shadow-card">
-          <p className="text-3xl font-bold text-primary-deeper">{summary.total}</p>
-          <p className="mt-1 text-sm text-gray-500">Doacoes neste recorte</p>
-        </div>
-        <div className="rounded-[1.75rem] bg-white p-4 shadow-card">
-          <p className="text-3xl font-bold text-primary">{summary.actionable}</p>
-          <p className="mt-1 text-sm text-gray-500">Aguardando sua acao</p>
-        </div>
-        <div className="rounded-[1.75rem] bg-white p-4 shadow-card">
-          <p className="text-3xl font-bold text-emerald-600">{summary.completed}</p>
-          <p className="mt-1 text-sm text-gray-500">Etapas concluidas neste recorte</p>
-        </div>
+      <section className="grid gap-3 sm:grid-cols-4">
+        {[
+          ['Total', summary.total, 'text-primary-deeper'],
+          ['Ação', summary.actionable, 'text-primary'],
+          ['Em fluxo', summary.inMotion, 'text-indigo-600'],
+          ['Finalizadas', summary.completed, 'text-emerald-600'],
+        ].map(([label, value, tone]) => (
+          <div key={label} className="rounded-[1.4rem] bg-white p-4 shadow-card">
+            <p className={`text-2xl font-bold ${tone}`}>{value}</p>
+            <p className="mt-1 text-xs font-semibold text-gray-500">{label}</p>
+          </div>
+        ))}
       </section>
 
-      <section className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+      <section className="rounded-[2rem] bg-white p-4 shadow-card sm:p-5 lg:p-6">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                Operacao
+                Operação
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Fila operacional</h2>
-              <p className="mt-2 text-sm text-gray-500">
-                Filtre por etapa, parceiro e contexto para operar com menos atrito.
-              </p>
+              <h2 className="mt-1 text-2xl font-bold text-primary-deeper">Fila operacional</h2>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
               {FILTER_OPTIONS.map((option) => {
                 const isActive =
                   (initialFilters.status ?? 'ALL') ===
@@ -148,7 +174,7 @@ export function OperationalBoard({
                         status: option.value === 'ALL' ? null : option.value,
                       })
                     }
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                    className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
                       isActive
                         ? 'bg-primary-deeper text-white'
                         : 'bg-surface text-gray-500 hover:text-primary-deeper'
@@ -161,7 +187,7 @@ export function OperationalBoard({
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-[1.75rem] bg-surface p-4 lg:grid-cols-[repeat(4,minmax(0,1fr))]">
+          <div className="grid gap-3 rounded-[1.5rem] bg-surface p-3 lg:grid-cols-[repeat(4,minmax(0,1fr))]">
             {showCollectionPointFilter && (
               <label className="text-sm">
                 <span className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
@@ -212,17 +238,17 @@ export function OperationalBoard({
                   actionableOnly: initialFilters.actionableOnly ? null : 'true',
                 })
               }
-              className={`rounded-[1.5rem] border px-4 py-3 text-left text-sm transition-colors ${
+              className={`rounded-[1.35rem] border px-4 py-3 text-left text-sm transition-colors ${
                 initialFilters.actionableOnly
                   ? 'border-primary/30 bg-primary-light/40 text-primary-deeper'
                   : 'border-gray-200 bg-white text-gray-500 hover:text-primary-deeper'
               }`}
             >
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em]">
-                Acao imediata
+                Ação imediata
               </span>
-              <p className="mt-2 font-semibold">
-                {initialFilters.actionableOnly ? 'Mostrando apenas acionaveis' : 'Mostrar so as que exigem acao'}
+              <p className="mt-1 font-semibold">
+                {initialFilters.actionableOnly ? 'Somente acionáveis' : 'Filtrar acionáveis'}
               </p>
             </button>
 
@@ -232,129 +258,115 @@ export function OperationalBoard({
                   direction: initialFilters.direction === 'desc' ? 'asc' : 'desc',
                 })
               }
-              className="rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3 text-left text-sm text-gray-500 transition-colors hover:text-primary-deeper"
+              className="rounded-[1.35rem] border border-gray-200 bg-white px-4 py-3 text-left text-sm text-gray-500 transition-colors hover:text-primary-deeper"
             >
               <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em]">
                 <ArrowUpDown size={12} />
-                Ordenacao
+                Ordem
               </span>
-              <p className="mt-2 font-semibold text-on-surface">
-                {initialFilters.direction === 'desc' ? 'Mais recentes primeiro' : 'Mais antigas primeiro'}
+              <p className="mt-1 font-semibold text-on-surface">
+                {initialFilters.direction === 'desc' ? 'Recentes primeiro' : 'Antigas primeiro'}
               </p>
             </button>
           </div>
         </div>
 
         {donations.length === 0 ? (
-          <div className="mt-8 rounded-[1.75rem] bg-surface px-6 py-12 text-center">
+          <div className="mt-6 rounded-[1.75rem] bg-surface px-6 py-12 text-center">
             <Target size={24} className="mx-auto text-primary" />
             <p className="mt-4 text-base font-semibold text-primary-deeper">
-              Nenhuma doacao neste recorte
+              Nenhuma doação neste recorte
             </p>
             <p className="mt-2 text-sm text-gray-500">
               Ajuste os filtros ou aguarde novas entradas no fluxo operacional.
             </p>
           </div>
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="mt-5 grid gap-3">
             {donations.map((donation) => {
               const statusConfig = DONATION_STATUS_CONFIG[donation.status];
               const StatusIcon = statusConfig.icon;
+              const actionLabel = getNextActionLabel(donation);
 
               return (
                 <article
                   key={donation.id}
-                  className="rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-sm"
+                  className="rounded-[1.35rem] border border-gray-100 bg-white p-4 shadow-sm"
                 >
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 flex-1">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-center">
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-bold text-primary-deeper">
+                          {donation.code}
+                        </span>
                         <span
-                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold ${statusConfig.bg} ${statusConfig.color}`}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ${statusConfig.bg} ${statusConfig.color}`}
                         >
                           <StatusIcon size={13} />
                           {statusConfig.label}
                         </span>
-                        <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-                          {donation.code}
-                        </span>
                         {donation.partnership && (
-                          <span className="rounded-full bg-primary-light/50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-deeper">
+                          <span className="rounded-full bg-primary-light/50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-deeper">
                             parceria ativa
                           </span>
                         )}
                       </div>
 
-                      <p className="mt-4 text-lg font-bold text-primary-deeper">{donation.itemLabel}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                        <span>{donation.itemCount} item(ns)</span>
-                        <span>Atualizado em {formatDonationDateLabel(donation.updatedAt)}</span>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-bold text-primary-deeper">
+                            {donation.itemLabel}
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
+                            <span>{donation.itemCount} item(ns)</span>
+                            <span>{getOperationalLabel(role, donation)}</span>
+                            <span>{formatDonationDateLabel(donation.updatedAt)}</span>
+                          </div>
+                        </div>
+                        <OperationProgress status={donation.status} />
                       </div>
 
-                      <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                        <div className="rounded-[1.5rem] bg-surface p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-                            Fluxo relacionado
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-on-surface">
-                            {getOperationalLabel(role, donation)}
-                          </p>
-                          <p className="mt-1 text-xs leading-6 text-gray-400">
-                            {donation.partnership?.notes ??
-                              (role === 'COLLECTION_POINT'
-                                ? 'Destino parceiro vinculado para a proxima etapa.'
-                                : role === 'NGO'
-                                  ? 'Origem registrada para manter o rastreio coerente.'
-                                  : 'Origem e destino vinculados no fluxo atual.')}
-                          </p>
-                        </div>
-
-                        <div className="rounded-[1.5rem] bg-surface p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-                            Ultima atualizacao
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-on-surface">
-                            {donation.latestEvent?.description ?? 'Registro inicial aguardando atualizacao'}
-                          </p>
-                          <p className="mt-1 text-xs leading-6 text-gray-400">
-                            {donation.latestEvent
-                              ? formatDonationDateLabel(donation.latestEvent.createdAt)
-                              : formatDonationDateLabel(donation.createdAt)}
-                          </p>
-                        </div>
-                      </div>
+                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-500">
+                        {donation.latestEvent?.description ??
+                          'Registro inicial aguardando atualização operacional.'}
+                      </p>
                     </div>
 
-                    <div className="w-full xl:max-w-[23rem]">
+                    <div className="flex flex-col gap-2">
                       {donation.allowedNextStatuses.length > 0 ? (
-                        <StatusActionPanel
-                          compact
-                          donation={donation}
-                          onUpdated={(updatedDonation) => {
-                            setDonations((current) =>
-                              current.map((item) =>
-                                item.id === updatedDonation.id ? updatedDonation : item,
-                              ),
-                            );
-                          }}
-                        />
-                      ) : (
-                        <div className="rounded-[2rem] bg-surface p-5">
-                          <p className="text-sm font-semibold text-primary-deeper">
-                            Sem acao disponivel agora
+                        <>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+                            {actionLabel ?? 'Próximo passo'}
                           </p>
-                          <p className="mt-2 text-sm leading-7 text-gray-500">
-                            Esta doacao ja concluiu sua etapa sob este perfil ou aguarda o proximo ator.
+                          <StatusActionPanel
+                            compact
+                            donation={donation}
+                            onUpdated={(updatedDonation) => {
+                              setDonations((current) =>
+                                current.map((item) =>
+                                  item.id === updatedDonation.id ? updatedDonation : item,
+                                ),
+                              );
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <div className="rounded-2xl bg-surface px-4 py-3">
+                          <p className="text-sm font-semibold text-primary-deeper">
+                            Sem ação agora
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-gray-500">
+                            Aguarda outro ator ou já concluiu sua etapa.
                           </p>
                         </div>
                       )}
 
                       <Link
                         href={`/rastreio/${donation.id}`}
-                        className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-primary"
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
                       >
-                        Abrir detalhes completos
-                        <ArrowRight size={15} />
+                        Detalhes
+                        <ArrowRight size={14} />
                       </Link>
                     </div>
                   </div>
