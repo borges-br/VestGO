@@ -73,7 +73,7 @@ function InfoCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm lg:rounded-none lg:border-0 lg:border-t lg:border-gray-100 lg:bg-transparent lg:p-0 lg:pt-5 lg:shadow-none">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
         {label}
       </p>
@@ -114,7 +114,7 @@ function PublicGallery({ images, title }: { images: string[]; title: string }) {
   return (
     <InfoCard label="Galeria" title="Fotos públicas">
       {images.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {images.map((imageUrl, index) => (
             <SafeImage
               key={imageUrl}
@@ -205,7 +205,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-surface font-sans">
-      <div className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1500px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
         <Link
           href="/mapa"
           className="mb-4 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-gray-500 shadow-sm transition-colors hover:text-primary"
@@ -214,7 +214,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
           Voltar ao mapa
         </Link>
 
-        <section className="relative overflow-hidden rounded-[2rem] bg-primary-deeper text-white shadow-card-lg">
+        <section className="relative min-h-[420px] overflow-hidden rounded-[2rem] bg-primary-deeper text-white shadow-card-lg">
           <SafeImage
             src={point.coverImageUrl}
             alt={`Capa de ${title}`}
@@ -223,7 +223,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
             fallback={<HeroFallback />}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#00272e]/88 via-[#00333c]/58 to-[#00333c]/18" />
-          <div className="relative z-10 grid gap-6 px-5 py-8 sm:px-7 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8 lg:py-10">
+          <div className="relative z-10 grid min-h-[420px] gap-6 px-5 py-8 sm:px-7 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-end lg:px-8 lg:py-10 xl:grid-cols-[minmax(0,1fr)_440px]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
@@ -283,8 +283,8 @@ export default async function CollectionPointDetailPage({ params }: Props) {
           </div>
         </section>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <main className="space-y-5">
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
+          <main className="space-y-5 rounded-[2rem] bg-white p-5 shadow-card lg:p-7">
             {point.purpose && (
               <InfoCard label="Propósito" title="Impacto institucional">
                 {point.purpose}
@@ -380,7 +380,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
             <PublicGallery images={galleryImages} title={title} />
           </main>
 
-          <aside className="space-y-5">
+          <aside className="space-y-5 rounded-[2rem] bg-white p-5 shadow-card lg:sticky lg:top-5 lg:self-start">
             <InfoCard label="Operação" title={isNgo ? 'ONG parceira' : 'Fluxo de doação'}>
               {isNgo ? (
                 <p>

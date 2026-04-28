@@ -18,7 +18,7 @@ const getObjectParamsSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .max(240)
+    .max(512)
     .regex(/^[a-zA-Z0-9._%-]+$/, 'Chave de arquivo invalida'),
 });
 

@@ -333,7 +333,7 @@ function ProfileMediaReview({ profile }: { profile: MyProfile }) {
   const pendingGallery = pending?.galleryImageUrls;
 
   return (
-    <section className="mb-5 rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-card">
+    <section className="mb-5 rounded-[1.75rem] border border-gray-100 bg-white p-4 shadow-card lg:p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-primary-deeper">Imagens do perfil</p>
@@ -350,11 +350,11 @@ function ProfileMediaReview({ profile }: { profile: MyProfile }) {
       </div>
 
       <div className={`mt-4 grid gap-4 ${showPending ? 'lg:grid-cols-2' : ''}`}>
-        <div className="rounded-[1.5rem] bg-surface p-4">
+        <div className="rounded-[1.35rem] bg-surface p-3">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
             Publicado
           </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+          <div className="mt-3 grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)]">
             <MediaThumb src={published.avatarUrl} alt={`Avatar publicado de ${title}`} label="Avatar" />
             <MediaThumb
               src={published.coverImageUrl}
@@ -363,14 +363,14 @@ function ProfileMediaReview({ profile }: { profile: MyProfile }) {
             />
           </div>
           {published.galleryImageUrls.length > 0 ? (
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
               {published.galleryImageUrls.slice(0, 6).map((imageUrl, index) => (
                 <MediaThumb
                   key={imageUrl}
                   src={imageUrl}
                   alt={`Foto publicada ${index + 1} de ${title}`}
                   label={`Foto ${index + 1}`}
-                  className="h-20"
+                  className="h-16"
                 />
               ))}
             </div>
@@ -382,11 +382,11 @@ function ProfileMediaReview({ profile }: { profile: MyProfile }) {
         </div>
 
         {showPending && (
-          <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-4">
+          <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
               Pendente
             </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+            <div className="mt-3 grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)]">
               <MediaThumb
                 src={pending.avatarUrl ?? null}
                 alt={`Avatar pendente de ${title}`}
@@ -399,14 +399,14 @@ function ProfileMediaReview({ profile }: { profile: MyProfile }) {
               />
             </div>
             {pendingGallery && pendingGallery.length > 0 ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
                 {pendingGallery.slice(0, 6).map((imageUrl, index) => (
                   <MediaThumb
                     key={imageUrl}
                     src={imageUrl}
                     alt={`Foto pendente ${index + 1} de ${title}`}
                     label={`Foto ${index + 1}`}
-                    className="h-20"
+                    className="h-16"
                   />
                 ))}
               </div>
@@ -947,7 +947,7 @@ export function OperationalProfileForm() {
 
   return (
     <div className="px-4 pb-8 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-shell">
+      <div className="mx-auto max-w-[1500px]">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <Link
@@ -1005,10 +1005,10 @@ export function OperationalProfileForm() {
           </div>
         )}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
           <form
             onSubmit={handleSubmit}
-            className="space-y-5 rounded-[2rem] bg-white p-5 shadow-card lg:p-7"
+            className="space-y-5 rounded-[2rem] bg-white p-5 shadow-card lg:p-6"
           >
             <div className="flex flex-wrap gap-2">
               {steps.map((item, index) => (

@@ -37,6 +37,7 @@ function getAllowedOrigins() {
 
 const app = Fastify({
   trustProxy: process.env.TRUST_PROXY === 'true',
+  maxParamLength: 512,
   logger: {
     transport:
       process.env.NODE_ENV === 'development'

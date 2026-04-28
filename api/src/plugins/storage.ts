@@ -1,4 +1,5 @@
 import fp from 'fastify-plugin';
+import { randomBytes } from 'node:crypto';
 import { Client } from 'minio';
 
 type UploadTarget = 'avatar' | 'cover' | 'gallery';
@@ -32,25 +33,7 @@ declare module 'fastify' {
   }
 }
 
-function sanitizeFilename(value: string) {
-  const sanitized = value
-    .normalize('NFKD')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase();
-
-  return sanitized.slice(0, 80);
-}
-
-function getFileExtension(filename: string, contentType: string) {
-  const parts = filename.split('.');
-  const rawExtension = parts.length > 1 ? parts[parts.length - 1]?.toLowerCase() : '';
-
-  if (rawExtension && ['jpg', 'jpeg', 'png', 'webp'].includes(rawExtension)) {
-    return rawExtension === 'jpeg' ? 'jpg' : rawExtension;
-  }
-
+function getFileExtension(contentType: string) {
   if (contentType === 'image/png') {
     return 'png';
   }
@@ -62,18 +45,11 @@ function getFileExtension(filename: string, contentType: string) {
   return 'jpg';
 }
 
-function buildObjectKey(userId: string, target: UploadTarget, filename: string, contentType: string) {
-  const sanitizedBase = sanitizeFilename(filename.replace(/\.[^.]+$/, '')) || target;
-  const extension = getFileExtension(filename, contentType);
-  const random = Math.random().toString(36).slice(2, 10);
-  const targetGroup =
-    target === 'avatar'
-      ? 'profile-avatar'
-      : target === 'cover'
-        ? 'profile-cover'
-        : 'profile-gallery';
+function buildObjectKey(userId: string, target: UploadTarget, contentType: string) {
+  const extension = getFileExtension(contentType);
+  const random = randomBytes(8).toString('hex');
 
-  return `${userId}-${targetGroup}-${Date.now()}-${random}-${sanitizedBase}.${extension}`;
+  return `${userId}-${target}-${Date.now()}-${random}.${extension}`;
 }
 
 export default fp(async (fastify) => {
@@ -110,10 +86,10 @@ export default fp(async (fastify) => {
     buildPublicUrl(key) {
       return `/api/backend/uploads/${encodeURIComponent(key)}`;
     },
-    async putImage({ userId, target, filename, contentType, buffer }) {
+    async putImage({ userId, target, contentType, buffer }) {
       await ensureBucket();
 
-      const key = buildObjectKey(userId, target, filename, contentType);
+      const key = buildObjectKey(userId, target, contentType);
 
       await client.putObject(bucket, key, buffer, buffer.length, {
         'Content-Type': contentType,
