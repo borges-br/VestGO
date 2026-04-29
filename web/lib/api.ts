@@ -889,6 +889,16 @@ export async function getOperationalBatch(
   return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}`, { accessToken });
 }
 
+export async function getOperationalBatchByCode(
+  code: string,
+  accessToken: string,
+): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(
+    `/operational-batches/by-code/${encodeURIComponent(code.trim().toUpperCase())}`,
+    { accessToken },
+  );
+}
+
 export async function createOperationalBatch(
   input: CreateOperationalBatchInput,
   accessToken: string,

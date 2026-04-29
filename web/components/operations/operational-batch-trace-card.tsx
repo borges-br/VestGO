@@ -17,6 +17,7 @@ import {
   DONATION_STATUS_CONFIG,
   formatDonationDateLabel,
 } from '@/components/donations/donation-status';
+import { CodeQrCard } from '@/components/operations/code-qr-card';
 import {
   closeOperationalBatch,
   confirmOperationalBatchDelivery,
@@ -56,6 +57,8 @@ interface OperationalBatchTraceCardProps {
   viewerRole: string;
   defaultExpanded?: boolean;
   compact?: boolean;
+  showQr?: boolean;
+  onBatchUpdated?: (batch: OperationalBatchRecord) => void;
 }
 
 function partnerLabel(partner: OperationalBatchRecord['ngo']) {
@@ -86,6 +89,8 @@ export function OperationalBatchTraceCard({
   viewerRole,
   defaultExpanded = false,
   compact = false,
+  showQr = false,
+  onBatchUpdated,
 }: OperationalBatchTraceCardProps) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -151,6 +156,7 @@ export function OperationalBatchTraceCard({
             : await closeOperationalBatch(batch.id, session.user.accessToken);
 
       setBatch(updatedBatch);
+      onBatchUpdated?.(updatedBatch);
       setMessage(
         updatedBatch.operationSummary
           ? `${updatedBatch.operationSummary.updated}/${updatedBatch.operationSummary.total} doações atualizadas pelo lote.`
@@ -218,6 +224,17 @@ export function OperationalBatchTraceCard({
           </button>
         )}
       </div>
+
+      {showQr && (
+        <div className="mt-4">
+          <CodeQrCard
+            compact
+            code={batch.code}
+            title="QR da carga"
+            description="Escaneie ou digite este codigo para localizar a carga no fluxo operacional."
+          />
+        </div>
+      )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl bg-surface px-4 py-3">

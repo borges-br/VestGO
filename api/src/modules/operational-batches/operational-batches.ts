@@ -88,6 +88,16 @@ const listBatchesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
+const batchCodeParamSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .refine((value) => /^LOT-[A-Z0-9]{6}$/.test(value), {
+      message: 'Codigo de carga invalido',
+    }),
+});
+
 const createBatchSchema = z.object({
   name: z.string().trim().min(2).max(120),
   ngoId: z.string().trim().min(1),
@@ -238,6 +248,22 @@ async function findAccessibleBatch(fastify: FastifyInstance, id: string, user: V
   const batch = await fastify.prisma.operationalBatch.findFirst({
     where: {
       id,
+      ...buildBatchWhere(user),
+    },
+    select: operationalBatchSelect,
+  });
+
+  if (!batch) {
+    throw new NotFoundError('Carga');
+  }
+
+  return batch;
+}
+
+async function findAccessibleBatchByCode(fastify: FastifyInstance, code: string, user: Viewer) {
+  const batch = await fastify.prisma.operationalBatch.findFirst({
+    where: {
+      code,
       ...buildBatchWhere(user),
     },
     select: operationalBatchSelect,
@@ -434,6 +460,30 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         return reply.code(422).send({
           error: 'VALIDATION_ERROR',
           message: 'Parametros invalidos para cargas operacionais',
+          issues: err.errors,
+        });
+      }
+
+      throw err;
+    }
+  });
+
+  fastify.get('/by-code/:code', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      ensureOperationalAccess(request.user);
+      const { code } = batchCodeParamSchema.parse(request.params);
+      const batch = await findAccessibleBatchByCode(fastify, code, request.user);
+
+      return reply.send(mapBatch(batch, request.user));
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.code(err.statusCode).send(toErrorResponse(err));
+      }
+
+      if (err instanceof z.ZodError) {
+        return reply.code(422).send({
+          error: 'VALIDATION_ERROR',
+          message: 'Codigo de carga invalido',
           issues: err.errors,
         });
       }
