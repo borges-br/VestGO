@@ -16,6 +16,7 @@ import {
 } from '@/components/donations/donation-status';
 import { PostDonationRating } from '@/components/donations/post-donation-rating';
 import { StatusActionPanel } from '@/components/donations/status-action-panel';
+import { CodeQrCard } from '@/components/operations/code-qr-card';
 import { OperationalBatchTraceCard } from '@/components/operations/operational-batch-trace-card';
 import { auth } from '@/lib/auth';
 import {
@@ -227,6 +228,7 @@ export default async function RastreioDetalhePage({
                 initialBatch={linkedBatch}
                 viewerRole={role}
                 defaultExpanded={false}
+                showQr
               />
             )}
 
@@ -368,6 +370,16 @@ export default async function RastreioDetalhePage({
           </div>
 
           <aside className="space-y-4">
+            <CodeQrCard
+              code={donation.code}
+              title="Codigo da doacao"
+              description={
+                isOperationalRole
+                  ? 'Escaneie ou digite este codigo para localizar a doacao na operacao.'
+                  : 'Apresente este codigo no ponto de coleta para agilizar o recebimento.'
+              }
+            />
+
             <div className="overflow-hidden rounded-[2rem] bg-white shadow-card">
               <div className="flex h-28 items-center justify-center bg-gradient-to-br from-primary-light to-[#c8eae7]">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg">
@@ -410,7 +422,7 @@ export default async function RastreioDetalhePage({
                   </div>
 
                   {donation.operationalBatch && (
-                    <div className="rounded-[1.5rem] bg-primary-light/45 p-4">
+                    <div className="space-y-3 rounded-[1.5rem] bg-primary-light/45 p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
                         Carga operacional
                       </p>
@@ -420,6 +432,17 @@ export default async function RastreioDetalhePage({
                       <p className="mt-1 text-xs text-gray-500">
                         {donation.operationalBatch.name}
                       </p>
+                      <CodeQrCard
+                        compact
+                        code={donation.operationalBatch.code}
+                        title="Codigo da carga"
+                        description={
+                          isOperationalRole
+                            ? 'Use este codigo LOT para localizar a carga.'
+                            : 'Codigo publico da carga vinculada a sua doacao.'
+                        }
+                        className="shadow-none"
+                      />
                     </div>
                   )}
                 </div>

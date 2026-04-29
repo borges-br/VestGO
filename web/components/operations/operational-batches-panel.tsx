@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Loader2,
   PackagePlus,
+  ScanLine,
   Search,
   Send,
   Truck,
@@ -16,6 +17,9 @@ import {
   DONATION_STATUS_CONFIG,
   formatDonationDateLabel,
 } from '@/components/donations/donation-status';
+import { CodeQrCard } from '@/components/operations/code-qr-card';
+import { OperationalBatchTraceCard } from '@/components/operations/operational-batch-trace-card';
+import { OperationalCodeScanner } from '@/components/operations/operational-code-scanner';
 import {
   addOperationalBatchItem,
   cancelOperationalBatch,
@@ -23,6 +27,7 @@ import {
   confirmOperationalBatchDelivery,
   createOperationalBatch,
   dispatchOperationalBatch,
+  getOperationalBatchByCode,
   getOperationalDonationByCode,
   markOperationalBatchReady,
   updateDonationStatus,
@@ -32,8 +37,7 @@ import {
   type OperationalBatchRecord,
   type OperationalBatchStatus,
 } from '@/lib/api';
-
-const CODE_PATTERN = /^VGO-[A-Z0-9]{6,}$/;
+import { normalizeOperationalCode, parseOperationalCode } from '@/lib/operational-codes';
 
 const ITEM_CATEGORIES: ItemCategory[] = ['CLOTHING', 'SHOES', 'ACCESSORIES', 'BAGS', 'OTHER'];
 
@@ -75,10 +79,6 @@ function pointLabel(point: DonationPoint | null | undefined) {
   return point?.organizationName ?? point?.name ?? 'Nao informado';
 }
 
-function normalizeCode(input: string) {
-  return input.trim().toUpperCase();
-}
-
 function inferPrimaryCategory(donation: DonationRecord): ItemCategory | undefined {
   const category = donation.items[0]?.category;
   return ITEM_CATEGORIES.includes(category as ItemCategory) ? (category as ItemCategory) : undefined;
@@ -116,12 +116,14 @@ export function OperationalBatchesPanel({
   const router = useRouter();
   const [code, setCode] = useState('');
   const [donation, setDonation] = useState<DonationRecord | null>(null);
+  const [locatedBatch, setLocatedBatch] = useState<OperationalBatchRecord | null>(null);
   const [batches, setBatches] = useState(initialBatches);
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [batchName, setBatchName] = useState('');
   const [loadingCode, setLoadingCode] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [expandedBatchIds, setExpandedBatchIds] = useState<string[]>([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -204,14 +206,28 @@ export function OperationalBatchesPanel({
     );
   }
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const normalizedCode = normalizeCode(code);
+  function selectDonationResult(foundDonation: DonationRecord) {
+    setDonation(foundDonation);
+    setLocatedBatch(null);
+    setBatchName(defaultBatchName(foundDonation));
+    const firstEligibleBatch = batches.find(
+      (batch) =>
+        batch.allowedActions.canAddItems &&
+        batch.ngoId === foundDonation.ngo?.id &&
+        batch.collectionPointId === foundDonation.collectionPoint?.id,
+    );
+    setSelectedBatchId(firstEligibleBatch?.id ?? '');
+  }
 
-    if (!CODE_PATTERN.test(normalizedCode)) {
-      setError('Informe um codigo no formato VGO-XXXXXX.');
+  async function resolveOperationalCode(rawCode: string) {
+    const parsed = parseOperationalCode(rawCode);
+    setCode(parsed.code);
+
+    if (!parsed.valid) {
+      setError(parsed.reason);
       setMessage(null);
       setDonation(null);
+      setLocatedBatch(null);
       return;
     }
 
@@ -220,22 +236,38 @@ export function OperationalBatchesPanel({
     setMessage(null);
 
     try {
-      const foundDonation = await getOperationalDonationByCode(normalizedCode, accessToken);
-      setDonation(foundDonation);
-      setBatchName(defaultBatchName(foundDonation));
-      const firstEligibleBatch = batches.find(
-        (batch) =>
-          batch.allowedActions.canAddItems &&
-          batch.ngoId === foundDonation.ngo?.id &&
-          batch.collectionPointId === foundDonation.collectionPoint?.id,
+      if (parsed.kind === 'DONATION') {
+        const foundDonation = await getOperationalDonationByCode(parsed.code, accessToken);
+        selectDonationResult(foundDonation);
+        setMessage(`Doacao ${foundDonation.code} localizada.`);
+        return;
+      }
+
+      const foundBatch = await getOperationalBatchByCode(parsed.code, accessToken);
+      setDonation(null);
+      setLocatedBatch(foundBatch);
+      updateBatchState(foundBatch);
+      setExpandedBatchIds((current) =>
+        current.includes(foundBatch.id) ? current : [foundBatch.id, ...current],
       );
-      setSelectedBatchId(firstEligibleBatch?.id ?? '');
+      setMessage(`Carga ${foundBatch.code} localizada.`);
     } catch (err) {
       setDonation(null);
-      setError(err instanceof Error ? err.message : 'Nao foi possivel localizar a doacao.');
+      setLocatedBatch(null);
+      setError(err instanceof Error ? err.message : 'Nao foi possivel localizar o codigo.');
     } finally {
       setLoadingCode(false);
     }
+  }
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await resolveOperationalCode(code);
+  }
+
+  async function handleScannerResolve(scannedCode: string) {
+    setScannerOpen(false);
+    await resolveOperationalCode(scannedCode);
   }
 
   async function handleReceiveDonation() {
@@ -384,6 +416,7 @@ export function OperationalBatchesPanel({
                 : await cancelOperationalBatch(batch.id, accessToken);
 
       updateBatchState(updatedBatch);
+      setLocatedBatch((current) => (current?.id === updatedBatch.id ? updatedBatch : current));
       setDonation((current) => {
         if (!current?.operationalBatch || current.operationalBatch.id !== updatedBatch.id) {
           return current;
@@ -418,33 +451,48 @@ export function OperationalBatchesPanel({
     donation.operationalBatch == null;
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(360px,0.75fr)]">
+    <>
+      <OperationalCodeScanner
+        open={scannerOpen}
+        resolving={loadingCode}
+        onClose={() => setScannerOpen(false)}
+        onResolve={handleScannerResolve}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(360px,0.75fr)]">
       <div className="rounded-[2rem] bg-white p-4 shadow-card sm:p-5 lg:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Entrada por codigo
+              Entrada por QR ou codigo
             </p>
             <h2 className="mt-1 text-2xl font-bold text-primary-deeper">
-              Localizar doacao
+              Localizar doacao ou carga
             </h2>
             <p className="mt-2 text-sm leading-6 text-gray-500">
-              Use o codigo publico VGO para confirmar recebimento e vincular a uma carga.
+              Use o scanner ou digite um codigo publico VGO/LOT para operar sem dados sensiveis.
             </p>
           </div>
-          <PackagePlus size={22} className="text-primary" />
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            <ScanLine size={16} />
+            Escanear QR Code
+          </button>
         </div>
 
         <form onSubmit={handleSearch} className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
           <label className="text-sm">
             <span className="mb-2 block text-xs font-semibold text-gray-500">
-              Codigo da doacao
+              Codigo VGO ou LOT
             </span>
             <input
               value={code}
-              onChange={(event) => setCode(normalizeCode(event.target.value))}
-              placeholder="VGO-XXXXXX"
-              aria-invalid={Boolean(error && !donation)}
+              onChange={(event) => setCode(normalizeOperationalCode(event.target.value))}
+              placeholder="VGO-XXXXXX ou LOT-XXXXXX"
+              aria-invalid={Boolean(error && !donation && !locatedBatch)}
               className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-mono text-sm uppercase text-on-surface outline-none transition-colors focus:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/20"
             />
           </label>
@@ -470,6 +518,24 @@ export function OperationalBatchesPanel({
             }`}
           >
             {error ?? message}
+          </div>
+        )}
+
+        {locatedBatch && (
+          <div className="mt-5">
+            <OperationalBatchTraceCard
+              key={`${locatedBatch.id}-${locatedBatch.updatedAt}`}
+              compact
+              defaultExpanded={false}
+              showQr
+              initialBatch={locatedBatch}
+              viewerRole={role}
+              onBatchUpdated={(updatedBatch) => {
+                setLocatedBatch(updatedBatch);
+                updateBatchState(updatedBatch);
+                refreshUi();
+              }}
+            />
           </div>
         )}
 
@@ -735,6 +801,13 @@ export function OperationalBatchesPanel({
 
                   {isExpanded && (
                     <div className="mt-3 border-t border-gray-100 pt-3">
+                      <CodeQrCard
+                        compact
+                        code={batch.code}
+                        title="QR da carga"
+                        description="Use este codigo LOT para localizar a carga no scanner operacional."
+                        className="mb-3"
+                      />
                       <div className="space-y-2">
                         {batch.items.map((item) => {
                           const statusConfig = DONATION_STATUS_CONFIG[item.donation.status];
@@ -773,6 +846,7 @@ export function OperationalBatchesPanel({
           </p>
         )}
       </div>
-    </section>
+      </section>
+    </>
   );
 }
