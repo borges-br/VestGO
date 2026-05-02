@@ -102,17 +102,17 @@ function AccordionItem({ item }: { item: FaqItem }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border-b border-gray-100 last:border-0">
+    <div className="border-b border-gray-100 last:border-0 dark:border-white/10">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className="w-full flex items-start justify-between gap-3 py-4 text-left"
       >
-        <p className={`text-sm leading-snug pr-2 ${open ? 'font-bold text-primary-deeper' : 'font-semibold text-on-surface'}`}>
+        <p className={`text-sm leading-snug pr-2 ${open ? 'font-bold text-primary-deeper dark:text-primary-muted' : 'font-semibold text-on-surface dark:text-gray-100'}`}>
           {item.question}
         </p>
         <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-          open ? 'bg-primary text-white' : 'bg-surface text-gray-400'
+          open ? 'bg-primary text-white' : 'bg-surface text-gray-400 dark:bg-white/10 dark:text-gray-500'
         }`}>
           {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </div>
@@ -120,7 +120,7 @@ function AccordionItem({ item }: { item: FaqItem }) {
 
       {open && (
         <div className="pb-4">
-          <p className="text-sm text-gray-500 leading-relaxed">{item.answer}</p>
+          <p className="text-sm text-gray-500 leading-relaxed dark:text-gray-400">{item.answer}</p>
         </div>
       )}
     </div>
@@ -154,26 +154,26 @@ export default function SuportePage() {
   }, [filtered]);
 
   return (
-    <div className="pb-2">
+    <div className="vg-dark-fix pb-2">
       {/* ── Header ── */}
       <section className="px-5 pt-6 pb-4">
         <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
           Ajuda
         </p>
-        <h1 className="text-3xl font-bold text-primary-deeper">Suporte / FAQ</h1>
-        <p className="text-sm text-gray-400 mt-1">Como podemos ajudar você hoje?</p>
+        <h1 className="text-3xl font-bold text-primary-deeper dark:text-white">Suporte / FAQ</h1>
+        <p className="text-sm text-gray-400 mt-1 dark:text-gray-500">Como podemos ajudar você hoje?</p>
       </section>
 
       {/* ── Busca ── */}
       <section className="px-5 mb-4">
-        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-primary transition-colors">
-          <Search size={16} className="text-gray-300 flex-shrink-0" />
+        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-primary transition-colors dark:border-white/10 dark:bg-surface-inkSoft dark:focus-within:border-primary-muted">
+          <Search size={16} className="text-gray-300 flex-shrink-0 dark:text-gray-600" />
           <input
             type="text"
             placeholder="Buscar perguntas…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 text-sm outline-none placeholder:text-gray-300 bg-transparent"
+            className="flex-1 text-sm outline-none placeholder:text-gray-300 bg-transparent dark:text-gray-100 dark:placeholder:text-gray-600"
           />
         </div>
       </section>
@@ -188,7 +188,7 @@ export default function SuportePage() {
               className={`flex-shrink-0 text-xs font-semibold px-4 py-2 rounded-xl transition-all ${
                 activeCategory === cat
                   ? 'bg-primary-deeper text-white'
-                  : 'bg-white text-gray-500 border border-gray-200'
+                  : 'bg-white text-gray-500 border border-gray-200 dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-300'
               }`}
             >
               {cat}
@@ -201,9 +201,9 @@ export default function SuportePage() {
       <section className="px-5 mb-6">
         {filtered.length === 0 ? (
           <div className="text-center py-12">
-            <HelpCircle size={32} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-gray-400">Nenhuma pergunta encontrada</p>
-            <p className="text-xs text-gray-300 mt-1">Tente outros termos ou entre em contato.</p>
+            <HelpCircle size={32} className="text-gray-200 mx-auto mb-3 dark:text-gray-600" />
+            <p className="text-sm font-semibold text-gray-400 dark:text-gray-500">Nenhuma pergunta encontrada</p>
+            <p className="text-xs text-gray-300 mt-1 dark:text-gray-600">Tente outros termos ou entre em contato.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -214,7 +214,7 @@ export default function SuportePage() {
                     {category}
                   </p>
                 )}
-                <div className="bg-white rounded-2xl shadow-card px-4">
+                <div className="bg-white rounded-2xl shadow-card px-4 dark:bg-surface-inkSoft dark:shadow-none">
                   {items.map((item) => (
                     <AccordionItem key={item.id} item={item} />
                   ))}
@@ -258,7 +258,7 @@ export default function SuportePage() {
         <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-3">
           Links úteis
         </p>
-        <div className="bg-white rounded-2xl shadow-card divide-y divide-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-card divide-y divide-gray-100 overflow-hidden dark:divide-white/10 dark:bg-surface-inkSoft dark:shadow-none">
           {[
             { icon: ShieldCheck, label: 'Política de Privacidade', href: '/perfil/privacidade' },
             { icon: FileText, label: 'Termos de Uso', href: '#' },
@@ -269,13 +269,13 @@ export default function SuportePage() {
               href={href}
               target={external ? '_blank' : undefined}
               rel={external ? 'noopener noreferrer' : undefined}
-              className="flex items-center gap-3 px-5 py-4 hover:bg-surface transition-colors"
+              className="flex items-center gap-3 px-5 py-4 hover:bg-surface transition-colors dark:hover:bg-white/5"
             >
-              <div className="w-8 h-8 bg-surface rounded-lg flex items-center justify-center flex-shrink-0">
-                <Icon size={15} className="text-gray-500" />
+              <div className="w-8 h-8 bg-surface rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-white/10">
+                <Icon size={15} className="text-gray-500 dark:text-gray-300" />
               </div>
-              <span className="flex-1 text-sm text-on-surface">{label}</span>
-              <ExternalLink size={13} className="text-gray-300" />
+              <span className="flex-1 text-sm text-on-surface dark:text-gray-100">{label}</span>
+              <ExternalLink size={13} className="text-gray-300 dark:text-gray-600" />
             </a>
           ))}
         </div>

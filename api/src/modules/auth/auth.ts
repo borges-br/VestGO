@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { PublicProfileState, UserRole } from '@prisma/client';
+import { Prisma, PublicProfileState, UserRole, UserTokenType } from '@prisma/client';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
@@ -10,6 +10,16 @@ import {
   UnauthorizedError,
   toErrorResponse,
 } from '../../shared/errors';
+import {
+  accountDeletedTemplate,
+  accountDeletionRequestTemplate,
+} from '../../shared/email-templates';
+import { getWebPublicUrl, sendEmail } from '../../shared/email';
+import { normalizeBrazilianPhone } from '../../shared/phone';
+import {
+  consumeUserTokenWithDiagnostics,
+  createUserToken,
+} from '../../shared/user-tokens';
 import { getInitialProfileState } from '../profiles/profile-shared';
 import {
   assertTwoFactorEncryptionReady,
@@ -99,7 +109,19 @@ const registerSchema = z.object({
   email: z.string().email('E-mail invalido'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
   role: z.enum(PUBLIC_REGISTERABLE_ROLES).optional().default(UserRole.DONOR),
-  phone: z.string().optional(),
+  phone: z.string().trim().min(1, 'Telefone e obrigatorio').transform((value, ctx) => {
+    const normalized = normalizeBrazilianPhone(value);
+
+    if (!normalized) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Informe um telefone brasileiro valido com DDD.',
+      });
+      return z.NEVER;
+    }
+
+    return normalized;
+  }),
   organizationName: z.string().optional(),
 });
 
@@ -149,6 +171,16 @@ const regenerateRecoverySchema = z
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+});
+
+const accountDeletionRequestSchema = z.object({
+  confirmationText: z.literal('ENCERRAR', {
+    errorMap: () => ({ message: 'Digite ENCERRAR para solicitar o encerramento.' }),
+  }),
+});
+
+const accountDeletionConfirmSchema = z.object({
+  token: z.string().trim().min(1, 'Token obrigatorio'),
 });
 
 async function consumeRecoveryCode(
@@ -271,6 +303,233 @@ async function rateLimitByKey(
     await fastify.redis.expire(key, windowSeconds);
   }
   return current <= limit;
+}
+
+function getAccountDeletionExpiresMinutes() {
+  const parsed = Number(process.env.ACCOUNT_DELETION_EXPIRES_MINUTES ?? 60);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 60;
+  }
+
+  return Math.min(Math.floor(parsed), 7 * 24 * 60);
+}
+
+function buildAccountDeletionUrl(token: string) {
+  const url = new URL('/encerrar-conta', getWebPublicUrl());
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+async function revokePendingAccountDeletionTokens(
+  fastify: FastifyInstance,
+  userId: string,
+) {
+  await fastify.prisma.userToken.updateMany({
+    where: {
+      userId,
+      type: UserTokenType.ACCOUNT_DELETION,
+      usedAt: null,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  });
+}
+
+async function requestAccountDeletionEmail(
+  fastify: FastifyInstance,
+  userId: string,
+) {
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      anonymizedAt: true,
+    },
+  });
+
+  if (!user) {
+    throw new NotFoundError('Usuario');
+  }
+
+  if (user.anonymizedAt) {
+    throw new ConflictError('Esta conta ja foi encerrada.');
+  }
+
+  const { token, expiresAt } = await createUserToken({
+    prisma: fastify.prisma,
+    userId: user.id,
+    type: UserTokenType.ACCOUNT_DELETION,
+    expiresInMinutes: getAccountDeletionExpiresMinutes(),
+  });
+
+  const template = accountDeletionRequestTemplate({
+    name: user.name,
+    actionUrl: buildAccountDeletionUrl(token),
+  });
+
+  try {
+    const result = await sendEmail({
+      to: user.email,
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
+    });
+
+    if (result.skipped || !result.sent) {
+      await revokePendingAccountDeletionTokens(fastify, user.id);
+      throw new AppError(
+        'Nao foi possivel enviar o email de confirmacao. Tente novamente mais tarde.',
+        503,
+        'ACCOUNT_DELETION_EMAIL_UNAVAILABLE',
+      );
+    }
+  } catch (err) {
+    await revokePendingAccountDeletionTokens(fastify, user.id);
+
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    fastify.log.error(
+      { err, userId: user.id },
+      'Failed to send account deletion confirmation email.',
+    );
+    throw new AppError(
+      'Nao foi possivel enviar o email de confirmacao. Tente novamente mais tarde.',
+      503,
+      'ACCOUNT_DELETION_EMAIL_UNAVAILABLE',
+    );
+  }
+
+  return { expiresAt };
+}
+
+async function confirmAccountDeletion(
+  fastify: FastifyInstance,
+  token: string,
+) {
+  const consumed = await consumeUserTokenWithDiagnostics({
+    prisma: fastify.prisma,
+    type: UserTokenType.ACCOUNT_DELETION,
+    token,
+  });
+
+  if (!consumed.ok) {
+    throw new UnauthorizedError('Token invalido, expirado ou ja utilizado.');
+  }
+
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: consumed.userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      anonymizedAt: true,
+    },
+  });
+
+  if (!user) {
+    throw new NotFoundError('Usuario');
+  }
+
+  if (user.anonymizedAt) {
+    return;
+  }
+
+  const now = new Date();
+  const anonymizedEmail = `encerrada-${crypto.randomUUID()}@anon.vestgo.local`;
+  const anonymizedPasswordHash = await bcrypt.hash(
+    crypto.randomBytes(32).toString('hex'),
+    SALT_ROUNDS,
+  );
+
+  await fastify.prisma.$transaction([
+    fastify.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: 'Usuario encerrado',
+        email: anonymizedEmail,
+        passwordHash: anonymizedPasswordHash,
+        phone: null,
+        cpf: null,
+        cnpj: null,
+        birthDate: null,
+        avatarUrl: null,
+        coverImageUrl: null,
+        galleryImageUrls: [],
+        organizationName: null,
+        description: null,
+        purpose: null,
+        address: null,
+        addressNumber: null,
+        addressComplement: null,
+        neighborhood: null,
+        zipCode: null,
+        city: null,
+        state: null,
+        latitude: null,
+        longitude: null,
+        openingHours: null,
+        openingSchedule: Prisma.JsonNull,
+        openingHoursExceptions: null,
+        publicNotes: null,
+        operationalNotes: null,
+        accessibilityDetails: null,
+        accessibilityFeatures: [],
+        verificationNotes: null,
+        estimatedCapacity: null,
+        serviceRegions: [],
+        rules: [],
+        nonAcceptedItems: [],
+        acceptedCategories: [],
+        donationInterestCategories: [],
+        publicProfileState: PublicProfileState.DRAFT,
+        verifiedAt: null,
+        pendingPublicRevision: Prisma.JsonNull,
+        pendingPublicRevisionStatus: null,
+        pendingPublicRevisionFields: [],
+        pendingPublicRevisionSubmittedAt: null,
+        pendingPublicRevisionReviewedAt: null,
+        pendingPublicRevisionReviewNotes: null,
+        emailVerifiedAt: null,
+        emailNotificationsEnabled: false,
+        anonymizedAt: now,
+      },
+    }),
+    fastify.prisma.userSession.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: now },
+    }),
+    fastify.prisma.userToken.updateMany({
+      where: { userId: user.id, usedAt: null, revokedAt: null },
+      data: { revokedAt: now },
+    }),
+    fastify.prisma.userTwoFactor.deleteMany({
+      where: { userId: user.id },
+    }),
+  ]);
+
+  await fastify.redis.del(setupKey(user.id));
+
+  const template = accountDeletedTemplate({ name: user.name });
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
+    });
+  } catch (err) {
+    fastify.log.warn(
+      { err, userId: user.id },
+      'Failed to send account deleted notification email.',
+    );
+  }
 }
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -641,6 +900,60 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  fastify.post(
+    '/account-deletion/request',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const allowed = await rateLimit(fastify, request, 'account-deletion-request', 5, 60);
+        if (!allowed) return tooManyAttempts(reply);
+
+        accountDeletionRequestSchema.parse(request.body);
+        const { expiresAt } = await requestAccountDeletionEmail(fastify, request.user.id);
+
+        return reply.code(200).send({
+          message: 'Enviamos um email de confirmacao para concluir o encerramento.',
+          accountDeletionEmailSent: true,
+          expiresAt: expiresAt.toISOString(),
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post(
+    '/request-account-deletion',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const allowed = await rateLimit(fastify, request, 'account-deletion-request', 5, 60);
+        if (!allowed) return tooManyAttempts(reply);
+
+        accountDeletionRequestSchema.parse(request.body);
+        const { expiresAt } = await requestAccountDeletionEmail(fastify, request.user.id);
+
+        return reply.code(200).send({
+          message: 'Enviamos um email de confirmacao para concluir o encerramento.',
+          accountDeletionEmailSent: true,
+          expiresAt: expiresAt.toISOString(),
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post('/account-deletion/confirm', async (request, reply) => {
+    try {
+      const body = accountDeletionConfirmSchema.parse(request.body);
+      await confirmAccountDeletion(fastify, body.token);
+      return reply.code(200).send({ message: 'Conta encerrada com sucesso.' });
+    } catch (err) {
+      return handleErrors(reply, err);
+    }
+  });
 
   fastify.get(
     '/2fa/status',

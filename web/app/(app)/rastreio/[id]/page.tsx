@@ -110,7 +110,7 @@ export default async function RastreioDetalhePage({
   const backHref = '/rastreio';
 
   return (
-    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+    <div className="vg-dark-fix px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-shell space-y-4">
         <section>
           <Link

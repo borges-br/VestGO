@@ -123,6 +123,84 @@
     background-color: var(--vg-bg-soft);
   }
 
+  .dark .vg-dark-fix .bg-white:not(.vg-keep-white) {
+    background-color: var(--vg-bg-elevated);
+  }
+
+  .dark .vg-dark-fix .bg-surface {
+    background-color: var(--vg-bg-soft);
+  }
+
+  .dark .vg-dark-fix [class*="bg-primary-light"] {
+    background-color: rgba(0, 106, 98, 0.2);
+  }
+
+  .dark .vg-dark-fix .bg-amber-50,
+  .dark .vg-dark-fix .bg-amber-100 {
+    background-color: rgba(146, 64, 14, 0.22);
+  }
+
+  .dark .vg-dark-fix .bg-emerald-50,
+  .dark .vg-dark-fix .bg-blue-50,
+  .dark .vg-dark-fix .bg-indigo-50,
+  .dark .vg-dark-fix .bg-sky-50,
+  .dark .vg-dark-fix .bg-cyan-50,
+  .dark .vg-dark-fix .bg-teal-50,
+  .dark .vg-dark-fix .bg-purple-50 {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .dark .vg-dark-fix .text-primary-deeper,
+  .dark .vg-dark-fix .text-on-surface {
+    color: var(--vg-text-primary);
+  }
+
+  .dark .vg-dark-fix .text-gray-600,
+  .dark .vg-dark-fix .text-gray-500 {
+    color: var(--vg-text-secondary);
+  }
+
+  .dark .vg-dark-fix .text-gray-400 {
+    color: var(--vg-text-muted);
+  }
+
+  .dark .vg-dark-fix .text-gray-300,
+  .dark .vg-dark-fix .text-gray-200 {
+    color: rgba(125, 148, 155, 0.75);
+  }
+
+  .dark .vg-dark-fix .border-gray-50,
+  .dark .vg-dark-fix .border-gray-100,
+  .dark .vg-dark-fix .border-gray-200 {
+    border-color: var(--vg-border);
+  }
+
+  .dark .vg-dark-fix .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+  .dark .vg-dark-fix .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--vg-border);
+  }
+
+  .dark .vg-dark-fix .shadow-sm,
+  .dark .vg-dark-fix .shadow-card,
+  .dark .vg-dark-fix .shadow-card-lg {
+    box-shadow: none;
+  }
+
+  .dark .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+  }
+
+  .dark .leaflet-container .leaflet-popup-content-wrapper,
+  .dark .leaflet-container .leaflet-popup-tip {
+    background: var(--vg-bg-elevated);
+    color: var(--vg-text-primary);
+    box-shadow: none;
+  }
+
+  .dark .leaflet-container .leaflet-popup-content p {
+    color: var(--vg-text-secondary) !important;
+  }
+
   /* Scrollbar invisível mas funcional */
   .scrollbar-hide {
     -ms-overflow-style: none;

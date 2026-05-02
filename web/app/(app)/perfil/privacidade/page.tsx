@@ -25,12 +25,15 @@ import {
   changePassword,
   confirmTwoFactorSetup,
   disableTwoFactor,
+  exportMyData,
   getActiveSessions,
   getTwoFactorStatus,
   regenerateRecoveryCodes,
+  requestAccountDeletion,
   revokeOtherSessions,
   revokeSession,
   startTwoFactorSetup,
+  ApiError,
   type ActiveSession,
   type TwoFactorStatus,
 } from '@/lib/api';
@@ -54,6 +57,14 @@ type PasswordState = {
   current: string;
   next: string;
   confirm: string;
+  submitting: boolean;
+  error: string | null;
+  success: string | null;
+};
+
+type AccountDeletionState = {
+  open: boolean;
+  confirmationText: string;
   submitting: boolean;
   error: string | null;
   success: string | null;
@@ -110,7 +121,16 @@ export default function PrivacidadePage() {
   });
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [revokingOthers, setRevokingOthers] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+  const [dataExportError, setDataExportError] = useState<string | null>(null);
+  const [dataExportSuccess, setDataExportSuccess] = useState<string | null>(null);
+  const [accountDeletion, setAccountDeletion] = useState<AccountDeletionState>({
+    open: false,
+    confirmationText: '',
+    submitting: false,
+    error: null,
+    success: null,
+  });
 
   const refreshTwoFactor = useCallback(async () => {
     if (!accessToken) return;
@@ -167,7 +187,9 @@ export default function PrivacidadePage() {
     } catch (err) {
       setSetup({ stage: 'idle' });
       setTwoFactorError(
-        err instanceof Error ? err.message : 'Não foi possível iniciar o setup do 2FA.',
+        err instanceof ApiError && err.statusCode === 503
+          ? 'A autenticação em dois fatores está temporariamente indisponível. Tente novamente mais tarde ou fale com o suporte.'
+          : err instanceof Error ? err.message : 'Não foi possível iniciar o setup do 2FA.',
       );
     }
   }
@@ -290,6 +312,67 @@ export default function PrivacidadePage() {
       setSessionsError('Não foi possível encerrar as outras sessões.');
     } finally {
       setRevokingOthers(false);
+    }
+  }
+
+  async function handleExportData() {
+    if (!accessToken) return;
+    setExportingData(true);
+    setDataExportError(null);
+    setDataExportSuccess(null);
+    try {
+      const data = await exportMyData(accessToken);
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `vestgo-meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setDataExportSuccess('Arquivo JSON gerado com sucesso.');
+    } catch (err) {
+      setDataExportError(
+        err instanceof Error ? err.message : 'Não foi possível exportar seus dados agora.',
+      );
+    } finally {
+      setExportingData(false);
+    }
+  }
+
+  async function handleAccountDeletionRequest() {
+    if (!accessToken) return;
+    if (accountDeletion.confirmationText !== 'ENCERRAR') {
+      setAccountDeletion({
+        ...accountDeletion,
+        error: 'Digite ENCERRAR exatamente como mostrado.',
+      });
+      return;
+    }
+
+    setAccountDeletion({ ...accountDeletion, submitting: true, error: null, success: null });
+    try {
+      await requestAccountDeletion(accountDeletion.confirmationText, accessToken);
+      setAccountDeletion({
+        open: true,
+        confirmationText: '',
+        submitting: false,
+        error: null,
+        success: 'Enviamos um email de confirmação para concluir o encerramento.',
+      });
+    } catch (err) {
+      setAccountDeletion({
+        ...accountDeletion,
+        submitting: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Não foi possível enviar o email de confirmação agora.',
+        success: null,
+      });
     }
   }
 
@@ -446,40 +529,59 @@ export default function PrivacidadePage() {
         </div>
       </section>
 
+      <section className="mb-5 px-5">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+          Seus dados
+        </p>
+        <div className="rounded-2xl bg-white p-5 shadow-card dark:bg-surface-inkSoft dark:shadow-none">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
+                Exportar dados pessoais
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                Baixe um JSON com perfil, preferências, doações, histórico e notificações.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportData}
+              disabled={exportingData}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-dark disabled:opacity-60"
+            >
+              {exportingData ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              {exportingData ? 'Gerando...' : 'Exportar dados'}
+            </button>
+          </div>
+          {dataExportError && (
+            <p className="mt-3 text-xs text-red-500 dark:text-red-400">{dataExportError}</p>
+          )}
+          {dataExportSuccess && (
+            <p className="mt-3 text-xs text-primary dark:text-primary-muted">{dataExportSuccess}</p>
+          )}
+        </div>
+      </section>
+
       <section className="mb-8 px-5">
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-red-400 dark:text-red-400">
           Zona de perigo
         </p>
-        {!showDeleteConfirm ? (
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-50 py-4 text-sm font-semibold text-red-500 transition-colors hover:bg-red-100 active:scale-[0.97] dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-          >
-            <Trash2 size={16} />
-            Excluir minha conta
-          </button>
-        ) : (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-5 dark:border-red-900/40 dark:bg-red-950/30">
-            <div className="mb-2 flex items-center gap-2">
-              <Trash2 size={16} className="text-red-500" />
-              <p className="text-sm font-bold text-red-600 dark:text-red-400">Confirmar exclusão</p>
-            </div>
-            <p className="mb-4 text-xs leading-relaxed text-red-500/80 dark:text-red-300/80">
-              Esta ação é irreversível. Seus dados serão removidos permanentemente após 30 dias, conforme a LGPD.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-surface-ink dark:text-gray-300"
-              >
-                Cancelar
-              </button>
-              <button className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-bold text-white transition-colors hover:bg-red-600 active:scale-95">
-                Sim, excluir
-              </button>
-            </div>
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={() =>
+            setAccountDeletion({
+              open: true,
+              confirmationText: '',
+              submitting: false,
+              error: null,
+              success: null,
+            })
+          }
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-50 py-4 text-sm font-semibold text-red-500 transition-colors hover:bg-red-100 active:scale-[0.97] dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
+        >
+          <Trash2 size={16} />
+          Excluir minha conta
+        </button>
       </section>
 
       {(setup.stage === 'starting' || setup.stage === 'qr' || setup.stage === 'codes') && (
@@ -764,6 +866,77 @@ export default function PrivacidadePage() {
               className="flex-1 rounded-2xl bg-primary-deeper py-3 text-sm font-bold text-white disabled:opacity-50"
             >
               {password.submitting ? 'Salvando...' : 'Trocar senha'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {accountDeletion.open && (
+        <Modal
+          onClose={() =>
+            setAccountDeletion({
+              open: false,
+              confirmationText: '',
+              submitting: false,
+              error: null,
+              success: null,
+            })
+          }
+        >
+          <ModalHeader
+            icon={Trash2}
+            title="Encerrar conta"
+            description="Esta ação exige confirmação por email. Seus dados pessoais serão anonimizados e suas sessões serão encerradas."
+          />
+          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+            Para solicitar o email de confirmação, digite <strong>ENCERRAR</strong> abaixo.
+          </div>
+          <div className="mt-5 space-y-3">
+            <FieldRow label="Confirmação">
+              <input
+                value={accountDeletion.confirmationText}
+                onChange={(event) =>
+                  setAccountDeletion({
+                    ...accountDeletion,
+                    confirmationText: event.target.value,
+                    error: null,
+                    success: null,
+                  })
+                }
+                placeholder="ENCERRAR"
+                className={modalInputClass}
+              />
+            </FieldRow>
+            {accountDeletion.error && (
+              <p className="text-xs text-red-500 dark:text-red-400">{accountDeletion.error}</p>
+            )}
+            {accountDeletion.success && (
+              <p className="text-xs text-primary dark:text-primary-muted">{accountDeletion.success}</p>
+            )}
+          </div>
+          <div className="mt-5 flex gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setAccountDeletion({
+                  open: false,
+                  confirmationText: '',
+                  submitting: false,
+                  error: null,
+                  success: null,
+                })
+              }
+              className="flex-1 rounded-2xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-600 dark:border-white/10 dark:bg-surface-ink dark:text-gray-300"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleAccountDeletionRequest}
+              disabled={accountDeletion.confirmationText !== 'ENCERRAR' || accountDeletion.submitting}
+              className="flex-1 rounded-2xl bg-red-500 py-3 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {accountDeletion.submitting ? 'Enviando...' : 'Enviar email de confirmação'}
             </button>
           </div>
         </Modal>

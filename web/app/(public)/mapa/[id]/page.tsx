@@ -204,7 +204,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
     : formatAddressSummary(point) ?? 'Endereço não informado';
 
   return (
-    <div className="min-h-screen bg-surface font-sans">
+    <div className="vg-dark-fix min-h-screen bg-surface font-sans dark:bg-surface-ink">
       <div className="mx-auto max-w-[1500px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
         <Link
           href="/mapa"

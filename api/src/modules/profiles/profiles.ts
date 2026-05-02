@@ -573,6 +573,100 @@ function parseBirthDate(value: string | undefined) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
+function publicUserSummary(user: {
+  id: string;
+  role: UserRole;
+  name: string;
+  organizationName: string | null;
+}) {
+  return {
+    id: user.id,
+    role: user.role,
+    name: user.name,
+    organizationName: user.organizationName,
+  };
+}
+
+const SAFE_NOTIFICATION_PAYLOAD_KEYS = new Set([
+  'donationId',
+  'donationCode',
+  'donationStatus',
+  'status',
+  'points',
+  'badgeId',
+  'badgeName',
+  'partnershipId',
+  'pickupRequestId',
+  'publicProfileState',
+  'role',
+]);
+
+const SENSITIVE_NOTIFICATION_PAYLOAD_KEY_PARTS = [
+  'token',
+  'secret',
+  'password',
+  'hash',
+  'authorization',
+  'auth',
+  'credential',
+  'emailverification',
+  'passwordreset',
+  'accountdeletion',
+  'twofactor',
+  'recovery',
+];
+
+function normalizePayloadKey(key: string) {
+  return key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function isSimpleObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function isSafeNotificationPayloadValue(
+  value: unknown,
+): value is string | number | boolean | null {
+  return (
+    value == null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  );
+}
+
+function sanitizeNotificationPayload(payload: Prisma.JsonValue | null) {
+  if (!isSimpleObject(payload)) {
+    return null;
+  }
+
+  const safePayload: Record<string, string | number | boolean | null> = {};
+
+  for (const [key, value] of Object.entries(payload)) {
+    const normalizedKey = normalizePayloadKey(key);
+    const hasSensitiveName = SENSITIVE_NOTIFICATION_PAYLOAD_KEY_PARTS.some((part) =>
+      normalizedKey.includes(part),
+    );
+
+    if (
+      hasSensitiveName ||
+      !SAFE_NOTIFICATION_PAYLOAD_KEYS.has(key) ||
+      !isSafeNotificationPayloadValue(value)
+    ) {
+      continue;
+    }
+
+    safePayload[key] = value;
+  }
+
+  return Object.keys(safePayload).length > 0 ? safePayload : null;
+}
+
 export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.get('/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
@@ -586,6 +680,221 @@ export default async function profileRoutes(fastify: FastifyInstance) {
       }
 
       return reply.send(mapEditableProfile(user));
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.code(err.statusCode).send(toErrorResponse(err));
+      }
+
+      throw err;
+    }
+  });
+
+  fastify.get('/me/export', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const [user, donations, notifications] = await Promise.all([
+        fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+          select: {
+            id: true,
+            role: true,
+            name: true,
+            email: true,
+            emailVerifiedAt: true,
+            emailNotificationsEnabled: true,
+            birthDate: true,
+            phone: true,
+            cpf: true,
+            cnpj: true,
+            avatarUrl: true,
+            coverImageUrl: true,
+            galleryImageUrls: true,
+            organizationName: true,
+            description: true,
+            purpose: true,
+            address: true,
+            addressNumber: true,
+            addressComplement: true,
+            neighborhood: true,
+            zipCode: true,
+            city: true,
+            state: true,
+            latitude: true,
+            longitude: true,
+            openingHours: true,
+            openingSchedule: true,
+            openingHoursExceptions: true,
+            publicNotes: true,
+            accessibilityDetails: true,
+            accessibilityFeatures: true,
+            estimatedCapacity: true,
+            serviceRegions: true,
+            rules: true,
+            nonAcceptedItems: true,
+            acceptedCategories: true,
+            donationInterestCategories: true,
+            publicProfileState: true,
+            verifiedAt: true,
+            pendingPublicRevisionStatus: true,
+            pendingPublicRevisionFields: true,
+            pendingPublicRevisionSubmittedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            anonymizedAt: true,
+          },
+        }),
+        fastify.prisma.donation.findMany({
+          where: {
+            OR: [
+              { donorId: request.user.id },
+              { collectionPointId: request.user.id },
+              { ngoId: request.user.id },
+            ],
+          },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            notes: true,
+            scheduledAt: true,
+            createdAt: true,
+            updatedAt: true,
+            donorId: true,
+            collectionPointId: true,
+            ngoId: true,
+            donor: {
+              select: {
+                id: true,
+                role: true,
+                name: true,
+                organizationName: true,
+              },
+            },
+            collectionPoint: {
+              select: {
+                id: true,
+                role: true,
+                name: true,
+                organizationName: true,
+              },
+            },
+            ngo: {
+              select: {
+                id: true,
+                role: true,
+                name: true,
+                organizationName: true,
+              },
+            },
+            items: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                quantity: true,
+                description: true,
+                imageUrl: true,
+                weightKg: true,
+              },
+            },
+            timeline: {
+              orderBy: { createdAt: 'asc' },
+              select: {
+                id: true,
+                status: true,
+                description: true,
+                location: true,
+                createdAt: true,
+              },
+            },
+            operationalBatchItem: {
+              select: {
+                batch: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    status: true,
+                    createdAt: true,
+                    updatedAt: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+        fastify.prisma.notification.findMany({
+          where: { userId: request.user.id },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            title: true,
+            body: true,
+            href: true,
+            payload: true,
+            readAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      ]);
+
+      if (!user) {
+        throw new NotFoundError('Perfil');
+      }
+
+      const payload = {
+        metadata: {
+          app: 'VestGO',
+          schemaVersion: 1,
+          exportedAt: new Date().toISOString(),
+          userId: user.id,
+        },
+        profile: user,
+        preferences: {
+          emailNotificationsEnabled: user.emailNotificationsEnabled,
+        },
+        donations: donations.map((donation) => ({
+          id: donation.id,
+          code: donation.code,
+          status: donation.status,
+          notes: donation.notes,
+          scheduledAt: donation.scheduledAt,
+          createdAt: donation.createdAt,
+          updatedAt: donation.updatedAt,
+          involvement: {
+            isDonor: donation.donorId === user.id,
+            isCollectionPoint: donation.collectionPointId === user.id,
+            isNgo: donation.ngoId === user.id,
+          },
+          donor: publicUserSummary(donation.donor),
+          collectionPoint: donation.collectionPoint
+            ? publicUserSummary(donation.collectionPoint)
+            : null,
+          ngo: donation.ngo ? publicUserSummary(donation.ngo) : null,
+          items: donation.items,
+          timeline: donation.timeline,
+          operationalBatch: donation.operationalBatchItem?.batch ?? null,
+        })),
+        notifications: notifications.map((notification) => ({
+          id: notification.id,
+          type: notification.type,
+          title: notification.title,
+          body: notification.body,
+          href: notification.href,
+          payload: sanitizeNotificationPayload(notification.payload),
+          readAt: notification.readAt,
+          createdAt: notification.createdAt,
+          updatedAt: notification.updatedAt,
+        })),
+      };
+
+      const filename = `vestgo-meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+      return reply
+        .header('Content-Disposition', `attachment; filename="${filename}"`)
+        .type('application/json; charset=utf-8')
+        .send(payload);
     } catch (err) {
       if (err instanceof AppError) {
         return reply.code(err.statusCode).send(toErrorResponse(err));

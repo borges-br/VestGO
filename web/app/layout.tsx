@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { SessionProvider } from 'next-auth/react';
 import { auth } from '@/lib/auth';
 import { ThemeProvider } from '@/components/layout/theme-provider';
+import { CookieConsentBanner } from '@/components/layout/cookie-consent-banner';
 
 export const metadata: Metadata = {
   title: 'VestGO - Doar com proposito',
@@ -52,7 +53,10 @@ export default async function RootLayout({
           refetchOnWindowFocus
           refetchWhenOffline={false}
         >
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            {children}
+            <CookieConsentBanner />
+          </ThemeProvider>
         </SessionProvider>
       </body>
     </html>

@@ -475,7 +475,7 @@ export function MapaPageContent() {
   );
 
   return (
-    <div className={`flex flex-col bg-surface font-sans dark:bg-surface-ink ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
+    <div className={`vg-dark-fix flex flex-col bg-surface font-sans dark:bg-surface-ink ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
       {!isLoggedIn && (
         <header className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 bg-white px-5 py-4 dark:border-white/10 dark:bg-surface-inkSoft">
           <Link href="/" className="text-lg font-bold text-primary-deeper dark:text-primary-muted">

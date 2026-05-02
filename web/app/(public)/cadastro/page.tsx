@@ -18,6 +18,7 @@ import {
 import { motion } from 'framer-motion';
 import { VestgoLogo } from '@/components/branding/vestgo-logo';
 import { AuthSplitScene } from '@/components/ui/auth-split-scene';
+import { formatBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 
 type Perfil = 'DONOR' | 'COLLECTION_POINT' | 'NGO';
@@ -109,12 +110,23 @@ function CadastroInner() {
 
   const handleChange =
     (field: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => {
-      setForm((current) => ({ ...current, [field]: event.target.value }));
+      const value =
+        field === 'phone'
+          ? formatBrazilPhoneInput(event.target.value)
+          : event.target.value;
+      setForm((current) => ({ ...current, [field]: value }));
     };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    const normalizedPhone = normalizeBrazilPhone(form.phone);
+
+    if (!normalizedPhone) {
+      setError('Informe um telefone brasileiro valido com DDD.');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch('/api/backend/auth/register', {
@@ -125,7 +137,7 @@ function CadastroInner() {
           email: form.email,
           password: form.password,
           role: perfil,
-          phone: form.phone || undefined,
+          phone: normalizedPhone,
           organizationName: isOrg ? form.organizationName || undefined : undefined,
         }),
       });
@@ -357,14 +369,13 @@ function CadastroInner() {
                   />
                 </Field>
 
-                <Field
-                  label="Telefone"
-                  htmlFor="phone"
-                  hint={<span className="text-xs text-gray-400">opcional</span>}
-                >
+                <Field label="Telefone" htmlFor="phone">
                   <input
                     id="phone"
                     type="tel"
+                    required
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={form.phone}
                     onChange={handleChange('phone')}
                     placeholder="(11) 99999-9999"

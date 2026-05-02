@@ -4,17 +4,21 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { ArrowRight, CheckCircle, Loader2, ShieldAlert, Sparkles, XCircle } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { motion } from 'framer-motion';
 import { VestgoLogo } from '@/components/branding/vestgo-logo';
 import { AuthSplitScene } from '@/components/ui/auth-split-scene';
 import { confirmAccountDeletion } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-type Status = 'loading' | 'success' | 'missing-token' | 'invalid-token' | 'error';
+type Status = 'ready' | 'submitting' | 'success' | 'missing-token' | 'invalid-token' | 'error';
 
 const statusContent: Record<Status, { title: string; message: string }> = {
-  loading: {
+  ready: {
+    title: 'Confirmar encerramento',
+    message: 'Revise a ação e confirme para encerrar a conta.',
+  },
+  submitting: {
     title: 'Encerrando conta',
     message: 'Estamos validando o link de confirmação.',
   },
@@ -39,52 +43,40 @@ const statusContent: Record<Status, { title: string; message: string }> = {
 function EncerrarContaInner() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
-  const [status, setStatus] = useState<Status>('loading');
-  const confirmationStartedRef = useRef(false);
+  const [status, setStatus] = useState<Status>('ready');
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function run() {
-      if (!token) {
-        setStatus('missing-token');
-        return;
-      }
-
-      if (confirmationStartedRef.current) {
-        return;
-      }
-
-      confirmationStartedRef.current = true;
-
-      try {
-        await confirmAccountDeletion(token);
-        if (cancelled) return;
-
-        setStatus('success');
-        await signOut({ redirect: false });
-      } catch (err) {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message.toLowerCase() : '';
-        setStatus(
-          message.includes('invalido') || message.includes('expirado')
-            ? 'invalid-token'
-            : 'error',
-        );
-      }
+  async function handleConfirmAccountDeletion() {
+    if (!token) {
+      setStatus('missing-token');
+      return;
     }
 
-    void run();
+    setStatus('submitting');
 
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+    try {
+      await confirmAccountDeletion(token);
+      setStatus('success');
+      await signOut({ redirect: false });
+    } catch (err) {
+      const message = err instanceof Error ? err.message.toLowerCase() : '';
+      setStatus(
+        message.includes('invalido') || message.includes('expirado')
+          ? 'invalid-token'
+          : 'error',
+      );
+    }
+  }
 
-  const isLoading = status === 'loading';
-  const isSuccess = status === 'success';
-  const Icon = isLoading ? Loader2 : isSuccess ? CheckCircle : XCircle;
-  const content = statusContent[status];
+  const effectiveStatus = token ? status : 'missing-token';
+  const isSubmitting = effectiveStatus === 'submitting';
+  const isSuccess = effectiveStatus === 'success';
+  const isReady = effectiveStatus === 'ready';
+  const hasErrorState =
+    effectiveStatus === 'missing-token' ||
+    effectiveStatus === 'invalid-token' ||
+    effectiveStatus === 'error';
+  const Icon = isSubmitting ? Loader2 : isSuccess ? CheckCircle : isReady ? ShieldAlert : XCircle;
+  const content = statusContent[effectiveStatus];
 
   return (
     <div className="min-h-screen bg-surface-cream dark:bg-surface-ink">
@@ -132,13 +124,13 @@ function EncerrarContaInner() {
                   'mx-auto flex h-16 w-16 items-center justify-center rounded-2xl',
                   isSuccess
                     ? 'bg-primary-light text-primary dark:bg-primary/20 dark:text-primary-muted'
-                    : isLoading
+                    : isSubmitting || isReady
                       ? 'bg-primary-light text-primary dark:bg-primary/20 dark:text-primary-muted'
                       : 'bg-red-50 text-red-500 dark:bg-red-950/40 dark:text-red-300',
                 )}
                 aria-hidden="true"
               >
-                <Icon size={32} className={isLoading ? 'animate-spin' : undefined} />
+                <Icon size={32} className={isSubmitting ? 'animate-spin' : undefined} />
               </div>
 
               <h1 className="mt-6 text-3xl font-extrabold tracking-tight text-primary-deeper dark:text-white">
@@ -148,7 +140,13 @@ function EncerrarContaInner() {
                 {content.message}
               </p>
 
-              {!isSuccess && !isLoading && (
+              {isReady && (
+                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
+                  Esta ação é irreversível para o acesso da conta. A confirmação só será enviada à API após clicar no botão abaixo.
+                </div>
+              )}
+
+              {hasErrorState && (
                 <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200">
                   Por segurança, nenhum dado do link foi exibido nesta tela.
                 </div>
@@ -161,6 +159,17 @@ function EncerrarContaInner() {
               )}
 
               <div className="mt-7 flex flex-col gap-2">
+                {token && !isSuccess && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmAccountDeletion}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-500 px-5 py-4 text-sm font-bold text-white transition-colors hover:bg-red-600 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-inkSoft"
+                  >
+                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <ShieldAlert size={16} />}
+                    {isSubmitting ? 'Confirmando...' : 'Confirmar encerramento'}
+                  </button>
+                )}
                 <Link
                   href="/login"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-5 py-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-inkSoft"

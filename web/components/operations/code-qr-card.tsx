@@ -38,7 +38,7 @@ export function CodeQrCard({
       } ${className}`}
     >
       <div
-        className={`mx-auto flex items-center justify-center rounded-[1.25rem] bg-white p-3 ring-1 ring-gray-100 ${
+        className={`vg-keep-white mx-auto flex items-center justify-center rounded-[1.25rem] bg-white p-3 ring-1 ring-gray-100 ${
           compact ? 'h-32 w-32 flex-shrink-0' : 'h-44 w-44'
         }`}
         aria-label={`QR Code ${code}`}

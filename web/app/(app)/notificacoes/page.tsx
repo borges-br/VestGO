@@ -14,44 +14,44 @@ import { useRouter } from 'next/navigation';
 import { useNotifications, type AppNotification, type NotificationType } from '@/hooks/use-notifications';
 
 const TYPE_CONFIG: Record<NotificationType, { icon: typeof Bell; bg: string; color: string }> = {
-  DONATION_STATUS: { icon: Package, bg: 'bg-primary-light', color: 'text-primary' },
-  DONATION_POINTS: { icon: Trophy, bg: 'bg-amber-50', color: 'text-amber-600' },
-  BADGE_EARNED: { icon: Trophy, bg: 'bg-emerald-50', color: 'text-emerald-600' },
-  DONATION_CREATED_FOR_POINT: { icon: MapPin, bg: 'bg-blue-50', color: 'text-blue-500' },
+  DONATION_STATUS: { icon: Package, bg: 'bg-primary-light dark:bg-primary/20', color: 'text-primary dark:text-primary-muted' },
+  DONATION_POINTS: { icon: Trophy, bg: 'bg-amber-50 dark:bg-amber-900/20', color: 'text-amber-600 dark:text-amber-400' },
+  BADGE_EARNED: { icon: Trophy, bg: 'bg-emerald-50 dark:bg-emerald-900/20', color: 'text-emerald-600 dark:text-emerald-400' },
+  DONATION_CREATED_FOR_POINT: { icon: MapPin, bg: 'bg-blue-50 dark:bg-blue-900/20', color: 'text-blue-500 dark:text-blue-300' },
   PARTNERSHIP_REQUEST_RECEIVED: {
     icon: HeartHandshake,
-    bg: 'bg-indigo-50',
-    color: 'text-indigo-600',
+    bg: 'bg-indigo-50 dark:bg-indigo-900/20',
+    color: 'text-indigo-600 dark:text-indigo-300',
   },
   PARTNERSHIP_STATUS_CHANGED: {
     icon: Settings,
-    bg: 'bg-gray-100',
-    color: 'text-gray-500',
+    bg: 'bg-gray-100 dark:bg-white/10',
+    color: 'text-gray-500 dark:text-gray-300',
   },
   PICKUP_REQUEST_CREATED: {
     icon: Truck,
-    bg: 'bg-sky-50',
-    color: 'text-sky-600',
+    bg: 'bg-sky-50 dark:bg-sky-900/20',
+    color: 'text-sky-600 dark:text-sky-300',
   },
   PICKUP_REQUEST_RECEIVED: {
     icon: Truck,
-    bg: 'bg-cyan-50',
-    color: 'text-cyan-600',
+    bg: 'bg-cyan-50 dark:bg-cyan-900/20',
+    color: 'text-cyan-600 dark:text-cyan-300',
   },
   PICKUP_REQUEST_STATUS_CHANGED: {
     icon: Truck,
-    bg: 'bg-teal-50',
-    color: 'text-teal-600',
+    bg: 'bg-teal-50 dark:bg-teal-900/20',
+    color: 'text-teal-600 dark:text-teal-300',
   },
   PROFILE_APPROVAL_REQUIRED: {
     icon: Settings,
-    bg: 'bg-amber-50',
-    color: 'text-amber-700',
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    color: 'text-amber-700 dark:text-amber-300',
   },
   PROFILE_REVISION_PENDING: {
     icon: Settings,
-    bg: 'bg-purple-50',
-    color: 'text-purple-700',
+    bg: 'bg-purple-50 dark:bg-purple-900/20',
+    color: 'text-purple-700 dark:text-purple-300',
   },
 };
 
@@ -112,7 +112,7 @@ function NotifCard({
       type="button"
       onClick={() => void handleOpen()}
       className={`flex w-full items-start gap-3 px-5 py-4 text-left transition-colors cursor-pointer ${
-        !notif.read ? 'bg-primary-light/20' : 'hover:bg-surface'
+        !notif.read ? 'bg-primary-light/20 dark:bg-primary/10' : 'hover:bg-surface dark:hover:bg-white/5'
       }`}
     >
       {/* Ícone */}
@@ -123,18 +123,18 @@ function NotifCard({
       {/* Conteúdo */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className={`text-sm leading-snug ${!notif.read ? 'font-bold text-on-surface' : 'font-semibold text-gray-600'}`}>
+          <p className={`text-sm leading-snug ${!notif.read ? 'font-bold text-on-surface dark:text-gray-100' : 'font-semibold text-gray-600 dark:text-gray-300'}`}>
             {notif.title}
           </p>
           {!notif.read && (
             <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-0.5 leading-snug">{notif.body}</p>
-        <p className="text-[10px] text-gray-300 mt-1.5">{timeAgo(notif.createdAt)}</p>
+        <p className="text-xs text-gray-400 mt-0.5 leading-snug dark:text-gray-500">{notif.body}</p>
+        <p className="text-[10px] text-gray-300 mt-1.5 dark:text-gray-600">{timeAgo(notif.createdAt)}</p>
       </div>
 
-      {notif.href && <ChevronRight size={15} className="text-gray-300 flex-shrink-0 mt-3" />}
+      {notif.href && <ChevronRight size={15} className="text-gray-300 flex-shrink-0 mt-3 dark:text-gray-600" />}
     </button>
   );
 }
@@ -144,22 +144,22 @@ export default function NotificacoesPage() {
   const groups = groupNotifications(notifications);
 
   return (
-    <div className="pb-2">
+    <div className="vg-dark-fix pb-2">
       {/* ── Header ── */}
       <section className="px-5 pt-6 pb-4 flex items-start justify-between">
         <div>
           <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
             Central
           </p>
-          <h1 className="text-3xl font-bold text-primary-deeper">Notificações</h1>
-          <p className="text-sm text-gray-400 mt-1">
+          <h1 className="text-3xl font-bold text-primary-deeper dark:text-white">Notificações</h1>
+          <p className="text-sm text-gray-400 mt-1 dark:text-gray-500">
             {unreadCount > 0 ? `${unreadCount} não lida${unreadCount > 1 ? 's' : ''}` : 'Tudo em dia ✓'}
           </p>
         </div>
         {unreadCount > 0 && (
           <button
             onClick={markAllAsRead}
-            className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary-light px-3 py-2 rounded-xl mt-1 hover:bg-primary/10 transition-colors active:scale-95"
+            className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary-light px-3 py-2 rounded-xl mt-1 hover:bg-primary/10 transition-colors active:scale-95 dark:bg-primary/20 dark:text-primary-muted dark:hover:bg-primary/30"
           >
             <CheckCheck size={14} />
             Marcar todas
@@ -170,11 +170,11 @@ export default function NotificacoesPage() {
       {/* ── Lista agrupada ── */}
       {groups.length === 0 ? (
         <section className="px-5 py-20 flex flex-col items-center text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-            <Bell size={28} className="text-gray-300" />
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4 dark:bg-white/10">
+            <Bell size={28} className="text-gray-300 dark:text-gray-600" />
           </div>
-          <p className="font-semibold text-gray-400">Nenhuma notificação ainda</p>
-          <p className="text-sm text-gray-300 mt-1">Você será avisado sobre o status das suas doações aqui.</p>
+          <p className="font-semibold text-gray-400 dark:text-gray-500">Nenhuma notificação ainda</p>
+          <p className="text-sm text-gray-300 mt-1 dark:text-gray-600">Você será avisado sobre o status das suas doações aqui.</p>
         </section>
       ) : (
         <div className="space-y-4 mt-1">
@@ -183,7 +183,7 @@ export default function NotificacoesPage() {
               <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase px-5 mb-1">
                 {group.label}
               </p>
-              <div className="bg-white shadow-card divide-y divide-gray-50">
+              <div className="bg-white shadow-card divide-y divide-gray-50 dark:divide-white/10 dark:bg-surface-inkSoft dark:shadow-none">
                 {group.items.map((n) => (
                   <NotifCard key={n.id} notif={n} onRead={markAsRead} />
                 ))}

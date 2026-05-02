@@ -554,6 +554,18 @@ type ApiFetchOptions = RequestInit & {
   accessToken?: string;
 };
 
+export class ApiError extends Error {
+  statusCode: number;
+  code?: string;
+
+  constructor(message: string, statusCode: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.statusCode = statusCode;
+    this.code = code;
+  }
+}
+
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const SUPPORTED_PROFILE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -643,7 +655,7 @@ async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T>
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.message ?? `API error ${res.status}`);
+    throw new ApiError(err.message ?? `API error ${res.status}`, res.status, err.error);
   }
 
   if (res.status === 204) {
@@ -850,6 +862,10 @@ export async function getCollectionPoint(
 
 export async function getMyProfile(accessToken: string): Promise<MyProfile> {
   return apiFetch<MyProfile>('/profiles/me', { accessToken });
+}
+
+export async function exportMyData(accessToken: string): Promise<unknown> {
+  return apiFetch<unknown>('/profiles/me/export', { accessToken });
 }
 
 export async function updateMyProfile(
@@ -1319,23 +1335,27 @@ export async function cancelOperationalBatch(id: string, accessToken: string): P
   });
 }
 
-export async function requestAccountDeletion(accessToken: string): Promise<{
+export async function requestAccountDeletion(
+  confirmationText: string,
+  accessToken: string,
+): Promise<{
   message: string;
   accountDeletionEmailSent: boolean;
-  requiresSupport: boolean;
+  expiresAt: string;
 }> {
   return apiFetch<{
     message: string;
     accountDeletionEmailSent: boolean;
-    requiresSupport: boolean;
-  }>('/auth/request-account-deletion', {
+    expiresAt: string;
+  }>('/auth/account-deletion/request', {
     method: 'POST',
+    body: JSON.stringify({ confirmationText }),
     accessToken,
   });
 }
 
 export async function confirmAccountDeletion(token: string): Promise<{ message: string }> {
-  return apiFetch<{ message: string }>('/auth/confirm-account-deletion', {
+  return apiFetch<{ message: string }>('/auth/account-deletion/confirm', {
     method: 'POST',
     body: JSON.stringify({ token }),
   });

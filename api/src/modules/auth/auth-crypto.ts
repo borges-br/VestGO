@@ -43,14 +43,15 @@ export function isTwoFactorEncryptionReady(): boolean {
  * Logs the underlying reason to the provided logger (if any) without exposing it.
  */
 export function assertTwoFactorEncryptionReady(logger?: {
-  error: (msg: string) => void;
+  error: (payload: unknown, msg?: string) => void;
 }): void {
   try {
     getKey();
   } catch (err) {
     if (logger) {
       logger.error(
-        `2FA encryption misconfigured: ${err instanceof Error ? err.message : 'unknown'}`,
+        { err },
+        '2FA encryption misconfigured. Set TWO_FACTOR_ENCRYPTION_KEY as a 32-byte hex string (64 characters).',
       );
     }
     const guard = new Error('TWO_FACTOR_UNAVAILABLE');
