@@ -109,7 +109,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl transition-transform duration-300 ease-out dark:border-white/10 dark:bg-surface-inkSoft/95 dark:shadow-none md:translate-y-0 ${
+      className={`fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl transition-transform duration-300 ease-out dark:border-white/10 dark:bg-[#0b2326]/95 dark:shadow-none md:translate-y-0 ${
         hiddenOnMobile ? '-translate-y-full' : 'translate-y-0'
       }`}
     >
@@ -118,10 +118,10 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
           <Link href="/inicio" className="flex min-w-0 items-center gap-3">
             <VestgoMark className="h-11 w-11" />
             <div className="min-w-0">
-              <p className="truncate text-lg font-bold tracking-tight text-primary-deeper dark:text-primary-muted">
+              <p className="truncate text-lg font-bold tracking-tight text-primary-deeper dark:text-white">
                 VestGO
               </p>
-              <p className="hidden text-[11px] uppercase tracking-[0.28em] text-gray-400 dark:text-gray-500 lg:block">
+              <p className="hidden text-[11px] uppercase tracking-[0.28em] text-gray-400 dark:text-primary-muted/80 lg:block">
                 Doações rastreáveis
               </p>
             </div>

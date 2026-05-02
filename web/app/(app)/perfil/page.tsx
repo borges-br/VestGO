@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowDown,
   Bell,
   Camera,
+  CheckCircle2,
   ChevronRight,
   Edit3,
   Flame,
@@ -36,14 +36,6 @@ const ROLE_LABELS: Record<string, string> = {
   NGO: 'ONG Parceira',
   ADMIN: 'Administrador',
 };
-
-const DONATION_INTEREST_OPTIONS = [
-  { value: 'CLOTHING', label: 'Roupas' },
-  { value: 'SHOES', label: 'Calçados' },
-  { value: 'ACCESSORIES', label: 'Acessórios' },
-  { value: 'BAGS', label: 'Bolsas' },
-  { value: 'OTHER', label: 'Outros' },
-] as const;
 
 const menuItems = [
   { icon: Edit3, label: 'Configurações da conta', href: '/configuracoes' },
@@ -158,14 +150,6 @@ export default function PerfilPage() {
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [donorProfileSuccess, setDonorProfileSuccess] = useState<string | null>(null);
-  const [savingDonorProfile, setSavingDonorProfile] = useState(false);
-  const [donorProfileForm, setDonorProfileForm] = useState({
-    birthDate: '',
-    city: '',
-    state: '',
-    donationInterestCategories: [] as string[],
-  });
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -229,19 +213,6 @@ export default function PerfilPage() {
     }
   }, [loadOperationalProfile, session?.user?.accessToken, status]);
 
-  useEffect(() => {
-    if (session?.user?.role !== 'DONOR' || !profile) {
-      return;
-    }
-
-    setDonorProfileForm({
-      birthDate: profile.birthDate ?? '',
-      city: profile.city ?? '',
-      state: profile.state ?? '',
-      donationInterestCategories: profile.donationInterestCategories ?? [],
-    });
-  }, [profile, session?.user?.role]);
-
   const snapshot = useMemo(() => buildImpactSnapshot(donations), [donations]);
   const badges = useMemo(() => buildBadges(donations), [donations]);
   const completed = useMemo(
@@ -255,12 +226,14 @@ export default function PerfilPage() {
   );
   const recentDonations = useMemo(() => donations.slice(0, 5), [donations]);
   const donorCompletion = profile?.profileCompletion;
+  const completionMissing = donorCompletion?.missingFields?.length ?? 0;
+  const showCompletionCta = completionMissing > 0;
 
   if (status === 'loading') {
     return (
       <div className="px-4 pb-6 pt-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-shell">
-          <p className="text-sm text-gray-500">Carregando perfil...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Carregando perfil...</p>
         </div>
       </div>
     );
@@ -313,7 +286,6 @@ export default function PerfilPage() {
         },
       });
       setProfile(updated);
-      setDonorProfileSuccess(null);
     } catch (error) {
       setProfileError(
         error instanceof Error
@@ -325,56 +297,6 @@ export default function PerfilPage() {
     }
   }
 
-  function toggleDonationInterest(category: string) {
-    setDonorProfileForm((current) => {
-      const exists = current.donationInterestCategories.includes(category);
-
-      return {
-        ...current,
-        donationInterestCategories: exists
-          ? current.donationInterestCategories.filter((item) => item !== category)
-          : [...current.donationInterestCategories, category],
-      };
-    });
-    setDonorProfileSuccess(null);
-    setProfileError(null);
-  }
-
-  async function handleSaveDonorProfile() {
-    if (!session?.user?.accessToken || !profile) {
-      return;
-    }
-
-    setSavingDonorProfile(true);
-    setProfileError(null);
-    setDonorProfileSuccess(null);
-
-    try {
-      const updated = await updateMyProfile(
-        {
-          name: profile.name,
-          email: profile.email,
-          birthDate: donorProfileForm.birthDate || undefined,
-          city: donorProfileForm.city || undefined,
-          state: donorProfileForm.state || undefined,
-          donationInterestCategories: donorProfileForm.donationInterestCategories,
-        },
-        session.user.accessToken,
-      );
-
-      setProfile(updated);
-      setDonorProfileSuccess('Perfil complementar salvo com sucesso.');
-    } catch (error) {
-      setProfileError(
-        error instanceof Error
-          ? error.message
-          : 'Não foi possível salvar seu perfil complementar agora.',
-      );
-    } finally {
-      setSavingDonorProfile(false);
-    }
-  }
-
   return (
     <div className="relative overflow-hidden">
       {/* Soft gradient wash — light mode only */}
@@ -382,425 +304,339 @@ export default function PerfilPage() {
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[480px] bg-[radial-gradient(ellipse_at_50%_0%,rgba(33,211,196,0.16),transparent_65%),linear-gradient(180deg,#f4faf8,#ffffff_70%)] dark:hidden"
       />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 hidden h-[480px] dark:block bg-[radial-gradient(ellipse_at_50%_0%,rgba(33,211,196,0.10),transparent_70%)]"
+      />
 
-      <div className="relative px-4 pt-12 pb-14 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-shell flex-col gap-14">
-          {/* ──────────────────── HEADER ──────────────────── */}
-          <header className="flex flex-col items-center gap-6 text-center">
-            <div className="relative">
-              <div className="relative h-28 w-28 overflow-hidden rounded-[2rem] bg-primary-deeper shadow-xl shadow-primary/20 ring-4 ring-white dark:ring-surface-ink">
-                {userAvatar ? (
-                  <img src={userAvatar} alt={userName} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-4xl font-bold text-white">
-                    {initials || '?'}
+      <div className="relative px-4 pt-10 pb-14 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-shell flex-col gap-10 lg:grid lg:grid-cols-[1fr_360px] lg:gap-10 lg:items-start">
+          {/* ──────────────────── MAIN COLUMN ──────────────────── */}
+          <div className="flex flex-col gap-12 min-w-0">
+            <header className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
+              <div className="relative">
+                <div className="relative h-24 w-24 overflow-hidden rounded-[1.75rem] bg-primary-deeper shadow-xl shadow-primary/20 ring-4 ring-white dark:ring-surface-inkSoft">
+                  {userAvatar ? (
+                    <img src={userAvatar} alt={userName} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-white">
+                      {initials || '?'}
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => void handleDonorAvatarUpload(e.target.files?.[0] ?? null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-white text-primary-deeper shadow-md transition-transform hover:scale-105 disabled:opacity-60 dark:bg-surface-inkSoft dark:text-primary-muted"
+                  aria-label="Atualizar avatar"
+                >
+                  <Camera size={14} />
+                </button>
+              </div>
+
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-primary-deeper dark:text-white sm:text-4xl">
+                  {userName}
+                </h1>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{userEmail}</p>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-gray-700 dark:text-gray-300 lg:justify-start">
+                  <span className="inline-flex items-center gap-1.5 font-medium">
+                    <Sparkles size={14} className="text-primary" />
+                    {ROLE_LABELS[userRole] ?? userRole}
+                  </span>
+                  <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-white/20" />
+                  <span>
+                    <span className="font-bold text-primary-deeper dark:text-primary-muted">
+                      {snapshot.points.toLocaleString('pt-BR')}
+                    </span>{' '}
+                    pontos
+                  </span>
+                  <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-white/20" />
+                  <span className="inline-flex items-center gap-1.5">
+                    <Flame size={14} className="text-amber-500" />
+                    <span className="font-bold text-primary-deeper dark:text-primary-muted">
+                      {snapshot.streak.value}
+                    </span>
+                    {snapshot.streak.value === 1 ? 'mês seguido' : 'meses seguidos'}
+                  </span>
+                </div>
+
+                {userRole === 'DONOR' && (
+                  <div className="mt-3 flex items-center justify-center lg:justify-start">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-600 shadow-sm dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-300">
+                      <TrendingUp size={11} className="text-primary" />
+                      {getDonorLevel(snapshot.points).name}
+                    </span>
                   </div>
                 )}
               </div>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={(e) => void handleDonorAvatarUpload(e.target.files?.[0] ?? null)}
-              />
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={avatarUploading}
-                className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-white text-primary-deeper shadow-md transition-transform hover:scale-105 disabled:opacity-60 dark:bg-surface-inkSoft dark:text-primary-muted"
-                aria-label="Atualizar avatar"
-              >
-                <Camera size={14} />
-              </button>
-            </div>
 
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-primary-deeper dark:text-white sm:text-4xl">
-                {userName}
-              </h1>
-              <p className="mt-1 text-sm text-gray-500">{userEmail}</p>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-gray-700 dark:text-gray-300">
-                <span className="inline-flex items-center gap-1.5 font-medium">
-                  <Sparkles size={14} className="text-primary" />
-                  {ROLE_LABELS[userRole] ?? userRole}
-                </span>
-                <span className="h-1 w-1 rounded-full bg-gray-300" />
-                <span>
-                  <span className="font-bold text-primary-deeper dark:text-primary-muted">
-                    {snapshot.points.toLocaleString('pt-BR')}
-                  </span>{' '}
-                  pontos
-                </span>
-                <span className="h-1 w-1 rounded-full bg-gray-300" />
-                <span className="inline-flex items-center gap-1.5">
-                  <Flame size={14} className="text-amber-500" />
-                  <span className="font-bold text-primary-deeper dark:text-primary-muted">{snapshot.streak.value}</span>
-                  {snapshot.streak.value === 1 ? 'mês seguido' : 'meses seguidos'}
-                </span>
+              {avatarUploading && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">Enviando novo avatar…</p>
+              )}
+              {profileError && (
+                <p className="max-w-md rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                  {profileError}
+                </p>
+              )}
+            </header>
+
+            {/* STATS STRIP */}
+            <section aria-labelledby="stats-heading" className="relative">
+              <h2 id="stats-heading" className="sr-only">
+                Resumo
+              </h2>
+              <div className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl bg-primary/10 dark:bg-white/10">
+                <Stat value={donations.length} label="doações" />
+                <Stat value={completed} label="concluídas" />
+                <Stat value={itemsTotal} label="itens" />
               </div>
-              {/* Level chip — only shown for donors */}
-              {userRole === 'DONOR' && (
-                <div className="mt-3 flex items-center justify-center">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-600 shadow-sm dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-300">
-                    <TrendingUp size={11} className="text-primary" />
-                    {getDonorLevel(snapshot.points).name}
-                  </span>
+              {impactError && (
+                <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-center text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                  {impactError}
+                </p>
+              )}
+            </section>
+
+            {/* BADGES */}
+            <section aria-labelledby="badges-heading">
+              <div className="mb-6 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+                    Conquistas
+                  </p>
+                  <h2
+                    id="badges-heading"
+                    className="mt-1 text-2xl font-bold text-primary-deeper dark:text-white"
+                  >
+                    Sua coleção solidária
+                  </h2>
+                </div>
+              </div>
+
+              {loadingImpact && donations.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Carregando conquistas…</p>
+              ) : (
+                <div className="grid justify-items-center gap-x-4 gap-y-8 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-5">
+                  {badges.map((badge) => (
+                    <div
+                      key={badge.type}
+                      className={cn(
+                        'flex w-full max-w-[260px] flex-col items-center text-center transition-opacity',
+                        !badge.earned && 'opacity-50 grayscale-[55%]',
+                      )}
+                    >
+                      <AwardBadge
+                        type={badge.type}
+                        tier={badge.tier}
+                        subtitle={badge.subtitle}
+                        earnedAt={badge.earned ? badge.earnedAt : undefined}
+                        className="!w-full"
+                      />
+                      {!badge.earned && badge.progressLabel && (
+                        <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          {badge.progressLabel}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
-            </div>
+            </section>
 
-            {avatarUploading && (
-              <p className="text-xs text-gray-500">Enviando novo avatar…</p>
-            )}
-            {profileError && (
-              <p className="max-w-md rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                {profileError}
-              </p>
-            )}
-
-            {donorCompletion &&
-              (donorCompletion.missingFields?.length ?? 0) > 0 && (
-                <a
-                  href="#completar-perfil"
-                  className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-white px-4 py-2 text-xs font-semibold text-primary shadow-sm transition-colors hover:bg-primary-light dark:border-primary/50 dark:bg-surface-inkSoft"
-                >
-                  <Sparkles size={13} />
-                  Complete seu perfil ({donorCompletion.completedItems ?? 0}/
-                  {donorCompletion.totalItems ?? 0})
-                  <ArrowDown size={12} />
-                </a>
-              )}
-          </header>
-
-          {/* ──────────────────── STATS STRIP ──────────────────── */}
-          <section aria-labelledby="stats-heading" className="relative">
-            <h2 id="stats-heading" className="sr-only">
-              Resumo
-            </h2>
-            <div className="mx-auto grid max-w-3xl grid-cols-3 gap-px overflow-hidden rounded-2xl bg-primary/10 dark:bg-white/10">
-              <Stat value={donations.length} label="doações" />
-              <Stat value={completed} label="concluídas" />
-              <Stat value={itemsTotal} label="itens" />
-            </div>
-            {impactError && (
-              <p className="mx-auto mt-3 max-w-md rounded-xl bg-amber-50 px-3 py-2 text-center text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                {impactError}
-              </p>
-            )}
-          </section>
-
-          {/* ──────────────────── BADGES ──────────────────── */}
-          <section aria-labelledby="badges-heading">
-            <div className="mb-6 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
-                  Conquistas
-                </p>
-                <h2
-                  id="badges-heading"
-                  className="mt-1 text-2xl font-bold text-primary-deeper dark:text-white"
-                >
-                  Sua coleção solidária
-                </h2>
-              </div>
-              <p className="hidden text-xs text-gray-500 sm:block">
-                Passe o mouse nos medalhões para ver o brilho
-              </p>
-            </div>
-
-            {loadingImpact && donations.length === 0 ? (
-              <p className="text-sm text-gray-500">Carregando conquistas…</p>
-            ) : (
-              <div className="grid justify-items-center gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                {badges.map((badge) => (
-                  <div
-                    key={badge.type}
-                    className={cn(
-                      'flex w-full max-w-[260px] flex-col items-center text-center transition-opacity',
-                      !badge.earned && 'opacity-50 grayscale-[55%]',
-                    )}
+            {/* RECENT TIMELINE */}
+            <section aria-labelledby="history-heading">
+              <div className="mb-6 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+                    Últimas entregas
+                  </p>
+                  <h2
+                    id="history-heading"
+                    className="mt-1 text-2xl font-bold text-primary-deeper dark:text-white"
                   >
-                    <AwardBadge
-                      type={badge.type}
-                      tier={badge.tier}
-                      subtitle={badge.subtitle}
-                      earnedAt={badge.earned ? badge.earnedAt : undefined}
-                      className="!w-full"
-                    />
-                    {!badge.earned && badge.progressLabel && (
-                      <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">
-                        {badge.progressLabel}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* ──────────────────── RECENT TIMELINE ──────────────────── */}
-          <section aria-labelledby="history-heading">
-            <div className="mb-6 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
-                  Últimas entregas
-                </p>
-                <h2
-                  id="history-heading"
-                  className="mt-1 text-2xl font-bold text-primary-deeper dark:text-white"
+                    Sua linha do tempo
+                  </h2>
+                </div>
+                <Link
+                  href="/rastreio"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary-deeper dark:hover:text-primary-muted"
                 >
-                  Sua linha do tempo
-                </h2>
+                  Ver tudo
+                  <ChevronRight size={14} />
+                </Link>
               </div>
-              <Link
-                href="/rastreio"
-                className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary-deeper"
-              >
-                Ver tudo
-                <ChevronRight size={14} />
-              </Link>
-            </div>
 
-            {recentDonations.length > 0 ? (
-              <ol className="relative space-y-3 pl-1">
-                <div
-                  aria-hidden
-                  className="absolute left-[15px] top-3 bottom-3 w-px bg-gradient-to-b from-primary/30 via-primary/15 to-transparent"
-                />
-                {recentDonations.map((donation) => (
-                  <li key={donation.id} className="relative">
-                    <Link
-                      href={`/rastreio/${donation.id}`}
-                      className="group flex items-start gap-4 rounded-2xl px-2 py-3 transition-colors hover:bg-white dark:hover:bg-surface-inkSoft"
-                    >
-                      <div className="relative z-[1] flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow-sm dark:border-surface-ink">
-                        <Package size={13} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="truncate text-sm font-semibold text-primary-deeper dark:text-white">
-                            {donation.itemLabel}
+              {recentDonations.length > 0 ? (
+                <ol className="relative space-y-3 pl-1">
+                  <div
+                    aria-hidden
+                    className="absolute left-[15px] top-3 bottom-3 w-px bg-gradient-to-b from-primary/30 via-primary/15 to-transparent"
+                  />
+                  {recentDonations.map((donation) => (
+                    <li key={donation.id} className="relative">
+                      <Link
+                        href={`/rastreio/${donation.id}`}
+                        className="group flex items-start gap-4 rounded-2xl px-2 py-3 transition-colors hover:bg-white dark:hover:bg-surface-inkSoft"
+                      >
+                        <div className="relative z-[1] flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow-sm dark:border-surface-ink">
+                          <Package size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="truncate text-sm font-semibold text-primary-deeper dark:text-white">
+                              {donation.itemLabel}
+                            </p>
+                            <span className="flex-shrink-0 text-[11px] text-gray-400 dark:text-gray-500">
+                              {formatMonthLabel(donation.createdAt)}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                            {donation.dropOffPoint?.organizationName ??
+                              donation.dropOffPoint?.name ??
+                              'Destino em definição'}
                           </p>
-                          <span className="flex-shrink-0 text-[11px] text-gray-400">
-                            {formatMonthLabel(donation.createdAt)}
+                          <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide text-primary">
+                            +{donation.pointsAwarded} pts
                           </span>
                         </div>
-                        <p className="mt-0.5 truncate text-xs text-gray-500">
-                          {donation.dropOffPoint?.organizationName ??
-                            donation.dropOffPoint?.name ??
-                            'Destino em definição'}
-                        </p>
-                        <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide text-primary">
-                          +{donation.pointsAwarded} pts
-                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Assim que você registrar uma doação, ela aparece aqui.
+                </p>
+              )}
+            </section>
+          </div>
+
+          {/* ──────────────────── ASIDE COLUMN ──────────────────── */}
+          <aside className="flex flex-col gap-5 lg:sticky lg:top-[6rem]">
+            {/* Identity card */}
+            <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-card dark:border-white/10 dark:bg-surface-inkSoft dark:shadow-none">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+                Resumo da conta
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary-light text-sm font-semibold text-primary dark:bg-primary/20 dark:text-primary-muted">
+                  {userAvatar ? (
+                    <img src={userAvatar} alt={userName} className="h-full w-full object-cover" />
+                  ) : (
+                    initials || '?'
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-on-surface dark:text-gray-100">
+                    {userName}
+                  </p>
+                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{userEmail}</p>
+                </div>
+              </div>
+              <dl className="mt-4 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-gray-500 dark:text-gray-400">
+                  <dt>Papel</dt>
+                  <dd className="font-semibold text-on-surface dark:text-gray-100">
+                    {ROLE_LABELS[userRole] ?? userRole}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between text-gray-500 dark:text-gray-400">
+                  <dt>Pontos</dt>
+                  <dd className="font-semibold text-on-surface dark:text-gray-100">
+                    {snapshot.points.toLocaleString('pt-BR')}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between text-gray-500 dark:text-gray-400">
+                  <dt>Constância</dt>
+                  <dd className="font-semibold text-on-surface dark:text-gray-100">
+                    {snapshot.streak.value} {snapshot.streak.value === 1 ? 'mês' : 'meses'}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            {/* Profile completion CTA — only when missing fields */}
+            {showCompletionCta ? (
+              <Link
+                href="/configuracoes/perfil"
+                className="group rounded-3xl border border-primary/20 bg-primary-light p-5 transition-colors hover:border-primary/40 dark:border-primary/30 dark:bg-primary/10 dark:hover:border-primary/50"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-primary dark:bg-surface-inkSoft dark:text-primary-muted">
+                    <Sparkles size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
+                      Complete seu perfil
+                    </p>
+                    <p className="mt-1 text-xs text-primary-deeper/70 dark:text-primary-muted">
+                      {donorCompletion?.completedItems ?? 0} de {donorCompletion?.totalItems ?? 0} itens preenchidos.
+                    </p>
+                    <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary group-hover:translate-x-0.5 transition-transform">
+                      Continuar nas configurações
+                      <ChevronRight size={12} />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ) : donorCompletion ? (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/60 p-5 dark:border-emerald-900/30 dark:bg-emerald-900/10">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-600 dark:bg-surface-inkSoft dark:text-emerald-300">
+                    <CheckCircle2 size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                      Perfil complementar em dia
+                    </p>
+                    <p className="mt-1 text-xs text-emerald-700/70 dark:text-emerald-300/70">
+                      Tudo certo. Você pode revisar quando quiser em configurações.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Account menu */}
+            <nav aria-label="Atalhos de conta" className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-card dark:border-white/10 dark:bg-surface-inkSoft dark:shadow-none">
+              <ul className="divide-y divide-gray-100 dark:divide-white/5">
+                {menuItems.map(({ icon: Icon, label, href }) => (
+                  <li key={href + label}>
+                    <Link
+                      href={href}
+                      className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface dark:hover:bg-white/5"
+                    >
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-light text-primary dark:bg-primary/20 dark:text-primary-muted">
+                        <Icon size={15} />
                       </div>
+                      <span className="flex-1 text-sm font-medium text-primary-deeper dark:text-gray-100">
+                        {label}
+                      </span>
+                      <ChevronRight size={14} className="text-gray-300 dark:text-gray-600" />
                     </Link>
                   </li>
                 ))}
-              </ol>
-            ) : (
-              <p className="text-sm text-gray-500">
-                Assim que você registrar uma doação, ela aparece aqui.
-              </p>
-            )}
-          </section>
-
-          {/* ──────────────────── COMPLETAR PERFIL ──────────────────── */}
-          <section
-            id="completar-perfil"
-            aria-labelledby="profile-completion-heading"
-            className="mx-auto w-full max-w-4xl scroll-mt-24"
-          >
-            <div className="rounded-[2rem] border border-gray-100 bg-white/80 p-6 shadow-card dark:border-white/10 dark:bg-surface-inkSoft dark:shadow-none">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                <div className="max-w-2xl">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
-                    Perfil complementar
-                  </p>
-                  <h2
-                    id="profile-completion-heading"
-                    className="mt-1 text-2xl font-bold text-primary-deeper dark:text-white"
-                  >
-                    Complete seu perfil no seu ritmo
-                  </h2>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
-                    Esses dados continuam opcionais. Eles ajudam o VestGO a melhorar
-                    personalização e descoberta local sem mexer no cadastro inicial.
-                  </p>
-                </div>
-
-                <div className="rounded-[1.5rem] bg-surface px-4 py-3 text-sm text-gray-600 dark:bg-surface-ink dark:text-gray-300">
-                  <p className="font-semibold text-primary-deeper dark:text-white">
-                    {donorCompletion?.completedItems ?? 0} de {donorCompletion?.totalItems ?? 0}{' '}
-                    itens concluídos
-                  </p>
-                  {donorCompletion?.missingFields?.length ? (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Faltando: {donorCompletion.missingFields.join(', ')}.
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Perfil complementar em dia.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface dark:text-gray-100">Data de nascimento</span>
-                  <input
-                    type="date"
-                    value={donorProfileForm.birthDate}
-                    onChange={(event) => {
-                      setDonorProfileForm((current) => ({
-                        ...current,
-                        birthDate: event.target.value,
-                      }));
-                      setDonorProfileSuccess(null);
-                      setProfileError(null);
-                    }}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-100"
-                  />
-                </label>
-
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface dark:text-gray-100">Cidade</span>
-                  <input
-                    value={donorProfileForm.city}
-                    onChange={(event) => {
-                      setDonorProfileForm((current) => ({
-                        ...current,
-                        city: event.target.value,
-                      }));
-                      setDonorProfileSuccess(null);
-                      setProfileError(null);
-                    }}
-                    placeholder="Ex.: Sorocaba"
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500"
-                  />
-                </label>
-
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface dark:text-gray-100">Estado</span>
-                  <input
-                    value={donorProfileForm.state}
-                    onChange={(event) => {
-                      setDonorProfileForm((current) => ({
-                        ...current,
-                        state: event.target.value,
-                      }));
-                      setDonorProfileSuccess(null);
-                      setProfileError(null);
-                    }}
-                    placeholder="Ex.: SP"
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-6">
-                <p className="text-sm font-semibold text-primary-deeper dark:text-white">
-                  Interesses de doação
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  Escolha categorias que fazem sentido para o seu momento solidário.
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {DONATION_INTEREST_OPTIONS.map((option) => {
-                    const selected = donorProfileForm.donationInterestCategories.includes(
-                      option.value,
-                    );
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => toggleDonationInterest(option.value)}
-                        className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
-                          selected
-                            ? 'border-primary bg-primary-light text-primary-deeper dark:bg-primary/20 dark:text-primary-muted'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-primary hover:text-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-300'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {donorProfileSuccess && (
-                <p className="mt-5 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                  {donorProfileSuccess}
-                </p>
-              )}
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleSaveDonorProfile()}
-                  disabled={savingDonorProfile || loadingProfile}
-                  className="inline-flex items-center justify-center rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingDonorProfile ? 'Salvando perfil...' : 'Salvar perfil complementar'}
-                </button>
-                <Link
-                  href="/configuracoes"
-                  className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:text-gray-300"
-                >
-                  Ajustes da conta
-                </Link>
-              </div>
-            </div>
-          </section>
-
-          {/* ──────────────────── ACCOUNT MENU ──────────────────── */}
-          <section
-            aria-labelledby="account-heading"
-            className="mx-auto w-full max-w-2xl"
-          >
-            <div className="mb-6 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
-                Conta
-              </p>
-              <h2
-                id="account-heading"
-                className="mt-1 text-2xl font-bold text-primary-deeper dark:text-white"
-              >
-                Ajustes e suporte
-              </h2>
-            </div>
-
-            <div className="divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-white/70 dark:divide-white/10 dark:border-white/10 dark:bg-surface-inkSoft">
-              {menuItems.map(({ icon: Icon, label, href }) => (
-                <Link
-                  key={href + label}
-                  href={href}
-                  className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-surface/80 dark:hover:bg-white/5"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-light text-primary dark:bg-primary/20">
-                    <Icon size={15} />
-                  </div>
-                  <span className="flex-1 text-sm font-medium text-primary-deeper dark:text-gray-100">
-                    {label}
-                  </span>
-                  <ChevronRight size={14} className="text-gray-300 dark:text-gray-600" />
-                </Link>
-              ))}
-            </div>
+              </ul>
+            </nav>
 
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: '/login' })}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-white py-3.5 text-sm font-semibold text-red-500 transition-colors hover:bg-red-50 dark:border-red-900/30 dark:bg-surface-inkSoft dark:text-red-400 dark:hover:bg-red-950/30"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-white py-3 text-sm font-semibold text-red-500 transition-colors hover:bg-red-50 dark:border-red-900/30 dark:bg-surface-inkSoft dark:text-red-400 dark:hover:bg-red-950/30"
             >
               <LogOut size={15} />
               Sair da conta
             </button>
-          </section>
+          </aside>
         </div>
       </div>
     </div>
@@ -813,7 +649,7 @@ function Stat({ value, label }: { value: number; label: string }) {
       <span className="text-3xl font-bold text-primary-deeper dark:text-white">
         {value.toLocaleString('pt-BR')}
       </span>
-      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
     </div>
   );
 }

@@ -53,7 +53,6 @@ type SessionUpdateUser = {
   name?: string | null;
   email?: string | null;
   image?: string | null;
-  emailVerifiedAt?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -81,14 +80,6 @@ function resolveSessionUpdateUser(value: unknown): SessionUpdateUser | null {
 
   if ('image' in candidate && (typeof candidate.image === 'string' || candidate.image === null)) {
     update.image = candidate.image;
-    hasKnownField = true;
-  }
-
-  if (
-    'emailVerifiedAt' in candidate &&
-    (typeof candidate.emailVerifiedAt === 'string' || candidate.emailVerifiedAt === null)
-  ) {
-    update.emailVerifiedAt = candidate.emailVerifiedAt;
     hasKnownField = true;
   }
 
@@ -180,6 +171,88 @@ async function refreshAccessToken(token: AppAuthToken): Promise<AppAuthToken> {
   }
 }
 
+type RemoteUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatarUrl?: string | null;
+  emailVerifiedAt?: string | null;
+};
+
+async function fetchRemoteUser(accessToken: string): Promise<RemoteUser | null> {
+  try {
+    const response = await fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { user: RemoteUser };
+    return data.user ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function authorizeWithPassword(
+  email: string,
+  password: string,
+): Promise<AppAuthUser | null> {
+  try {
+    const response = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+
+    if (data.requiresTwoFactor) {
+      // Login page handles the 2FA challenge before re-calling signIn with tokens.
+      return null;
+    }
+
+    if (!data.accessToken || !data.refreshToken || !data.user) {
+      return null;
+    }
+
+    return {
+      id: data.user.id,
+      name: data.user.name,
+      email: data.user.email,
+      role: data.user.role,
+      image: data.user.avatarUrl ?? null,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      accessTokenExpiresAt: getAccessTokenExpiresAt(data.accessToken),
+      emailVerifiedAt: data.user.emailVerifiedAt ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function authorizeWithTokens(
+  accessToken: string,
+  refreshToken: string,
+): Promise<AppAuthUser | null> {
+  const remote = await fetchRemoteUser(accessToken);
+  if (!remote) return null;
+
+  return {
+    id: remote.id,
+    name: remote.name,
+    email: remote.email,
+    role: remote.role,
+    image: remote.avatarUrl ?? null,
+    accessToken,
+    refreshToken,
+    accessTokenExpiresAt: getAccessTokenExpiresAt(accessToken),
+    emailVerifiedAt: remote.emailVerifiedAt ?? null,
+  };
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   trustHost: true,
@@ -191,44 +264,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Senha', type: 'password' },
+        accessToken: { label: 'Access Token', type: 'text' },
+        refreshToken: { label: 'Refresh Token', type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
+        if (!credentials) return null;
+
+        const accessToken = typeof credentials.accessToken === 'string' ? credentials.accessToken : '';
+        const refreshToken = typeof credentials.refreshToken === 'string' ? credentials.refreshToken : '';
+
+        if (accessToken && refreshToken) {
+          return authorizeWithTokens(accessToken, refreshToken);
         }
 
-        try {
-          const response = await fetch(`${API_URL}/auth/login`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
-          });
+        const email = typeof credentials.email === 'string' ? credentials.email : '';
+        const password = typeof credentials.password === 'string' ? credentials.password : '';
 
-          if (!response.ok) {
-            return null;
-          }
-
-          const data = await response.json();
-
-          return {
-            id: data.user.id,
-            name: data.user.name,
-            email: data.user.email,
-            role: data.user.role,
-            image: data.user.avatarUrl ?? null,
-            emailVerifiedAt: data.user.emailVerifiedAt ?? null,
-            accessToken: data.accessToken,
-            refreshToken: data.refreshToken,
-            accessTokenExpiresAt: getAccessTokenExpiresAt(data.accessToken),
-          };
-        } catch {
-          return null;
+        if (email && password) {
+          return authorizeWithPassword(email, password);
         }
+
+        return null;
       },
     }),
   ],
@@ -258,7 +314,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         mutableToken.email = appUser.email ?? mutableToken.email;
         mutableToken.picture = appUser.image ?? null;
         mutableToken.role = appUser.role;
-        mutableToken.emailVerifiedAt = appUser.emailVerifiedAt ?? null;
         mutableToken.accessToken = appUser.accessToken;
         mutableToken.refreshToken = appUser.refreshToken;
         mutableToken.accessTokenExpiresAt = appUser.accessTokenExpiresAt;
@@ -277,10 +332,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if ('image' in sessionUpdate) {
           mutableToken.picture = sessionUpdate.image ?? null;
-        }
-
-        if ('emailVerifiedAt' in sessionUpdate) {
-          mutableToken.emailVerifiedAt = sessionUpdate.emailVerifiedAt ?? null;
         }
       }
 
@@ -306,10 +357,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           ? appToken.picture
           : session.user.image ?? null;
       session.user.role = appToken.role ?? 'DONOR';
-      session.user.emailVerifiedAt =
-        typeof appToken.emailVerifiedAt === 'string' ? appToken.emailVerifiedAt : null;
       session.user.accessToken = appToken.accessToken ?? '';
       session.user.accessTokenExpiresAt = appToken.accessTokenExpiresAt ?? 0;
+      session.user.emailVerifiedAt = (appToken.emailVerifiedAt as string | null | undefined) ?? null;
       session.error = appToken.error;
 
       return session;

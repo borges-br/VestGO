@@ -10,8 +10,8 @@ declare module 'fastify' {
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
-    payload: { id: string; email: string; role: string };
-    user: { id: string; email: string; role: string };
+    payload: { id: string; email: string; role: string; sessionId?: string };
+    user: { id: string; email: string; role: string; sessionId?: string };
   }
 }
 
@@ -21,17 +21,22 @@ export default fp(async (fastify) => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         await request.jwtVerify();
-
-        const user = await fastify.prisma.user.findUnique({
-          where: { id: request.user.id },
-          select: { anonymizedAt: true },
-        });
-
-        if (!user || user.anonymizedAt) {
-          return reply.code(401).send({ error: 'Unauthorized' });
-        }
-      } catch (err) {
+      } catch {
         return reply.code(401).send({ error: 'Unauthorized' });
+      }
+
+      const sessionId = request.user.sessionId;
+      if (!sessionId) {
+        return;
+      }
+
+      const session = await fastify.prisma.userSession.findUnique({
+        where: { id: sessionId },
+        select: { revokedAt: true, expiresAt: true },
+      });
+
+      if (!session || session.revokedAt || session.expiresAt < new Date()) {
+        return reply.code(401).send({ error: 'SESSION_REVOKED' });
       }
     },
   );

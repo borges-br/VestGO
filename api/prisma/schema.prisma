@@ -151,6 +151,8 @@ model User {
   pickupRequestsRequested             PickupRequest[]          @relation("NgoPickupRequests")
   notifications                       Notification[]
   tokens                              UserToken[]
+  sessions                            UserSession[]
+  twoFactor                           UserTwoFactor?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -171,6 +173,51 @@ model UserToken {
 
   @@index([userId, type, expiresAt])
   @@map("user_tokens")
+}
+
+model UserSession {
+  id               String    @id @default(cuid())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  refreshTokenHash String    @unique
+  userAgent        String?
+  ipAddress        String?
+  deviceLabel      String?
+  createdAt        DateTime  @default(now())
+  lastUsedAt       DateTime  @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+
+  @@index([userId, revokedAt, lastUsedAt])
+  @@map("user_sessions")
+}
+
+model UserTwoFactor {
+  id              String    @id @default(cuid())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String    @unique
+  secretEncrypted String
+  enabledAt       DateTime?
+  recoveryCodes   UserTwoFactorRecoveryCode[]
+  lastVerifiedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_two_factor")
+}
+
+model UserTwoFactorRecoveryCode {
+  id          String        @id @default(cuid())
+  twoFactor   UserTwoFactor @relation(fields: [twoFactorId], references: [id], onDelete: Cascade)
+  twoFactorId String
+  codeHash    String
+  usedAt      DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([twoFactorId, usedAt])
+  @@map("user_two_factor_recovery_codes")
 }
 
 model Donation {

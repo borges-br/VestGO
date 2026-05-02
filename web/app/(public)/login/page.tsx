@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signIn } from 'next-auth/react';
-import { ArrowRight, Eye, EyeOff, MapPin, Sparkles, User, Users } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Eye, EyeOff, KeyRound, MapPin, ShieldCheck, Sparkles, User, Users } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { VestgoLogo } from '@/components/branding/vestgo-logo';
 import { AuthSplitScene } from '@/components/ui/auth-split-scene';
 import { cn } from '@/lib/utils';
+import { loginWithCredentials, verifyTwoFactorLogin } from '@/lib/api';
 
 type Tab = 'login' | 'register';
 
@@ -70,6 +71,10 @@ function LoginInner() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [twoFactorChallengeId, setTwoFactorChallengeId] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
 
   const errorMessage = useMemo(() => {
     if (error) return error;
@@ -82,33 +87,79 @@ function LoginInner() {
     if (authError) setLoading(false);
   }, [authError]);
 
+  async function completeSignInWithTokens(accessToken: string, refreshToken: string) {
+    const result = await signIn('credentials', {
+      accessToken,
+      refreshToken,
+      redirect: false,
+      callbackUrl,
+    });
+
+    if (result?.error) {
+      setError('Não foi possível concluir o login. Tente novamente.');
+      setLoading(false);
+      return;
+    }
+
+    await getSession();
+    const destination = sanitizeRedirectTarget(result?.url, callbackUrl);
+    router.replace(destination);
+    router.refresh();
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-        callbackUrl,
-      });
+      const response = await loginWithCredentials({ email, password });
 
-      if (result?.error) {
-        setError('E-mail ou senha incorretos.');
+      if ('requiresTwoFactor' in response) {
+        setTwoFactorChallengeId(response.challengeId);
         setLoading(false);
         return;
       }
 
-      await getSession();
-      const destination = sanitizeRedirectTarget(result?.url, callbackUrl);
-      router.replace(destination);
-      router.refresh();
+      await completeSignInWithTokens(response.accessToken, response.refreshToken);
     } catch {
-      setError('Não foi possível entrar agora. Tente novamente.');
+      setError('E-mail ou senha incorretos.');
       setLoading(false);
     }
   };
+
+  const handleTwoFactorSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!twoFactorChallengeId) return;
+
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await verifyTwoFactorLogin(
+        recoveryMode
+          ? { challengeId: twoFactorChallengeId, recoveryCode }
+          : { challengeId: twoFactorChallengeId, code: twoFactorCode },
+      );
+
+      await completeSignInWithTokens(response.accessToken, response.refreshToken);
+    } catch {
+      setError(
+        recoveryMode
+          ? 'Código de recuperação inválido ou já utilizado.'
+          : 'Código inválido. Verifique o app autenticador e tente novamente.',
+      );
+      setLoading(false);
+    }
+  };
+
+  function cancelTwoFactor() {
+    setTwoFactorChallengeId(null);
+    setTwoFactorCode('');
+    setRecoveryCode('');
+    setRecoveryMode(false);
+    setError(null);
+    setLoading(false);
+  }
 
   return (
     <div className="min-h-screen bg-surface-cream">
@@ -174,31 +225,118 @@ function LoginInner() {
               </Link>
             </div>
 
-            {/* Tab toggle */}
-            <div className="mb-7 inline-flex rounded-full border border-gray-200 bg-white p-1 text-sm font-semibold shadow-card">
-              <button
-                type="button"
-                onClick={() => setTab('login')}
-                className={cn(
-                  'rounded-full px-5 py-2 transition-all',
-                  tab === 'login' ? 'bg-primary-deeper text-white shadow-sm' : 'text-gray-500 hover:text-primary-deeper',
-                )}
-              >
-                Entrar
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('register')}
-                className={cn(
-                  'rounded-full px-5 py-2 transition-all',
-                  tab === 'register' ? 'bg-primary-deeper text-white shadow-sm' : 'text-gray-500 hover:text-primary-deeper',
-                )}
-              >
-                Criar conta
-              </button>
-            </div>
+            {/* Tab toggle — hidden during 2FA challenge */}
+            {!twoFactorChallengeId && (
+              <div className="mb-7 inline-flex rounded-full border border-gray-200 bg-white p-1 text-sm font-semibold shadow-card">
+                <button
+                  type="button"
+                  onClick={() => setTab('login')}
+                  className={cn(
+                    'rounded-full px-5 py-2 transition-all',
+                    tab === 'login' ? 'bg-primary-deeper text-white shadow-sm' : 'text-gray-500 hover:text-primary-deeper',
+                  )}
+                >
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('register')}
+                  className={cn(
+                    'rounded-full px-5 py-2 transition-all',
+                    tab === 'register' ? 'bg-primary-deeper text-white shadow-sm' : 'text-gray-500 hover:text-primary-deeper',
+                  )}
+                >
+                  Criar conta
+                </button>
+              </div>
+            )}
 
-            {tab === 'login' ? (
+            {twoFactorChallengeId ? (
+              <>
+                <button
+                  type="button"
+                  onClick={cancelTwoFactor}
+                  className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 transition-colors hover:text-primary"
+                >
+                  <ArrowLeft size={13} />
+                  Voltar para o login
+                </button>
+                <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-primary-light px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                  <ShieldCheck size={13} /> Verificação em 2 etapas
+                </div>
+                <h1 className="text-3xl font-extrabold tracking-tight text-primary-deeper sm:text-[2.25rem]">
+                  {recoveryMode ? 'Use um código de recuperação' : 'Confirme com o app autenticador'}
+                </h1>
+                <p className="mt-2 text-sm text-gray-500 sm:text-base">
+                  {recoveryMode
+                    ? 'Informe um dos códigos guardados ao ativar a 2FA. Cada código pode ser usado uma única vez.'
+                    : 'Abra seu app autenticador e digite o código de 6 dígitos gerado para o VestGO.'}
+                </p>
+
+                <form onSubmit={handleTwoFactorSubmit} className="mt-6 space-y-4">
+                  {recoveryMode ? (
+                    <Field label="Código de recuperação" htmlFor="recovery">
+                      <input
+                        id="recovery"
+                        type="text"
+                        autoComplete="one-time-code"
+                        inputMode="text"
+                        required
+                        value={recoveryCode}
+                        onChange={(e) => setRecoveryCode(e.target.value)}
+                        placeholder="xxxxx-xxxxx"
+                        className={inputClass}
+                      />
+                    </Field>
+                  ) : (
+                    <Field label="Código de 6 dígitos" htmlFor="totp">
+                      <input
+                        id="totp"
+                        type="text"
+                        autoComplete="one-time-code"
+                        inputMode="numeric"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        required
+                        value={twoFactorCode}
+                        onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        className={cn(inputClass, 'tracking-[0.5em] text-center text-lg font-semibold')}
+                      />
+                    </Field>
+                  )}
+
+                  {errorMessage && (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                      {errorMessage}
+                    </div>
+                  )}
+
+                  <motion.button
+                    type="submit"
+                    disabled={loading}
+                    whileHover={{ scale: loading ? 1 : 1.01 }}
+                    whileTap={{ scale: loading ? 1 : 0.98 }}
+                    className="group relative mt-2 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-primary-deeper px-5 py-4 text-sm font-bold text-white shadow-card transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {loading ? 'Verificando...' : 'Confirmar e entrar'}
+                    {!loading && <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />}
+                  </motion.button>
+                </form>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecoveryMode((v) => !v);
+                    setError(null);
+                  }}
+                  className="mt-6 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:text-primary-deeper"
+                >
+                  <KeyRound size={12} />
+                  {recoveryMode ? 'Usar código do app autenticador' : 'Usar código de recuperação'}
+                </button>
+              </>
+            ) : tab === 'login' ? (
               <>
                 <h1 className="text-3xl font-extrabold tracking-tight text-primary-deeper sm:text-[2.25rem]">
                   Entrar na sua conta

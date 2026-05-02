@@ -9,10 +9,28 @@
     color-scheme: light;
     --topbar-height: 4.5rem;
     --mobile-nav-height: 5.25rem;
+
+    /* dark-mode tokens (used via the .dark class) */
+    --vg-bg: #f2f4f5;
+    --vg-bg-elevated: #ffffff;
+    --vg-bg-soft: #f6f7f8;
+    --vg-border: rgba(15, 23, 42, 0.08);
+    --vg-border-strong: rgba(15, 23, 42, 0.12);
+    --vg-text-primary: #0f1f22;
+    --vg-text-secondary: #51626a;
+    --vg-text-muted: #7a8b94;
   }
 
   .dark {
     color-scheme: dark;
+    --vg-bg: #071a1d;
+    --vg-bg-elevated: #0f2a2e;
+    --vg-bg-soft: #11353a;
+    --vg-border: rgba(255, 255, 255, 0.08);
+    --vg-border-strong: rgba(255, 255, 255, 0.14);
+    --vg-text-primary: #ecf6f5;
+    --vg-text-secondary: #b3c5cb;
+    --vg-text-muted: #7d949b;
   }
 
   * {
@@ -27,7 +45,9 @@
   }
 
   body {
-    @apply bg-surface text-on-surface font-sans antialiased;
+    background-color: var(--vg-bg);
+    color: var(--vg-text-primary);
+    @apply font-sans antialiased;
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
@@ -54,6 +74,53 @@
 
   .card {
     @apply bg-white rounded-2xl shadow-sm dark:bg-surface-inkSoft dark:shadow-none;
+  }
+
+  /* VestGO theme-aware surface utilities — single source of truth for light/dark cards. */
+  .vg-card {
+    background-color: var(--vg-bg-elevated);
+    border: 1px solid var(--vg-border);
+  }
+  .dark .vg-card {
+    border-color: var(--vg-border);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+  }
+
+  .vg-card-soft {
+    background-color: var(--vg-bg-soft);
+    border: 1px solid var(--vg-border);
+  }
+
+  .vg-page-bg {
+    background-color: var(--vg-bg);
+  }
+
+  .vg-divider {
+    background-color: var(--vg-border);
+  }
+  .vg-divider-strong {
+    background-color: var(--vg-border-strong);
+  }
+
+  .vg-text-primary {
+    color: var(--vg-text-primary);
+  }
+  .vg-text-secondary {
+    color: var(--vg-text-secondary);
+  }
+  .vg-text-muted {
+    color: var(--vg-text-muted);
+  }
+
+  .vg-border {
+    border-color: var(--vg-border);
+  }
+  .vg-border-strong {
+    border-color: var(--vg-border-strong);
+  }
+
+  .vg-hover-soft:hover {
+    background-color: var(--vg-bg-soft);
   }
 
   /* Scrollbar invisível mas funcional */

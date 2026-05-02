@@ -81,7 +81,6 @@ export type OperationalBatchStatus =
   | 'DELIVERED'
   | 'CLOSED'
   | 'CANCELLED';
-
 export type PublicProfileState = 'DRAFT' | 'PENDING' | 'ACTIVE' | 'VERIFIED';
 export type PartnershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
 export type PickupRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -288,6 +287,14 @@ export type OperationalDonationListResponse = {
   };
 };
 
+export type DonationTimelineResponse = {
+  donationId: string;
+  code: string;
+  status: DonationStatus;
+  pointsAwarded: number;
+  data: DonationEvent[];
+};
+
 export type OperationalBatchItemRecord = {
   id: string;
   addedById: string;
@@ -353,14 +360,6 @@ export type CreateOperationalBatchInput = {
   collectionPointId?: string;
   primaryCategory?: ItemCategory;
   notes?: string;
-};
-
-export type DonationTimelineResponse = {
-  donationId: string;
-  code: string;
-  status: DonationStatus;
-  pointsAwarded: number;
-  data: DonationEvent[];
 };
 
 export type CreateDonationInput = {
@@ -558,6 +557,68 @@ type ApiFetchOptions = RequestInit & {
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const SUPPORTED_PROFILE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
+export type AuthApiUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatarUrl: string | null;
+  phone: string | null;
+  organizationName: string | null;
+  publicProfileState: PublicProfileState;
+  createdAt: string;
+};
+
+export type LoginApiSuccess = {
+  user: AuthApiUser;
+  accessToken: string;
+  refreshToken: string;
+};
+
+export type LoginApiTwoFactor = {
+  requiresTwoFactor: true;
+  challengeId: string;
+  expiresAt: string;
+};
+
+export type LoginApiResponse = LoginApiSuccess | LoginApiTwoFactor;
+
+export type ActiveSession = {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  deviceLabel: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
+};
+
+export type ActiveSessionsResponse = {
+  data: ActiveSession[];
+  meta: {
+    currentSessionId: string | null;
+    count: number;
+  };
+};
+
+export type TwoFactorStatus = {
+  enabled: boolean;
+  enabledAt: string | null;
+  remainingRecoveryCodes: number;
+};
+
+export type TwoFactorSetupResponse = {
+  secret: string;
+  otpauthUri: string;
+  expiresInSeconds: number;
+};
+
+export type TwoFactorConfirmResponse = {
+  enabled: boolean;
+  recoveryCodes: string[];
+};
+
 async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T> {
   const headers = new Headers(init.headers);
   const hasBody = init.body != null;
@@ -628,7 +689,7 @@ function validateProfileImageFile(file: File) {
   const contentType = inferProfileImageContentType(file);
 
   if (!contentType) {
-    throw new Error('Formato de imagem inválido. Use JPG, PNG ou WEBP.');
+    throw new Error('Formato de imagem invalido. Use JPG, PNG ou WEBP.');
   }
 
   return contentType;
@@ -644,7 +705,7 @@ function readFileAsDataUrl(file: File) {
         return;
       }
 
-      reject(new Error('Não foi possível ler o arquivo selecionado.'));
+      reject(new Error('Nao foi possivel ler o arquivo selecionado.'));
     };
 
     reader.onerror = () => reject(new Error('Falha ao processar o arquivo selecionado.'));
@@ -802,17 +863,6 @@ export async function updateMyProfile(
   });
 }
 
-export async function updateEmailPreferences(
-  input: { emailNotificationsEnabled: boolean },
-  accessToken: string,
-): Promise<MyProfile> {
-  return apiFetch<MyProfile>('/profiles/me/email-preferences', {
-    method: 'PATCH',
-    body: JSON.stringify(input),
-    accessToken,
-  });
-}
-
 export async function createDonation(
   input: CreateDonationInput,
   accessToken: string,
@@ -865,122 +915,6 @@ export async function getOperationalDonationByCode(
     `/operational-donations/by-code/${encodeURIComponent(code.trim().toUpperCase())}`,
     { accessToken },
   );
-}
-
-export async function getOperationalBatches(
-  accessToken: string,
-  params?: { status?: OperationalBatchStatus; limit?: number },
-): Promise<OperationalBatchListResponse> {
-  const qs = new URLSearchParams({
-    ...(params?.status ? { status: params.status } : {}),
-    ...(params?.limit ? { limit: String(params.limit) } : {}),
-  });
-
-  const suffix = qs.toString() ? `?${qs}` : '';
-  return apiFetch<OperationalBatchListResponse>(`/operational-batches${suffix}`, {
-    accessToken,
-  });
-}
-
-export async function getOperationalBatch(
-  id: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}`, { accessToken });
-}
-
-export async function getOperationalBatchByCode(
-  code: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(
-    `/operational-batches/by-code/${encodeURIComponent(code.trim().toUpperCase())}`,
-    { accessToken },
-  );
-}
-
-export async function createOperationalBatch(
-  input: CreateOperationalBatchInput,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>('/operational-batches', {
-    method: 'POST',
-    body: JSON.stringify(input),
-    accessToken,
-  });
-}
-
-export async function addOperationalBatchItem(
-  batchId: string,
-  donationId: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${batchId}/items`, {
-    method: 'POST',
-    body: JSON.stringify({ donationId }),
-    accessToken,
-  });
-}
-
-export async function removeOperationalBatchItem(
-  batchId: string,
-  itemId: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${batchId}/items/${itemId}`, {
-    method: 'DELETE',
-    accessToken,
-  });
-}
-
-export async function markOperationalBatchReady(
-  id: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/mark-ready`, {
-    method: 'POST',
-    accessToken,
-  });
-}
-
-export async function dispatchOperationalBatch(
-  id: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/dispatch`, {
-    method: 'POST',
-    accessToken,
-  });
-}
-
-export async function confirmOperationalBatchDelivery(
-  id: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/confirm-delivery`, {
-    method: 'POST',
-    accessToken,
-  });
-}
-
-export async function closeOperationalBatch(
-  id: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/close`, {
-    method: 'POST',
-    accessToken,
-  });
-}
-
-export async function cancelOperationalBatch(
-  id: string,
-  accessToken: string,
-): Promise<OperationalBatchRecord> {
-  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/cancel`, {
-    method: 'POST',
-    accessToken,
-  });
 }
 
 export async function getDonation(id: string, accessToken: string): Promise<DonationRecord> {
@@ -1196,13 +1130,191 @@ export async function markAllNotificationsAsRead(
   });
 }
 
+export async function loginWithCredentials(input: {
+  email: string;
+  password: string;
+}): Promise<LoginApiResponse> {
+  return apiFetch<LoginApiResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function verifyTwoFactorLogin(input: {
+  challengeId: string;
+  code?: string;
+  recoveryCode?: string;
+}): Promise<LoginApiSuccess> {
+  return apiFetch<LoginApiSuccess>('/auth/2fa/verify-login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getMyAuthIdentity(
+  accessToken: string,
+): Promise<{ user: AuthApiUser }> {
+  return apiFetch<{ user: AuthApiUser }>('/auth/me', { accessToken });
+}
+
+export async function getActiveSessions(
+  accessToken: string,
+): Promise<ActiveSessionsResponse> {
+  return apiFetch<ActiveSessionsResponse>('/auth/sessions', { accessToken });
+}
+
+export async function revokeSession(id: string, accessToken: string): Promise<void> {
+  await apiFetch<void>(`/auth/sessions/${id}`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function revokeOtherSessions(
+  accessToken: string,
+): Promise<{ revokedCount: number }> {
+  return apiFetch<{ revokedCount: number }>('/auth/sessions/revoke-others', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function getTwoFactorStatus(
+  accessToken: string,
+): Promise<TwoFactorStatus> {
+  return apiFetch<TwoFactorStatus>('/auth/2fa/status', { accessToken });
+}
+
+export async function startTwoFactorSetup(
+  accessToken: string,
+): Promise<TwoFactorSetupResponse> {
+  return apiFetch<TwoFactorSetupResponse>('/auth/2fa/setup', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function confirmTwoFactorSetup(
+  input: { code: string },
+  accessToken: string,
+): Promise<TwoFactorConfirmResponse> {
+  return apiFetch<TwoFactorConfirmResponse>('/auth/2fa/confirm', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function disableTwoFactor(
+  input: { password: string; code?: string; recoveryCode?: string },
+  accessToken: string,
+): Promise<{ enabled: false }> {
+  return apiFetch<{ enabled: false }>('/auth/2fa/disable', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function regenerateRecoveryCodes(
+  input: { password: string; code?: string; recoveryCode?: string },
+  accessToken: string,
+): Promise<{ recoveryCodes: string[] }> {
+  return apiFetch<{ recoveryCodes: string[] }>('/auth/2fa/recovery-codes/regenerate', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
 export async function changePassword(
   input: { currentPassword: string; newPassword: string },
   accessToken: string,
-): Promise<{ message: string }> {
-  return apiFetch<{ message: string }>('/auth/change-password', {
+): Promise<{ accessToken: string; refreshToken: string }> {
+  return apiFetch<{ accessToken: string; refreshToken: string }>('/auth/change-password', {
     method: 'POST',
     body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function getOperationalBatches(
+  accessToken: string,
+  params?: { status?: OperationalBatchStatus; limit?: number },
+): Promise<OperationalBatchListResponse> {
+  const qs = new URLSearchParams({
+    ...(params?.status ? { status: params.status } : {}),
+    ...(params?.limit ? { limit: String(params.limit) } : {}),
+  });
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiFetch<OperationalBatchListResponse>(`/operational-batches${suffix}`, { accessToken });
+}
+
+export async function getOperationalBatch(id: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}`, { accessToken });
+}
+
+export async function getOperationalBatchByCode(code: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(
+    `/operational-batches/by-code/${encodeURIComponent(code.trim().toUpperCase())}`,
+    { accessToken },
+  );
+}
+
+export async function createOperationalBatch(input: CreateOperationalBatchInput, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>('/operational-batches', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function addOperationalBatchItem(batchId: string, donationId: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${batchId}/items`, {
+    method: 'POST',
+    body: JSON.stringify({ donationId }),
+    accessToken,
+  });
+}
+
+export async function removeOperationalBatchItem(batchId: string, itemId: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${batchId}/items/${itemId}`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function markOperationalBatchReady(id: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/mark-ready`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function dispatchOperationalBatch(id: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/dispatch`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function confirmOperationalBatchDelivery(id: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/confirm-delivery`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function closeOperationalBatch(id: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/close`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function cancelOperationalBatch(id: string, accessToken: string): Promise<OperationalBatchRecord> {
+  return apiFetch<OperationalBatchRecord>(`/operational-batches/${id}/cancel`, {
+    method: 'POST',
     accessToken,
   });
 }

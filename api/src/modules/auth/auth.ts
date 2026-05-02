@@ -1,7 +1,7 @@
-import { randomBytes } from 'crypto';
 import bcrypt from 'bcrypt';
-import { Prisma, PublicProfileState, UserRole, UserTokenType } from '@prisma/client';
-import { FastifyInstance } from 'fastify';
+import crypto from 'crypto';
+import { PublicProfileState, UserRole } from '@prisma/client';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   AppError,
@@ -10,35 +10,93 @@ import {
   UnauthorizedError,
   toErrorResponse,
 } from '../../shared/errors';
-import { getWebPublicUrl, sendEmail } from '../../shared/email';
-import {
-  accountDeletedTemplate,
-  accountDeletionRequestTemplate,
-  emailVerificationTemplate,
-  passwordChangedTemplate,
-  passwordResetTemplate,
-} from '../../shared/email-templates';
-import { enforceRateLimit } from '../../shared/rate-limit';
-import {
-  consumeUserToken,
-  consumeUserTokenWithDiagnostics,
-  createUserToken,
-  getTokenHashPrefix,
-} from '../../shared/user-tokens';
 import { getInitialProfileState } from '../profiles/profile-shared';
+import {
+  assertTwoFactorEncryptionReady,
+  decryptSecret,
+  encryptSecret,
+  generateRecoveryCodes,
+  hashRefreshToken,
+  normalizeRecoveryCode,
+} from './auth-crypto';
+import { buildOtpAuthUri, generateTotpSecret, verifyTotp } from './auth-totp';
+import {
+  createSessionAndIssueTokens,
+  describeRequest,
+  rotateSessionTokens,
+  revokeAllUserSessions,
+  revokeOtherSessions,
+  verifyRefreshToken,
+} from './auth-sessions';
 
 const SALT_ROUNDS = 12;
-const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
-const REFRESH_TOKEN_PREFIX = 'refresh:';
+const RECOVERY_CODE_HASH_ROUNDS = 10;
+const TWO_FACTOR_SETUP_TTL_SECONDS = 10 * 60;
+const TWO_FACTOR_CHALLENGE_TTL_SECONDS = 5 * 60;
+
 const PUBLIC_REGISTERABLE_ROLES = [
   UserRole.DONOR,
   UserRole.COLLECTION_POINT,
   UserRole.NGO,
 ] as const;
 
+const TWO_FACTOR_SETUP_PREFIX = '2fa-setup:';
+const TWO_FACTOR_CHALLENGE_PREFIX = '2fa-challenge:';
+
+type AuthSafeUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatarUrl: string | null;
+  phone: string | null;
+  organizationName: string | null;
+  publicProfileState: PublicProfileState;
+  createdAt: Date;
+};
+
+function safeUser(user: AuthSafeUser) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatarUrl: user.avatarUrl,
+    phone: user.phone,
+    organizationName: user.organizationName,
+    publicProfileState: user.publicProfileState,
+    createdAt: user.createdAt,
+  };
+}
+
+function handleErrors(reply: FastifyReply, err: unknown) {
+  if (err instanceof AppError) {
+    return reply.code(err.statusCode).send(toErrorResponse(err));
+  }
+  if (err instanceof z.ZodError) {
+    return reply.code(422).send({
+      error: 'VALIDATION_ERROR',
+      message: 'Dados invalidos',
+      issues: err.errors,
+    });
+  }
+  if (
+    err instanceof Error &&
+    (err.message === 'TWO_FACTOR_UNAVAILABLE' ||
+      err.message.startsWith('TWO_FACTOR_ENCRYPTION_KEY'))
+  ) {
+    return reply.code(503).send({
+      error: 'TWO_FACTOR_UNAVAILABLE',
+      message: 'Autenticacao em dois fatores indisponivel no momento.',
+      statusCode: 503,
+    });
+  }
+  throw err;
+}
+
 const registerSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  email: z.string().email('E-mail inválido'),
+  email: z.string().email('E-mail invalido'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
   role: z.enum(PUBLIC_REGISTERABLE_ROLES).optional().default(UserRole.DONOR),
   phone: z.string().optional(),
@@ -54,192 +112,165 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-const tokenSchema = z.object({
-  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+const verify2FALoginSchema = z
+  .object({
+    challengeId: z.string().min(1),
+    code: z.string().optional(),
+    recoveryCode: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.code) || Boolean(data.recoveryCode), {
+    message: 'Informe um codigo TOTP ou recovery code',
+  });
+
+const confirm2FASchema = z.object({
+  code: z.string().min(6).max(6),
 });
 
-const requestPasswordResetSchema = z.object({
-  email: z.string().email(),
-});
+const disable2FASchema = z
+  .object({
+    password: z.string().min(1),
+    code: z.string().optional(),
+    recoveryCode: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.code) || Boolean(data.recoveryCode), {
+    message: 'Informe codigo TOTP ou recovery code',
+  });
 
-const resetPasswordSchema = z.object({
-  token: z.string().min(24),
-  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
-});
+const regenerateRecoverySchema = z
+  .object({
+    password: z.string().min(1),
+    code: z.string().optional(),
+    recoveryCode: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.code) || Boolean(data.recoveryCode), {
+    message: 'Informe codigo TOTP ou recovery code',
+  });
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Senha atual obrigatória'),
+  currentPassword: z.string().min(1),
   newPassword: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
 });
 
-type AuthSafeUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  avatarUrl: string | null;
-  phone: string | null;
-  organizationName: string | null;
-  publicProfileState: PublicProfileState;
-  emailVerifiedAt: Date | null;
-  createdAt: Date;
-};
-
-async function generateTokenPair(
+async function consumeRecoveryCode(
   fastify: FastifyInstance,
-  payload: { id: string; email: string; role: string },
-): Promise<{ accessToken: string; refreshToken: string }> {
-  const accessToken = fastify.jwt.sign(payload);
-  const refreshToken = fastify.jwt.sign(payload, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-    ...(process.env.JWT_REFRESH_SECRET
-      ? { key: process.env.JWT_REFRESH_SECRET }
-      : {}),
+  twoFactorId: string,
+  inputCode: string,
+): Promise<boolean> {
+  const normalized = normalizeRecoveryCode(inputCode);
+  const codes = await fastify.prisma.userTwoFactorRecoveryCode.findMany({
+    where: { twoFactorId, usedAt: null },
   });
 
-  await fastify.redis.set(`${REFRESH_TOKEN_PREFIX}${payload.id}`, refreshToken, {
-    EX: REFRESH_TOKEN_TTL_SECONDS,
-  });
+  for (const entry of codes) {
+    const matches = await bcrypt.compare(normalized, entry.codeHash);
+    if (matches) {
+      await fastify.prisma.userTwoFactorRecoveryCode.update({
+        where: { id: entry.id },
+        data: { usedAt: new Date() },
+      });
+      return true;
+    }
+  }
 
-  return { accessToken, refreshToken };
+  return false;
 }
 
-function safeUser(user: AuthSafeUser) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    avatarUrl: user.avatarUrl,
-    phone: user.phone,
-    organizationName: user.organizationName,
-    publicProfileState: user.publicProfileState,
-    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
-    createdAt: user.createdAt,
-  };
+async function buildRecoveryCodesEntries(
+  twoFactorId: string,
+  codes: string[],
+): Promise<{ twoFactorId: string; codeHash: string }[]> {
+  return Promise.all(
+    codes.map(async (code) => ({
+      twoFactorId,
+      codeHash: await bcrypt.hash(normalizeRecoveryCode(code), RECOVERY_CODE_HASH_ROUNDS),
+    })),
+  );
 }
 
-function buildEmailVerificationUrl(token: string) {
-  const url = new URL('/confirmar-email', getWebPublicUrl());
-  url.searchParams.set('token', token);
-  return url.toString();
+function challengeKey(challengeId: string): string {
+  return `${TWO_FACTOR_CHALLENGE_PREFIX}${challengeId}`;
 }
 
-function buildPasswordResetUrl(token: string) {
-  const url = new URL('/redefinir-senha', getWebPublicUrl());
-  url.searchParams.set('token', token);
-  return url.toString();
+function setupKey(userId: string): string {
+  return `${TWO_FACTOR_SETUP_PREFIX}${userId}`;
 }
 
-function buildAccountDeletionUrl(token: string) {
-  const url = new URL('/encerrar-conta', getWebPublicUrl());
-  url.searchParams.set('token', token);
-  return url.toString();
-}
-
-function getEmailVerificationExpiresMinutes() {
-  return Number(process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES ?? 24 * 60);
-}
-
-function getPasswordResetExpiresMinutes() {
-  return Number(process.env.PASSWORD_RESET_EXPIRES_MINUTES ?? 60);
-}
-
-function getAccountDeletionExpiresMinutes() {
-  return Number(process.env.ACCOUNT_DELETION_EXPIRES_MINUTES ?? 60);
-}
-
-async function sendEmailVerification(
+async function issueTwoFactorChallenge(
   fastify: FastifyInstance,
-  user: { id: string; name: string; email: string },
-) {
-  const { token } = await createUserToken({
-    prisma: fastify.prisma,
-    userId: user.id,
-    type: UserTokenType.EMAIL_VERIFICATION,
-    expiresInMinutes: getEmailVerificationExpiresMinutes(),
+  userId: string,
+): Promise<{ challengeId: string; expiresAt: Date }> {
+  const challengeId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + TWO_FACTOR_CHALLENGE_TTL_SECONDS * 1000);
+  await fastify.redis.set(challengeKey(challengeId), userId, {
+    EX: TWO_FACTOR_CHALLENGE_TTL_SECONDS,
   });
-  const template = emailVerificationTemplate({
-    name: user.name,
-    actionUrl: buildEmailVerificationUrl(token),
-  });
+  return { challengeId, expiresAt };
+}
 
-  return sendEmail({
-    to: user.email,
-    ...template,
+async function loadActiveSessionsForUser(fastify: FastifyInstance, userId: string) {
+  return fastify.prisma.userSession.findMany({
+    where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: { lastUsedAt: 'desc' },
+    select: {
+      id: true,
+      userAgent: true,
+      ipAddress: true,
+      deviceLabel: true,
+      createdAt: true,
+      lastUsedAt: true,
+      expiresAt: true,
+    },
   });
 }
 
-async function sendPasswordResetEmail(
+function tooManyAttempts(reply: FastifyReply) {
+  return reply.code(429).send({
+    error: 'TOO_MANY_ATTEMPTS',
+    message: 'Muitas tentativas. Tente novamente em alguns minutos.',
+    statusCode: 429,
+  });
+}
+
+async function rateLimit(
   fastify: FastifyInstance,
-  user: { id: string; name: string; email: string },
-) {
-  const { token } = await createUserToken({
-    prisma: fastify.prisma,
-    userId: user.id,
-    type: UserTokenType.PASSWORD_RESET,
-    expiresInMinutes: getPasswordResetExpiresMinutes(),
-  });
-  const template = passwordResetTemplate({
-    name: user.name,
-    actionUrl: buildPasswordResetUrl(token),
-  });
-
-  return sendEmail({
-    to: user.email,
-    ...template,
-  });
+  request: FastifyRequest,
+  bucket: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<boolean> {
+  const ip = (request.ip || 'unknown').replace(/[^a-zA-Z0-9.:_-]/g, '_');
+  const key = `rl:${bucket}:${ip}`;
+  const current = await fastify.redis.incr(key);
+  if (current === 1) {
+    await fastify.redis.expire(key, windowSeconds);
+  }
+  return current <= limit;
 }
 
-async function sendPasswordChangedEmail(user: { name: string; email: string }) {
-  const template = passwordChangedTemplate({
-    name: user.name,
-  });
-
-  return sendEmail({
-    to: user.email,
-    ...template,
-  });
-}
-
-async function sendAccountDeletionRequestEmail(
+/**
+ * Rate limit by an arbitrary identifier (e.g. lowercase email). Used in
+ * combination with rateLimit() to defend against credential stuffing where a
+ * single email is hammered from many IPs.
+ */
+async function rateLimitByKey(
   fastify: FastifyInstance,
-  user: { id: string; name: string; email: string },
-) {
-  const { token } = await createUserToken({
-    prisma: fastify.prisma,
-    userId: user.id,
-    type: UserTokenType.ACCOUNT_DELETION,
-    expiresInMinutes: getAccountDeletionExpiresMinutes(),
-  });
-  const template = accountDeletionRequestTemplate({
-    name: user.name,
-    actionUrl: buildAccountDeletionUrl(token),
-  });
-
-  return sendEmail({
-    to: user.email,
-    ...template,
-  });
-}
-
-async function sendAccountDeletedEmail(user: { name: string; email: string }) {
-  const template = accountDeletedTemplate({
-    name: user.name,
-  });
-
-  return sendEmail({
-    to: user.email,
-    ...template,
-  });
-}
-
-function buildAnonymizedEmail(userId: string) {
-  return `deleted+${userId}@vestgo.invalid`;
-}
-
-async function buildUnusablePasswordHash() {
-  return bcrypt.hash(randomBytes(32).toString('hex'), SALT_ROUNDS);
+  bucket: string,
+  identifier: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<boolean> {
+  const sanitized = identifier
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9@._+-]/g, '_')
+    .slice(0, 128);
+  if (!sanitized) return true;
+  const key = `rl:${bucket}:${sanitized}`;
+  const current = await fastify.redis.incr(key);
+  if (current === 1) {
+    await fastify.redis.expire(key, windowSeconds);
+  }
+  return current <= limit;
 }
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -253,7 +284,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
 
       if (existing) {
-        throw new ConflictError('E-mail já cadastrado');
+        throw new ConflictError('E-mail ja cadastrado');
       }
 
       const passwordHash = await bcrypt.hash(body.password, SALT_ROUNDS);
@@ -269,57 +300,41 @@ export default async function authRoutes(fastify: FastifyInstance) {
         },
       });
 
-      let emailVerificationSent = false;
-      try {
-        const delivery = await sendEmailVerification(fastify, user);
-        emailVerificationSent = delivery.sent;
-      } catch (err) {
-        fastify.log.warn(
-          { err, userId: user.id },
-          'Email verification delivery failed after registration',
-        );
-      }
-
-      const tokens = await generateTokenPair(fastify, {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      });
+      const tokens = await createSessionAndIssueTokens(
+        fastify,
+        { id: user.id, email: user.email, role: user.role },
+        describeRequest(request),
+      );
 
       return reply.code(201).send({
         user: safeUser(user),
-        emailVerificationSent,
-        ...tokens,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       });
     } catch (err) {
-      if (err instanceof AppError) {
-        return reply.code(err.statusCode).send(toErrorResponse(err));
-      }
-
-      if (err instanceof z.ZodError) {
-        return reply.code(422).send({
-          error: 'VALIDATION_ERROR',
-          message: 'Dados inválidos',
-          issues: err.errors,
-        });
-      }
-
-      throw err;
+      return handleErrors(reply, err);
     }
   });
 
   fastify.post('/login', async (request, reply) => {
     try {
+      // Per-IP throttle (network-level abuse).
+      const ipAllowed = await rateLimit(fastify, request, 'login', 10, 60);
+      if (!ipAllowed) return tooManyAttempts(reply);
+
       const body = loginSchema.parse(request.body);
+
+      // Per-email throttle (credential stuffing across many IPs targeting one user).
+      // Keep response identical to a wrong-password 429 so we don't leak account existence.
+      const emailAllowed = await rateLimitByKey(fastify, 'login-email', body.email, 5, 60);
+      if (!emailAllowed) return tooManyAttempts(reply);
+
       const user = await fastify.prisma.user.findUnique({
         where: { email: body.email },
+        include: { twoFactor: true },
       });
 
       if (!user) {
-        throw new UnauthorizedError('E-mail ou senha incorretos');
-      }
-
-      if (user.anonymizedAt) {
         throw new UnauthorizedError('E-mail ou senha incorretos');
       }
 
@@ -328,611 +343,85 @@ export default async function authRoutes(fastify: FastifyInstance) {
         throw new UnauthorizedError('E-mail ou senha incorretos');
       }
 
-      const tokens = await generateTokenPair(fastify, {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      });
+      if (user.twoFactor && user.twoFactor.enabledAt) {
+        const challenge = await issueTwoFactorChallenge(fastify, user.id);
+        return reply.code(200).send({
+          requiresTwoFactor: true,
+          challengeId: challenge.challengeId,
+          expiresAt: challenge.expiresAt.toISOString(),
+        });
+      }
+
+      const tokens = await createSessionAndIssueTokens(
+        fastify,
+        { id: user.id, email: user.email, role: user.role },
+        describeRequest(request),
+      );
 
       return reply.code(200).send({
         user: safeUser(user),
-        ...tokens,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       });
     } catch (err) {
-      if (err instanceof AppError) {
-        return reply.code(err.statusCode).send(toErrorResponse(err));
-      }
-
-      if (err instanceof z.ZodError) {
-        return reply.code(422).send({
-          error: 'VALIDATION_ERROR',
-          message: 'Dados inválidos',
-          issues: err.errors,
-        });
-      }
-
-      throw err;
+      return handleErrors(reply, err);
     }
   });
 
-  fastify.post(
-    '/request-email-verification',
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      try {
-        await enforceRateLimit({
-          fastify,
-          request,
-          key: 'auth:request-email-verification',
-          limit: 5,
-          windowSeconds: 15 * 60,
-        });
-
-        const user = await fastify.prisma.user.findUnique({
-          where: { id: request.user.id },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            emailVerifiedAt: true,
-          },
-        });
-
-        if (!user) {
-          throw new NotFoundError('Usuário');
-        }
-
-        if (user.emailVerifiedAt) {
-          return reply.code(200).send({
-            emailVerificationSent: false,
-            alreadyVerified: true,
-          });
-        }
-
-        try {
-          const delivery = await sendEmailVerification(fastify, user);
-          return reply.code(200).send({
-            emailVerificationSent: delivery.sent,
-            alreadyVerified: false,
-          });
-        } catch (err) {
-          fastify.log.warn(
-            { err, userId: user.id },
-            'Email verification delivery failed on request',
-          );
-          throw new AppError(
-            'Não foi possível enviar o e-mail de confirmação agora. Tente novamente em instantes.',
-            503,
-            'EMAIL_DELIVERY_FAILED',
-          );
-        }
-      } catch (err) {
-        if (err instanceof AppError) {
-          return reply.code(err.statusCode).send(toErrorResponse(err));
-        }
-
-        throw err;
-      }
-    },
-  );
-
-  fastify.post('/verify-email', async (request, reply) => {
+  fastify.post('/2fa/verify-login', async (request, reply) => {
     try {
-      await enforceRateLimit({
-        fastify,
-        request,
-        key: 'auth:verify-email',
-        limit: 10,
-        windowSeconds: 15 * 60,
-      });
+      const allowed = await rateLimit(fastify, request, '2fa-verify', 30, 60);
+      if (!allowed) return tooManyAttempts(reply);
 
-      const { token } = tokenSchema.parse(request.body);
-      const consumed = await consumeUserTokenWithDiagnostics({
-        prisma: fastify.prisma,
-        type: UserTokenType.EMAIL_VERIFICATION,
-        token,
-      });
+      const body = verify2FALoginSchema.parse(request.body);
+      const userId = await fastify.redis.get(challengeKey(body.challengeId));
 
-      if (!consumed.ok) {
-        fastify.log.warn(
-          {
-            tokenType: UserTokenType.EMAIL_VERIFICATION,
-            tokenHashPrefix: consumed.tokenHashPrefix,
-            reason: consumed.reason,
-          },
-          'Email verification token rejected',
-        );
-        throw new AppError('Link de confirmação inválido ou expirado.', 400, 'INVALID_TOKEN');
+      if (!userId) {
+        throw new UnauthorizedError('Sessao de verificacao expirada. Faca login novamente.');
       }
 
-      const user = await fastify.prisma.user.update({
-        where: { id: consumed.userId },
-        data: {
-          emailVerifiedAt: new Date(),
-        },
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        include: { twoFactor: true },
       });
+
+      if (!user || !user.twoFactor || !user.twoFactor.enabledAt) {
+        await fastify.redis.del(challengeKey(body.challengeId));
+        throw new UnauthorizedError('2FA nao habilitado para este usuario');
+      }
+
+      let verified = false;
+
+      if (body.code) {
+        const secret = decryptSecret(user.twoFactor.secretEncrypted);
+        verified = verifyTotp(secret, body.code);
+      } else if (body.recoveryCode) {
+        verified = await consumeRecoveryCode(fastify, user.twoFactor.id, body.recoveryCode);
+      }
+
+      if (!verified) {
+        throw new UnauthorizedError('Codigo invalido');
+      }
+
+      await fastify.redis.del(challengeKey(body.challengeId));
+      await fastify.prisma.userTwoFactor.update({
+        where: { id: user.twoFactor.id },
+        data: { lastVerifiedAt: new Date() },
+      });
+
+      const tokens = await createSessionAndIssueTokens(
+        fastify,
+        { id: user.id, email: user.email, role: user.role },
+        describeRequest(request),
+      );
 
       return reply.code(200).send({
         user: safeUser(user),
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       });
     } catch (err) {
-      if (err instanceof AppError) {
-        return reply.code(err.statusCode).send(toErrorResponse(err));
-      }
-
-      if (err instanceof z.ZodError) {
-        const body = request.body;
-        const token = typeof body === 'object' && body !== null && 'token' in body
-          ? (body as { token?: unknown }).token
-          : null;
-
-        fastify.log.warn(
-          {
-            tokenType: UserTokenType.EMAIL_VERIFICATION,
-            tokenHashPrefix: typeof token === 'string' ? getTokenHashPrefix(token) : null,
-            reason: 'VALIDATION_FAILED',
-          },
-          'Email verification token rejected',
-        );
-
-        return reply.code(400).send({
-          error: 'INVALID_TOKEN',
-          message: 'Link de confirmação inválido ou expirado.',
-          statusCode: 400,
-        });
-      }
-
-      throw err;
-    }
-  });
-
-  fastify.post('/request-password-reset', async (request, reply) => {
-    const genericResponse = {
-      message:
-        'Se o e-mail estiver cadastrado, enviaremos instruções para redefinir sua senha.',
-    };
-
-    try {
-      await enforceRateLimit({
-        fastify,
-        request,
-        key: 'auth:request-password-reset',
-        limit: 5,
-        windowSeconds: 15 * 60,
-      });
-
-      const { email } = requestPasswordResetSchema.parse(request.body);
-      const user = await fastify.prisma.user.findUnique({
-        where: { email },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          anonymizedAt: true,
-        },
-      });
-
-      if (user && !user.anonymizedAt) {
-        try {
-          await sendPasswordResetEmail(fastify, user);
-        } catch (err) {
-          fastify.log.warn(
-            { err, userId: user.id },
-            'Password reset delivery failed',
-          );
-        }
-      }
-
-      return reply.code(200).send(genericResponse);
-    } catch (err) {
-      if (err instanceof AppError) {
-        return reply.code(err.statusCode).send(toErrorResponse(err));
-      }
-
-      if (err instanceof z.ZodError) {
-        return reply.code(200).send(genericResponse);
-      }
-
-      throw err;
-    }
-  });
-
-  fastify.post('/reset-password', async (request, reply) => {
-    try {
-      await enforceRateLimit({
-        fastify,
-        request,
-        key: 'auth:reset-password',
-        limit: 8,
-        windowSeconds: 15 * 60,
-      });
-
-      const { token, password } = resetPasswordSchema.parse(request.body);
-      const consumed = await consumeUserToken({
-        prisma: fastify.prisma,
-        type: UserTokenType.PASSWORD_RESET,
-        token,
-      });
-
-      if (!consumed) {
-        throw new AppError('Link de redefinição inválido ou expirado.', 400, 'INVALID_TOKEN');
-      }
-
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      const user = await fastify.prisma.user.update({
-        where: { id: consumed.userId },
-        data: {
-          passwordHash,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      });
-
-      await fastify.redis.del(`${REFRESH_TOKEN_PREFIX}${user.id}`);
-
-      try {
-        await sendPasswordChangedEmail(user);
-      } catch (err) {
-        fastify.log.warn(
-          { err, userId: user.id },
-          'Password changed email delivery failed',
-        );
-      }
-
-      return reply.code(200).send({
-        message: 'Senha redefinida com sucesso.',
-      });
-    } catch (err) {
-      if (err instanceof AppError) {
-        return reply.code(err.statusCode).send(toErrorResponse(err));
-      }
-
-      if (err instanceof z.ZodError) {
-        return reply.code(422).send({
-          error: 'VALIDATION_ERROR',
-          message: 'Dados inválidos',
-          issues: err.errors,
-        });
-      }
-
-      throw err;
-    }
-  });
-
-  fastify.post(
-    '/change-password',
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      try {
-        await enforceRateLimit({
-          fastify,
-          request,
-          key: 'auth:change-password',
-          limit: 5,
-          windowSeconds: 15 * 60,
-        });
-
-        const body = changePasswordSchema.parse(request.body);
-        const user = await fastify.prisma.user.findUnique({
-          where: { id: request.user.id },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            passwordHash: true,
-          },
-        });
-
-        if (!user) {
-          throw new NotFoundError('Usuário');
-        }
-
-        const currentPasswordMatches = await bcrypt.compare(
-          body.currentPassword,
-          user.passwordHash,
-        );
-
-        if (!currentPasswordMatches) {
-          throw new AppError('Senha atual incorreta.', 400, 'INVALID_CURRENT_PASSWORD');
-        }
-
-        const newPasswordMatchesCurrent = await bcrypt.compare(
-          body.newPassword,
-          user.passwordHash,
-        );
-
-        if (newPasswordMatchesCurrent) {
-          throw new AppError(
-            'A nova senha precisa ser diferente da senha atual.',
-            422,
-            'PASSWORD_REUSED',
-          );
-        }
-
-        const passwordHash = await bcrypt.hash(body.newPassword, SALT_ROUNDS);
-        await fastify.prisma.user.update({
-          where: { id: user.id },
-          data: { passwordHash },
-        });
-
-        await fastify.redis.del(`${REFRESH_TOKEN_PREFIX}${user.id}`);
-
-        try {
-          await sendPasswordChangedEmail(user);
-        } catch (err) {
-          fastify.log.warn(
-            { err, userId: user.id },
-            'Password changed email delivery failed',
-          );
-        }
-
-        return reply.code(200).send({
-          message: 'Senha alterada com sucesso.',
-        });
-      } catch (err) {
-        if (err instanceof AppError) {
-          return reply.code(err.statusCode).send(toErrorResponse(err));
-        }
-
-        if (err instanceof z.ZodError) {
-          return reply.code(422).send({
-            error: 'VALIDATION_ERROR',
-            message: 'Dados inválidos',
-            issues: err.errors,
-          });
-        }
-
-        throw err;
-      }
-    },
-  );
-
-  fastify.post(
-    '/request-account-deletion',
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      try {
-        await enforceRateLimit({
-          fastify,
-          request,
-          key: 'auth:request-account-deletion',
-          limit: 3,
-          windowSeconds: 60 * 60,
-        });
-
-        const user = await fastify.prisma.user.findUnique({
-          where: { id: request.user.id },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            anonymizedAt: true,
-          },
-        });
-
-        if (!user) {
-          throw new NotFoundError('Usuário');
-        }
-
-        if (user.anonymizedAt) {
-          return reply.code(200).send({
-            message: 'Conta já encerrada.',
-            accountDeletionEmailSent: false,
-            requiresSupport: false,
-          });
-        }
-
-        if (user.role !== UserRole.DONOR) {
-          throw new AppError(
-            'Este tipo de conta precisa de revisão manual do suporte para encerramento.',
-            403,
-            'ACCOUNT_DELETION_REQUIRES_SUPPORT',
-          );
-        }
-
-        try {
-          const delivery = await sendAccountDeletionRequestEmail(fastify, user);
-          return reply.code(200).send({
-            message: delivery.sent
-              ? 'Enviamos um link de confirmação para seu e-mail.'
-              : 'Solicitação registrada. Reenvie quando o envio de e-mails estiver ativo.',
-            accountDeletionEmailSent: delivery.sent,
-            requiresSupport: false,
-          });
-        } catch (err) {
-          fastify.log.warn(
-            { err, userId: user.id },
-            'Account deletion confirmation email delivery failed',
-          );
-          throw new AppError(
-            'Não foi possível enviar o e-mail de confirmação agora. Tente novamente em instantes.',
-            503,
-            'EMAIL_DELIVERY_FAILED',
-          );
-        }
-      } catch (err) {
-        if (err instanceof AppError) {
-          return reply.code(err.statusCode).send(toErrorResponse(err));
-        }
-
-        throw err;
-      }
-    },
-  );
-
-  fastify.post('/confirm-account-deletion', async (request, reply) => {
-    try {
-      await enforceRateLimit({
-        fastify,
-        request,
-        key: 'auth:confirm-account-deletion',
-        limit: 8,
-        windowSeconds: 15 * 60,
-      });
-
-      const { token } = tokenSchema.parse(request.body);
-      const consumed = await consumeUserTokenWithDiagnostics({
-        prisma: fastify.prisma,
-        type: UserTokenType.ACCOUNT_DELETION,
-        token,
-      });
-
-      if (!consumed.ok) {
-        fastify.log.warn(
-          {
-            tokenType: UserTokenType.ACCOUNT_DELETION,
-            tokenHashPrefix: consumed.tokenHashPrefix,
-            reason: consumed.reason,
-          },
-          'Account deletion token rejected',
-        );
-        throw new AppError('Link de encerramento inválido ou expirado.', 400, 'INVALID_TOKEN');
-      }
-
-      const user = await fastify.prisma.user.findUnique({
-        where: { id: consumed.userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          anonymizedAt: true,
-        },
-      });
-
-      if (!user) {
-        throw new NotFoundError('Usuário');
-      }
-
-      if (user.role !== UserRole.DONOR) {
-        throw new AppError(
-          'Este tipo de conta precisa de revisão manual do suporte para encerramento.',
-          403,
-          'ACCOUNT_DELETION_REQUIRES_SUPPORT',
-        );
-      }
-
-      if (user.anonymizedAt) {
-        await fastify.redis.del(`${REFRESH_TOKEN_PREFIX}${user.id}`);
-        return reply.code(200).send({
-          message: 'Conta encerrada com sucesso.',
-        });
-      }
-
-      try {
-        await sendAccountDeletedEmail(user);
-      } catch (err) {
-        fastify.log.warn(
-          { err, userId: user.id },
-          'Account deleted email delivery failed',
-        );
-      }
-
-      const now = new Date();
-      const passwordHash = await buildUnusablePasswordHash();
-
-      await fastify.prisma.$transaction([
-        fastify.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            name: 'Usuário removido',
-            email: buildAnonymizedEmail(user.id),
-            passwordHash,
-            birthDate: null,
-            avatarUrl: null,
-            coverImageUrl: null,
-            galleryImageUrls: [],
-            phone: null,
-            cpf: null,
-            emailVerifiedAt: null,
-            emailNotificationsEnabled: false,
-            organizationName: null,
-            cnpj: null,
-            description: null,
-            purpose: null,
-            address: null,
-            addressNumber: null,
-            addressComplement: null,
-            neighborhood: null,
-            zipCode: null,
-            city: null,
-            state: null,
-            latitude: null,
-            longitude: null,
-            openingHours: null,
-            openingSchedule: Prisma.JsonNull,
-            openingHoursExceptions: null,
-            publicNotes: null,
-            operationalNotes: null,
-            accessibilityDetails: null,
-            accessibilityFeatures: [],
-            verificationNotes: null,
-            estimatedCapacity: null,
-            serviceRegions: [],
-            rules: [],
-            nonAcceptedItems: [],
-            acceptedCategories: [],
-            donationInterestCategories: [],
-            publicProfileState: PublicProfileState.DRAFT,
-            verifiedAt: null,
-            pendingPublicRevision: Prisma.JsonNull,
-            pendingPublicRevisionStatus: null,
-            pendingPublicRevisionFields: [],
-            pendingPublicRevisionSubmittedAt: null,
-            pendingPublicRevisionReviewedAt: null,
-            pendingPublicRevisionReviewNotes: null,
-            anonymizedAt: now,
-          },
-        }),
-        fastify.prisma.userToken.updateMany({
-          where: {
-            userId: user.id,
-            usedAt: null,
-            revokedAt: null,
-          },
-          data: {
-            revokedAt: now,
-          },
-        }),
-      ]);
-
-      await fastify.redis.del(`${REFRESH_TOKEN_PREFIX}${user.id}`);
-
-      return reply.code(200).send({
-        message: 'Conta encerrada com sucesso.',
-      });
-    } catch (err) {
-      if (err instanceof AppError) {
-        return reply.code(err.statusCode).send(toErrorResponse(err));
-      }
-
-      if (err instanceof z.ZodError) {
-        const body = request.body;
-        const token = typeof body === 'object' && body !== null && 'token' in body
-          ? (body as { token?: unknown }).token
-          : null;
-
-        fastify.log.warn(
-          {
-            tokenType: UserTokenType.ACCOUNT_DELETION,
-            tokenHashPrefix: typeof token === 'string' ? getTokenHashPrefix(token) : null,
-            reason: 'VALIDATION_FAILED',
-          },
-          'Account deletion token rejected',
-        );
-
-        return reply.code(400).send({
-          error: 'INVALID_TOKEN',
-          message: 'Link de encerramento inválido ou expirado.',
-          statusCode: 400,
-        });
-      }
-
-      throw err;
+      return handleErrors(reply, err);
     }
   });
 
@@ -940,56 +429,42 @@ export default async function authRoutes(fastify: FastifyInstance) {
     try {
       const { refreshToken } = refreshSchema.parse(request.body);
 
-      let payload: { id: string; email: string; role: string };
-      try {
-        payload = fastify.jwt.verify(refreshToken, {
-          ...(process.env.JWT_REFRESH_SECRET
-            ? { key: process.env.JWT_REFRESH_SECRET }
-            : {}),
-        }) as typeof payload;
-      } catch {
-        throw new UnauthorizedError('Refresh token inválido ou expirado');
+      const payload = verifyRefreshToken(fastify, refreshToken);
+
+      if (!payload || !payload.sessionId) {
+        throw new UnauthorizedError('Refresh token invalido ou expirado');
       }
 
-      const stored = await fastify.redis.get(`${REFRESH_TOKEN_PREFIX}${payload.id}`);
-      if (!stored || stored !== refreshToken) {
-        throw new UnauthorizedError('Refresh token revogado');
+      const session = await fastify.prisma.userSession.findUnique({
+        where: { id: payload.sessionId },
+      });
+
+      if (!session || session.revokedAt || session.expiresAt < new Date()) {
+        throw new UnauthorizedError('Sessao expirada ou revogada');
+      }
+
+      if (session.refreshTokenHash !== hashRefreshToken(refreshToken)) {
+        await fastify.prisma.userSession.update({
+          where: { id: session.id },
+          data: { revokedAt: new Date() },
+        });
+        throw new UnauthorizedError('Refresh token nao reconhecido. Sessao revogada por seguranca.');
       }
 
       const user = await fastify.prisma.user.findUnique({
         where: { id: payload.id },
-        select: { id: true, email: true, role: true, anonymizedAt: true },
+        select: { id: true, email: true, role: true },
       });
 
       if (!user) {
-        throw new NotFoundError('Usuário');
+        throw new NotFoundError('Usuario');
       }
 
-      if (user.anonymizedAt) {
-        throw new UnauthorizedError('Refresh token revogado');
-      }
-
-      const tokens = await generateTokenPair(fastify, {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      });
+      const tokens = await rotateSessionTokens(fastify, user, session.id);
 
       return reply.code(200).send(tokens);
     } catch (err) {
-      if (err instanceof AppError) {
-        return reply.code(err.statusCode).send(toErrorResponse(err));
-      }
-
-      if (err instanceof z.ZodError) {
-        return reply.code(422).send({
-          error: 'VALIDATION_ERROR',
-          message: 'Dados inválidos',
-          issues: err.errors,
-        });
-      }
-
-      throw err;
+      return handleErrors(reply, err);
     }
   });
 
@@ -998,14 +473,390 @@ export default async function authRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       try {
-        await fastify.redis.del(`${REFRESH_TOKEN_PREFIX}${request.user.id}`);
-        return reply.code(204).send();
-      } catch (err) {
-        if (err instanceof AppError) {
-          return reply.code(err.statusCode).send(toErrorResponse(err));
+        const sessionId = request.user.sessionId;
+
+        if (sessionId) {
+          await fastify.prisma.userSession.updateMany({
+            where: { id: sessionId, userId: request.user.id, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
         }
 
-        throw err;
+        return reply.code(204).send();
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.get(
+    '/me',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+        });
+
+        if (!user) {
+          throw new NotFoundError('Usuario');
+        }
+
+        return reply.code(200).send({ user: safeUser(user) });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post(
+    '/change-password',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const body = changePasswordSchema.parse(request.body);
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+        });
+
+        if (!user) {
+          throw new NotFoundError('Usuario');
+        }
+
+        const matches = await bcrypt.compare(body.currentPassword, user.passwordHash);
+        if (!matches) {
+          throw new UnauthorizedError('Senha atual incorreta');
+        }
+
+        const newHash = await bcrypt.hash(body.newPassword, SALT_ROUNDS);
+        await fastify.prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash: newHash },
+        });
+
+        await revokeAllUserSessions(fastify, user.id);
+
+        const tokens = await createSessionAndIssueTokens(
+          fastify,
+          { id: user.id, email: user.email, role: user.role },
+          describeRequest(request),
+        );
+
+        return reply.code(200).send({
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.get(
+    '/sessions',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const sessions = await loadActiveSessionsForUser(fastify, request.user.id);
+        const currentSessionId = request.user.sessionId ?? null;
+
+        return reply.code(200).send({
+          data: sessions.map((session) => ({
+            id: session.id,
+            userAgent: session.userAgent,
+            ipAddress: session.ipAddress,
+            deviceLabel: session.deviceLabel,
+            createdAt: session.createdAt.toISOString(),
+            lastUsedAt: session.lastUsedAt.toISOString(),
+            expiresAt: session.expiresAt.toISOString(),
+            isCurrent: session.id === currentSessionId,
+          })),
+          meta: {
+            currentSessionId,
+            count: sessions.length,
+          },
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.delete(
+    '/sessions/:id',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string };
+
+        if (request.user.sessionId === id) {
+          return reply.code(400).send({
+            error: 'CANNOT_REVOKE_CURRENT',
+            message: 'Para encerrar a sessao atual use logout.',
+            statusCode: 400,
+          });
+        }
+
+        const session = await fastify.prisma.userSession.findFirst({
+          where: { id, userId: request.user.id },
+        });
+
+        if (!session) {
+          throw new NotFoundError('Sessao');
+        }
+
+        if (session.revokedAt) {
+          return reply.code(204).send();
+        }
+
+        await fastify.prisma.userSession.update({
+          where: { id: session.id },
+          data: { revokedAt: new Date() },
+        });
+
+        return reply.code(204).send();
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post(
+    '/sessions/revoke-others',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const sessionId = request.user.sessionId;
+
+        if (!sessionId) {
+          await revokeAllUserSessions(fastify, request.user.id);
+          return reply.code(200).send({ revokedCount: 0 });
+        }
+
+        const count = await revokeOtherSessions(fastify, request.user.id, sessionId);
+
+        return reply.code(200).send({ revokedCount: count });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.get(
+    '/2fa/status',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const twoFactor = await fastify.prisma.userTwoFactor.findUnique({
+          where: { userId: request.user.id },
+          select: {
+            enabledAt: true,
+            recoveryCodes: { where: { usedAt: null }, select: { id: true } },
+          },
+        });
+
+        return reply.code(200).send({
+          enabled: Boolean(twoFactor?.enabledAt),
+          enabledAt: twoFactor?.enabledAt ? twoFactor.enabledAt.toISOString() : null,
+          remainingRecoveryCodes: twoFactor?.recoveryCodes?.length ?? 0,
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post(
+    '/2fa/setup',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const allowed = await rateLimit(fastify, request, '2fa-setup', 10, 60);
+        if (!allowed) return tooManyAttempts(reply);
+
+        // Gate: refuse to start setup if encryption isn't ready. Confirm would
+        // fail later anyway and the user would have wasted time scanning the QR.
+        assertTwoFactorEncryptionReady(fastify.log);
+
+        const existing = await fastify.prisma.userTwoFactor.findUnique({
+          where: { userId: request.user.id },
+        });
+
+        if (existing && existing.enabledAt) {
+          throw new ConflictError('2FA ja esta ativo. Desative antes de reconfigurar.');
+        }
+
+        const secret = generateTotpSecret();
+        const otpauthUri = buildOtpAuthUri(secret, request.user.email);
+
+        await fastify.redis.set(setupKey(request.user.id), secret, {
+          EX: TWO_FACTOR_SETUP_TTL_SECONDS,
+        });
+
+        return reply.code(200).send({
+          secret,
+          otpauthUri,
+          expiresInSeconds: TWO_FACTOR_SETUP_TTL_SECONDS,
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post(
+    '/2fa/confirm',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const allowed = await rateLimit(fastify, request, '2fa-confirm', 10, 60);
+        if (!allowed) return tooManyAttempts(reply);
+
+        const body = confirm2FASchema.parse(request.body);
+        const secret = await fastify.redis.get(setupKey(request.user.id));
+
+        if (!secret) {
+          throw new UnauthorizedError(
+            'Sessao de configuracao expirada. Inicie o setup novamente.',
+          );
+        }
+
+        if (!verifyTotp(secret, body.code)) {
+          throw new UnauthorizedError('Codigo invalido');
+        }
+
+        const recoveryCodes = generateRecoveryCodes();
+        const encryptedSecret = encryptSecret(secret);
+
+        const twoFactor = await fastify.prisma.userTwoFactor.upsert({
+          where: { userId: request.user.id },
+          update: {
+            secretEncrypted: encryptedSecret,
+            enabledAt: new Date(),
+            lastVerifiedAt: new Date(),
+            recoveryCodes: { deleteMany: {} },
+          },
+          create: {
+            userId: request.user.id,
+            secretEncrypted: encryptedSecret,
+            enabledAt: new Date(),
+            lastVerifiedAt: new Date(),
+          },
+        });
+
+        await fastify.prisma.userTwoFactorRecoveryCode.createMany({
+          data: await buildRecoveryCodesEntries(twoFactor.id, recoveryCodes),
+        });
+
+        await fastify.redis.del(setupKey(request.user.id));
+
+        return reply.code(200).send({
+          enabled: true,
+          recoveryCodes,
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post(
+    '/2fa/disable',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const allowed = await rateLimit(fastify, request, '2fa-disable', 10, 60);
+        if (!allowed) return tooManyAttempts(reply);
+
+        const body = disable2FASchema.parse(request.body);
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+          include: { twoFactor: true },
+        });
+
+        if (!user || !user.twoFactor || !user.twoFactor.enabledAt) {
+          throw new ConflictError('2FA nao esta ativo');
+        }
+
+        const passwordOk = await bcrypt.compare(body.password, user.passwordHash);
+        if (!passwordOk) {
+          throw new UnauthorizedError('Senha incorreta');
+        }
+
+        let codeOk = false;
+        if (body.code) {
+          const secret = decryptSecret(user.twoFactor.secretEncrypted);
+          codeOk = verifyTotp(secret, body.code);
+        } else if (body.recoveryCode) {
+          codeOk = await consumeRecoveryCode(fastify, user.twoFactor.id, body.recoveryCode);
+        }
+
+        if (!codeOk) {
+          throw new UnauthorizedError('Codigo invalido');
+        }
+
+        await fastify.prisma.userTwoFactor.delete({
+          where: { id: user.twoFactor.id },
+        });
+
+        await fastify.redis.del(setupKey(user.id));
+
+        return reply.code(200).send({ enabled: false });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post(
+    '/2fa/recovery-codes/regenerate',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const allowed = await rateLimit(fastify, request, '2fa-recovery', 10, 60);
+        if (!allowed) return tooManyAttempts(reply);
+
+        const body = regenerateRecoverySchema.parse(request.body);
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+          include: { twoFactor: true },
+        });
+
+        if (!user || !user.twoFactor || !user.twoFactor.enabledAt) {
+          throw new ConflictError('2FA nao esta ativo');
+        }
+
+        const passwordOk = await bcrypt.compare(body.password, user.passwordHash);
+        if (!passwordOk) {
+          throw new UnauthorizedError('Senha incorreta');
+        }
+
+        let codeOk = false;
+        if (body.code) {
+          const secret = decryptSecret(user.twoFactor.secretEncrypted);
+          codeOk = verifyTotp(secret, body.code);
+        } else if (body.recoveryCode) {
+          codeOk = await consumeRecoveryCode(fastify, user.twoFactor.id, body.recoveryCode);
+        }
+
+        if (!codeOk) {
+          throw new UnauthorizedError('Codigo invalido');
+        }
+
+        const recoveryCodes = generateRecoveryCodes();
+
+        await fastify.prisma.$transaction([
+          fastify.prisma.userTwoFactorRecoveryCode.deleteMany({
+            where: { twoFactorId: user.twoFactor.id },
+          }),
+          fastify.prisma.userTwoFactorRecoveryCode.createMany({
+            data: await buildRecoveryCodesEntries(user.twoFactor.id, recoveryCodes),
+          }),
+        ]);
+
+        return reply.code(200).send({ recoveryCodes });
+      } catch (err) {
+        return handleErrors(reply, err);
       }
     },
   );
