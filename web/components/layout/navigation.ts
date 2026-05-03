@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   CircleUser,
   ClipboardList,
   HelpCircle,
@@ -97,6 +98,13 @@ const ADMIN_PRIMARY_NAV_ITEMS: NavigationItem[] = [
     matchers: ['/admin/perfis'],
   },
   {
+    href: '/admin/campanhas-sazonais',
+    label: 'Campanhas',
+    mobileLabel: 'Campanhas',
+    icon: CalendarDays,
+    matchers: ['/admin/campanhas-sazonais'],
+  },
+  {
     href: '/operacoes',
     label: 'Operacoes',
     mobileLabel: 'Fila',
@@ -161,6 +169,12 @@ export function getUtilityNavItems(role: string) {
       label: 'Governanca',
       icon: Shield,
       exact: false, // matches child routes too
+    });
+    items.splice(1, 0, {
+      href: '/admin/campanhas-sazonais',
+      label: 'Campanhas Sazonais',
+      icon: CalendarDays,
+      exact: false,
     });
   }
 

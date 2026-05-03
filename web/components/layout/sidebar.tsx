@@ -119,6 +119,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                         ? 'Fila dedicada para pontos, ONGs e administração'
                         : item.label === 'Governança'
                           ? 'Aprovações iniciais e revisões públicas pendentes'
+                        : item.label === 'Campanhas Sazonais'
+                          ? 'Eventos sazonais e multiplicadores futuros'
                         : item.label === 'Perfil'
                           ? 'Acesse seu histórico e dados principais'
                           : item.label === 'Configurações'
