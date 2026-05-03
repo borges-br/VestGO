@@ -1,4 +1,5 @@
 import type { DonationRecord, DonationStatus } from '@/lib/api';
+import { calculateDonationPointsBreakdown } from '@/lib/donation-points';
 
 export type ImpactBadgeTone = 'primary' | 'indigo' | 'emerald' | 'amber';
 
@@ -18,44 +19,42 @@ export type DonorLevel = {
   nextThreshold?: number;
 };
 
+// Espelho da curva oficial em api/src/modules/gamification/gamification.ts.
+// Niveis 20-30 confirmados pelo produto (10 pts/item, +500 pts por nivel).
+// Niveis 1-19 sao uma estimativa razoavel, sujeita a confirmacao do produto.
 const donorLevelBase = [
   { name: 'Primeiro Gesto', color: 'gray', minPoints: 0 },
-  { name: 'Doador Iniciante', color: 'primary', minPoints: 80 },
-  { name: 'Semeador Solidário', color: 'emerald', minPoints: 240 },
-  { name: 'Aliado do Bem', color: 'amber', minPoints: 500 },
-  { name: 'Guardião Local', color: 'indigo', minPoints: 850 },
-  { name: 'Guardião da Generosidade', color: 'violet', minPoints: 1250 },
-  { name: 'Ponte Solidária', color: 'rose', minPoints: 2000 },
-  { name: 'Mobilizador da Rede', color: 'primary', minPoints: 2900 },
-  { name: 'Multiplicador Solidário', color: 'emerald', minPoints: 4000 },
-  { name: 'Referência Comunitária', color: 'amber', minPoints: 5000 },
-  { name: 'Cuidador Frequente', color: 'indigo', minPoints: 6500 },
-  { name: 'Parceiro da Esperança', color: 'violet', minPoints: 8300 },
-  { name: 'Força Coletiva', color: 'rose', minPoints: 10400 },
-  { name: 'Líder de Impacto', color: 'primary', minPoints: 12800 },
-  { name: 'Farol Solidário', color: 'emerald', minPoints: 15500 },
-  { name: 'Construtor de Pontes', color: 'amber', minPoints: 18500 },
-  { name: 'Guardião da Rede', color: 'indigo', minPoints: 21800 },
-  { name: 'Mestre da Constância', color: 'violet', minPoints: 25400 },
-  { name: 'Voz da Comunidade', color: 'rose', minPoints: 29300 },
-  { name: 'Embaixador do Impacto', color: 'primary', minPoints: 33500 },
-  { name: 'Benfeitor Regional', color: 'emerald', minPoints: 38100 },
-  { name: 'Elo Transformador', color: 'amber', minPoints: 43100 },
-  { name: 'Guardião Supremo', color: 'indigo', minPoints: 48500 },
-  { name: 'Arquiteto do Bem', color: 'violet', minPoints: 54300 },
-  { name: 'Legado Solidário', color: 'rose', minPoints: 60500 },
-  { name: 'Referência Nacional', color: 'primary', minPoints: 67200 },
-  { name: 'Inspirador da Rede', color: 'emerald', minPoints: 74400 },
-  { name: 'Grande Embaixador', color: 'amber', minPoints: 82100 },
-  { name: 'Lenda Solidária', color: 'indigo', minPoints: 90300 },
-  { name: 'Herói Solidário Supremo', color: 'violet', minPoints: 99000 },
+  { name: 'Doador Iniciante', color: 'primary', minPoints: 60 },
+  { name: 'Semeador Solidário', color: 'emerald', minPoints: 140 },
+  { name: 'Aliado do Bem', color: 'amber', minPoints: 240 },
+  { name: 'Guardião Local', color: 'indigo', minPoints: 360 },
+  { name: 'Guardião da Generosidade', color: 'violet', minPoints: 500 },
+  { name: 'Ponte Solidária', color: 'rose', minPoints: 660 },
+  { name: 'Mobilizador da Rede', color: 'primary', minPoints: 840 },
+  { name: 'Multiplicador Solidário', color: 'emerald', minPoints: 1040 },
+  { name: 'Referência Comunitária', color: 'amber', minPoints: 1260 },
+  { name: 'Cuidador Frequente', color: 'indigo', minPoints: 1500 },
+  { name: 'Parceiro da Esperança', color: 'violet', minPoints: 1760 },
+  { name: 'Força Coletiva', color: 'rose', minPoints: 2040 },
+  { name: 'Líder de Impacto', color: 'primary', minPoints: 2340 },
+  { name: 'Farol Solidário', color: 'emerald', minPoints: 2660 },
+  { name: 'Construtor de Pontes', color: 'amber', minPoints: 3000 },
+  { name: 'Guardião da Rede', color: 'indigo', minPoints: 3360 },
+  { name: 'Mestre da Constância', color: 'violet', minPoints: 3740 },
+  { name: 'Voz da Comunidade', color: 'rose', minPoints: 4140 },
+  { name: 'Embaixador do Impacto', color: 'primary', minPoints: 4500 },
+  { name: 'Benfeitor Regional', color: 'emerald', minPoints: 5000 },
+  { name: 'Elo Transformador', color: 'amber', minPoints: 5500 },
+  { name: 'Guardião Supremo', color: 'indigo', minPoints: 6000 },
+  { name: 'Arquiteto do Bem', color: 'violet', minPoints: 6500 },
+  { name: 'Legado Solidário', color: 'rose', minPoints: 7000 },
+  { name: 'Referência Nacional', color: 'primary', minPoints: 7500 },
+  { name: 'Inspirador da Rede', color: 'emerald', minPoints: 8000 },
+  { name: 'Grande Embaixador', color: 'amber', minPoints: 8500 },
+  { name: 'Lenda Solidária', color: 'indigo', minPoints: 9000 },
+  { name: 'Herói Solidário Supremo', color: 'violet', minPoints: 10000 },
 ] satisfies Array<Omit<DonorLevel, 'nextThreshold'>>;
 
-// Curva de 30 níveis. Os níveis 1-10 seguem a base definida pelo produto:
-// 0, 80, 240, 500, 850, 1250, 2000, 2900, 4000, 5000.
-// Do 11 ao 30, os saltos crescem progressivamente para exigir mais esforço
-// a cada faixa. A fonte oficial de pontos continua sendo o backend atual;
-// o ledger definitivo e as regras por item entram na Fase 2.
 export const DONOR_LEVELS: DonorLevel[] = donorLevelBase.map((level, index) => ({
   ...level,
   nextThreshold: donorLevelBase[index + 1]?.minPoints,
@@ -110,14 +109,12 @@ export type ImpactSnapshot = {
 };
 
 export type PostDonationReward = {
-  points: number;
-  label: string;
-  note: string;
-  milestone: {
-    label: string;
-    current: number;
-    target: number;
-  };
+  potentialPoints: number;
+  confirmationPoints: number;
+  distributionBonus: number;
+  pendingPointsLabel: string;
+  confirmationLabel: string;
+  distributionLabel: string;
   monthlyGoal: {
     current: number;
     target: number;
@@ -125,29 +122,6 @@ export type PostDonationReward = {
 };
 
 const MONTHLY_GOAL_TARGET = 4;
-const POINT_MILESTONES = [
-  { label: 'Nível 2', target: 80 },
-  { label: 'Nível 3', target: 240 },
-  { label: 'Nível 4', target: 500 },
-  { label: 'Nível 5', target: 850 },
-  { label: 'Nível 6', target: 1250 },
-  { label: 'Nível 7', target: 2000 },
-  { label: 'Nível 8', target: 2900 },
-  { label: 'Nível 9', target: 4000 },
-  { label: 'Nível 10', target: 5000 },
-];
-
-// Regra oficial atual do backend: pointsAwarded ainda vem por status.
-// A regra final por item, estado, multiplicadores e distribuição depende
-// de PointLedger/DonationPointEvent na Fase 2 e não é recalculada aqui.
-const STATUS_POINTS: Record<DonationStatus, number> = {
-  PENDING: 60,
-  AT_POINT: 90,
-  IN_TRANSIT: 110,
-  DELIVERED: 150,
-  DISTRIBUTED: 180,
-  CANCELLED: 0,
-};
 
 const COMPLETED_STATUSES: DonationStatus[] = ['DELIVERED', 'DISTRIBUTED'];
 const TRACKED_STATUSES: DonationStatus[] = ['AT_POINT', 'IN_TRANSIT', 'DELIVERED', 'DISTRIBUTED'];
@@ -204,25 +178,25 @@ function computeLevelProgress(points: number, level: DonorLevel) {
 }
 
 function getNextMilestone(points: number) {
-  const next = POINT_MILESTONES.find((milestone) => milestone.target > points);
+  const level = getDonorLevel(points);
 
-  if (!next) {
-    const level = getDonorLevel(points);
+  if (!level.nextThreshold) {
     return {
-      label: level.nextThreshold ? `Próximo nível` : 'Nível máximo',
+      label: 'Nível máximo',
       current: points,
-      target: level.nextThreshold ?? points,
-      note: level.nextThreshold
-        ? `Faltam ${level.nextThreshold - points} pontos para o próximo nível.`
-        : 'Você alcançou o último nível desta curva.',
+      target: points,
+      note: 'Você alcançou o último nível desta curva.',
     };
   }
 
+  const nextIndex = DONOR_LEVELS.findIndex((item) => item.minPoints === level.nextThreshold);
+  const nextLevel = nextIndex >= 0 ? DONOR_LEVELS[nextIndex] : null;
+
   return {
-    label: next.label,
+    label: nextLevel ? nextLevel.name : 'Próximo nível',
     current: points,
-    target: next.target,
-    note: `Faltam ${next.target - points} pontos para o próximo nível.`,
+    target: level.nextThreshold,
+    note: `Faltam ${level.nextThreshold - points} pontos para o próximo nível.`,
   };
 }
 
@@ -231,10 +205,6 @@ function getItemQuantity(donations: DonationRecord[]) {
     const itemQuantity = donation.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
     return sum + (itemQuantity > 0 ? itemQuantity : donation.itemCount);
   }, 0);
-}
-
-export function getPredictedDonationPoints(status: DonationStatus = 'PENDING') {
-  return STATUS_POINTS[status];
 }
 
 export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot {
@@ -262,7 +232,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
 
   return {
     points: totalPoints,
-    pointsLabel: 'Pontos solidários',
+    pointsLabel: 'Pontos solidários confirmados',
     levelTitle: level.name,
     levelName: level.name,
     levelColor: level.color,
@@ -334,33 +304,53 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
       title: donation.itemLabel,
       detail:
         donation.latestEvent?.description ??
-        'Doação registrada e pronta para acompanhar.',
+        'Doação registrada. Aguardando confirmação no ponto de coleta.',
       date: formatDateLabel(donation.createdAt),
-      points: `+${donation.pointsAwarded} pts`,
+      points:
+        donation.pointsAwarded > 0
+          ? `+${donation.pointsAwarded} pts`
+          : `até +${donation.pointsBreakdown?.totalPotentialPoints ?? 0} pts`,
     })),
+  };
+}
+
+export function buildPostDonationRewardFromBreakdown(input: {
+  items: { category: DonationRecord['items'][number]['category']; quantity: number; condition: DonationRecord['items'][number]['condition'] }[];
+  monthlyGoalCurrent?: number;
+}): PostDonationReward {
+  const breakdown = calculateDonationPointsBreakdown({
+    items: input.items,
+    status: 'PENDING',
+  });
+  const monthlyGoalCurrent = input.monthlyGoalCurrent ?? 0;
+
+  return {
+    potentialPoints: breakdown.totalPotentialPoints,
+    confirmationPoints: breakdown.confirmationPoints,
+    distributionBonus: breakdown.distributionBonus,
+    pendingPointsLabel:
+      'O cadastro inicial não credita pontos automaticamente. Os pontos entram quando o ponto de coleta confirmar o recebimento.',
+    confirmationLabel:
+      breakdown.confirmationPoints > 0
+        ? `Você receberá ${breakdown.confirmationPoints} pontos quando o ponto confirmar o recebimento.`
+        : 'Pontos serão calculados quando o ponto confirmar o recebimento.',
+    distributionLabel:
+      breakdown.distributionBonus > 0
+        ? `Após a distribuição pela ONG, você poderá receber +${breakdown.distributionBonus} pontos adicionais.`
+        : 'Após a distribuição pela ONG, você poderá receber pontos adicionais.',
+    monthlyGoal: {
+      current: Math.min(monthlyGoalCurrent + 1, MONTHLY_GOAL_TARGET),
+      target: MONTHLY_GOAL_TARGET,
+    },
   };
 }
 
 export function buildPostDonationReward(donations: DonationRecord[]): PostDonationReward {
   const snapshot = buildImpactSnapshot(donations);
-  const predictedPoints = getPredictedDonationPoints('PENDING');
-  const currentPointsAfterCreate = snapshot.points + predictedPoints;
-  const nextMilestone = getNextMilestone(currentPointsAfterCreate);
-
-  return {
-    points: predictedPoints,
-    label: 'Pontuação prevista desta entrega',
-    note: 'Ao registrar a doação, seu progresso passa a refletir esta nova jornada no sistema.',
-    milestone: {
-      label: nextMilestone.label,
-      current: currentPointsAfterCreate,
-      target: nextMilestone.target,
-    },
-    monthlyGoal: {
-      current: Math.min(snapshot.monthlyGoal.current + 1, MONTHLY_GOAL_TARGET),
-      target: MONTHLY_GOAL_TARGET,
-    },
-  };
+  return buildPostDonationRewardFromBreakdown({
+    items: [],
+    monthlyGoalCurrent: snapshot.monthlyGoal.current,
+  });
 }
 
 export const donorImpactSnapshot = buildImpactSnapshot([]);

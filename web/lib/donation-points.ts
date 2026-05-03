@@ -1,32 +1,18 @@
-import { DonationItemCondition, DonationStatus, ItemCategory } from '@prisma/client';
+import type {
+  DonationItemCondition,
+  DonationStatus,
+  ItemCategory,
+} from '@/lib/api';
 
-/**
- * Real point rules (replaces the legacy fixed-by-status table):
- * - Each item is worth 10 pts on AT_POINT confirmation.
- * - Items in EXCELLENT condition add +5 pts each on AT_POINT.
- * - Subtotal is multiplied by a category-diversity multiplier.
- * - Multiple unique categories on a single donation increase the multiplier.
- * - DISTRIBUTED status adds a +5 per item bonus, no multiplier.
- * - PENDING and CANCELLED award no real points.
- * - Seasonal campaign multipliers are intentionally not applied here yet.
- */
-
-export const CONFIRMED_DONATION_STATUSES: DonationStatus[] = [
-  DonationStatus.AT_POINT,
-  DonationStatus.IN_TRANSIT,
-  DonationStatus.DELIVERED,
-  DonationStatus.DISTRIBUTED,
-];
+// Mirror of api/src/shared/donation-points.ts. Keep both files in sync if the
+// formula evolves. The backend remains the source of truth for the persisted
+// PointLedger; this helper only powers the wizard's preview and frontend UI.
 
 export const POINTS_PER_ITEM_CONFIRMED = 10;
 export const POINTS_PER_EXCELLENT_ITEM_BONUS = 5;
 export const POINTS_PER_ITEM_DISTRIBUTED_BONUS = 5;
 
-export function isConfirmedDonationStatus(status: DonationStatus) {
-  return CONFIRMED_DONATION_STATUSES.includes(status);
-}
-
-export function getCategoryMultiplier(uniqueCategories: number) {
+export function getCategoryMultiplier(uniqueCategories: number): number {
   if (uniqueCategories <= 1) return 1.0;
   if (uniqueCategories === 2) return 1.1;
   if (uniqueCategories === 3) return 1.2;
@@ -54,18 +40,14 @@ export type DonationPointsBreakdown = {
   pointsForCurrentStatus: number;
 };
 
-export type CalculateDonationPointsInput = {
+export function calculateDonationPointsBreakdown(input: {
   items: DonationPointsItemInput[];
   status: DonationStatus;
-};
-
-export function calculateDonationPointsBreakdown(
-  input: CalculateDonationPointsInput,
-): DonationPointsBreakdown {
+}): DonationPointsBreakdown {
   const items = input.items ?? [];
   const totalItems = items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0);
   const excellentItems = items
-    .filter((item) => item.condition === DonationItemCondition.EXCELLENT)
+    .filter((item) => item.condition === 'EXCELLENT')
     .reduce((sum, item) => sum + Math.max(0, item.quantity), 0);
   const uniqueCategories = new Set(items.map((item) => item.category)).size;
   const categoryMultiplier = getCategoryMultiplier(uniqueCategories);
@@ -80,16 +62,16 @@ export function calculateDonationPointsBreakdown(
 
   let pointsForCurrentStatus = 0;
   switch (input.status) {
-    case DonationStatus.PENDING:
-    case DonationStatus.CANCELLED:
+    case 'PENDING':
+    case 'CANCELLED':
       pointsForCurrentStatus = 0;
       break;
-    case DonationStatus.AT_POINT:
-    case DonationStatus.IN_TRANSIT:
-    case DonationStatus.DELIVERED:
+    case 'AT_POINT':
+    case 'IN_TRANSIT':
+    case 'DELIVERED':
       pointsForCurrentStatus = confirmationPoints;
       break;
-    case DonationStatus.DISTRIBUTED:
+    case 'DISTRIBUTED':
       pointsForCurrentStatus = totalPotentialPoints;
       break;
   }
@@ -107,12 +89,4 @@ export function calculateDonationPointsBreakdown(
     totalPotentialPoints,
     pointsForCurrentStatus,
   };
-}
-
-export function buildConfirmationLedgerKey(donationId: string) {
-  return `donation:${donationId}:confirmed-at-point`;
-}
-
-export function buildDistributionLedgerKey(donationId: string) {
-  return `donation:${donationId}:distributed`;
 }

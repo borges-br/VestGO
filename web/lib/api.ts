@@ -73,7 +73,18 @@ export type DonationStatus =
   | 'DISTRIBUTED'
   | 'CANCELLED';
 
-export type ItemCategory = 'CLOTHING' | 'SHOES' | 'ACCESSORIES' | 'BAGS' | 'OTHER';
+export type ItemCategory =
+  | 'CLOTHING'
+  | 'SHOES'
+  | 'ACCESSORIES'
+  | 'BAGS'
+  | 'TOYS'
+  | 'FOOD'
+  | 'OTHER';
+
+export type DonationItemCondition = 'EXCELLENT' | 'GOOD';
+export type DonationPackageType = 'BAG' | 'BOX';
+export type DonationPackageSize = 'SMALL' | 'MEDIUM' | 'LARGE';
 export type OperationalBatchStatus =
   | 'OPEN'
   | 'READY_TO_SHIP'
@@ -152,11 +163,33 @@ export type UploadedAsset = {
 export type DonationItem = {
   id: string;
   name: string;
-  category: string;
+  category: ItemCategory;
   quantity: number;
+  condition: DonationItemCondition;
   description: string | null;
   imageUrl: string | null;
   weightKg: number | null;
+};
+
+export type DonationPackage = {
+  id: string;
+  type: DonationPackageType;
+  size: DonationPackageSize;
+  quantity: number;
+};
+
+export type DonationPointsBreakdown = {
+  totalItems: number;
+  excellentItems: number;
+  uniqueCategories: number;
+  categoryMultiplier: number;
+  seasonalMultiplier: number;
+  confirmationBase: number;
+  conditionBonus: number;
+  confirmationPoints: number;
+  distributionBonus: number;
+  totalPotentialPoints: number;
+  pointsForCurrentStatus: number;
 };
 
 export type DonationEvent = {
@@ -204,6 +237,8 @@ export type DonationRecord = {
   createdAt: string;
   updatedAt: string;
   pointsAwarded: number;
+  pointsBreakdown: DonationPointsBreakdown;
+  pendingPointsLabel: string | null;
   itemCount: number;
   itemLabel: string;
   canCancel: boolean;
@@ -215,6 +250,7 @@ export type DonationRecord = {
   operationalBatch: DonationBatchSummary | null;
   dropOffPoint: DonationPoint | null;
   items: DonationItem[];
+  packages: DonationPackage[];
   latestEvent: DonationEvent | null;
   timeline: DonationEvent[];
 };
@@ -455,9 +491,15 @@ export type CreateDonationInput = {
   scheduledAt?: string;
   items: {
     name: string;
-    category: string;
+    category: ItemCategory;
     quantity: number;
+    condition: DonationItemCondition;
     description?: string;
+  }[];
+  packages?: {
+    type: DonationPackageType;
+    size: DonationPackageSize;
+    quantity: number;
   }[];
 };
 

@@ -39,13 +39,23 @@ import {
 } from '@/lib/api';
 import { normalizeOperationalCode, parseOperationalCode } from '@/lib/operational-codes';
 
-const ITEM_CATEGORIES: ItemCategory[] = ['CLOTHING', 'SHOES', 'ACCESSORIES', 'BAGS', 'OTHER'];
+const ITEM_CATEGORIES: ItemCategory[] = [
+  'CLOTHING',
+  'SHOES',
+  'ACCESSORIES',
+  'BAGS',
+  'TOYS',
+  'FOOD',
+  'OTHER',
+];
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   CLOTHING: 'Roupas',
   SHOES: 'Calçados',
   ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas',
+  TOYS: 'Brinquedos',
+  FOOD: 'Alimentos',
   OTHER: 'Outros',
 };
 

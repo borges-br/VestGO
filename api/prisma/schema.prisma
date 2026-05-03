@@ -28,7 +28,25 @@ enum ItemCategory {
   SHOES
   ACCESSORIES
   BAGS
+  TOYS
+  FOOD
   OTHER
+}
+
+enum DonationItemCondition {
+  EXCELLENT
+  GOOD
+}
+
+enum DonationPackageType {
+  BAG
+  BOX
+}
+
+enum DonationPackageSize {
+  SMALL
+  MEDIUM
+  LARGE
 }
 
 enum PublicProfileState {
@@ -87,6 +105,8 @@ enum UserTokenType {
 enum PointLedgerSourceType {
   ACHIEVEMENT_TIER
   ADMIN_ADJUSTMENT
+  DONATION_CONFIRMATION
+  DONATION_DISTRIBUTION
 }
 
 model User {
@@ -282,6 +302,7 @@ model Donation {
   seasonalCampaignId String?
 
   items                DonationItem[]
+  packages             DonationPackage[]
   timeline             DonationEvent[]
   operationalBatchItem OperationalBatchItem?
 
@@ -391,13 +412,27 @@ model DonationItem {
   donationId String
 
   name        String
-  category    ItemCategory @default(CLOTHING)
-  quantity    Int          @default(1)
+  category    ItemCategory          @default(CLOTHING)
+  quantity    Int                   @default(1)
+  condition   DonationItemCondition @default(GOOD)
   description String?
   imageUrl    String?
   weightKg    Float?
 
   @@map("donation_items")
+}
+
+model DonationPackage {
+  id         String   @id @default(cuid())
+  donation   Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  donationId String
+
+  type     DonationPackageType
+  size     DonationPackageSize
+  quantity Int                 @default(1)
+
+  @@index([donationId])
+  @@map("donation_packages")
 }
 
 model DonationEvent {
