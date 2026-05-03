@@ -228,6 +228,41 @@ export type SeasonalCampaignSummary = {
   active: boolean;
 };
 
+export type SeasonalCampaign = SeasonalCampaignSummary & {
+  donationsCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SeasonalCampaignListResponse = {
+  data: SeasonalCampaign[];
+  meta: {
+    count: number;
+  };
+};
+
+export type SeasonalCampaignInput = {
+  slug: string;
+  title: string;
+  description?: string | null;
+  startsAt: string;
+  endsAt: string;
+  categories?: ItemCategory[];
+  multiplier?: number;
+  active?: boolean;
+};
+
+export type DeleteSeasonalCampaignResponse =
+  | {
+      deleted: true;
+      deactivated: false;
+    }
+  | {
+      deleted: false;
+      deactivated: true;
+      data: SeasonalCampaign;
+    };
+
 export type DonationRecord = {
   id: string;
   code: string;
@@ -1054,6 +1089,47 @@ export async function syncMyGamification(
 ): Promise<GamificationSyncResponse> {
   return apiFetch<GamificationSyncResponse>('/gamification/me/sync', {
     method: 'POST',
+    accessToken,
+  });
+}
+
+export async function getSeasonalCampaigns(
+  accessToken: string,
+): Promise<SeasonalCampaignListResponse> {
+  return apiFetch<SeasonalCampaignListResponse>('/seasonal-campaigns', {
+    accessToken,
+  });
+}
+
+export async function createSeasonalCampaign(
+  input: SeasonalCampaignInput,
+  accessToken: string,
+): Promise<SeasonalCampaign> {
+  return apiFetch<SeasonalCampaign>('/seasonal-campaigns', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function updateSeasonalCampaign(
+  id: string,
+  input: Partial<SeasonalCampaignInput>,
+  accessToken: string,
+): Promise<SeasonalCampaign> {
+  return apiFetch<SeasonalCampaign>(`/seasonal-campaigns/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+    accessToken,
+  });
+}
+
+export async function deleteSeasonalCampaign(
+  id: string,
+  accessToken: string,
+): Promise<DeleteSeasonalCampaignResponse> {
+  return apiFetch<DeleteSeasonalCampaignResponse>(`/seasonal-campaigns/${id}`, {
+    method: 'DELETE',
     accessToken,
   });
 }
