@@ -13,25 +13,56 @@ export type ImpactBadge = {
 
 export type DonorLevel = {
   name: string;
-  /** Tailwind color token suffix used for chip bg/text (e.g. 'primary', 'amber', 'emerald') */
   color: 'gray' | 'primary' | 'emerald' | 'amber' | 'indigo' | 'violet' | 'rose';
   minPoints: number;
-  /** Threshold of the next level (undefined = max level reached) */
   nextThreshold?: number;
 };
 
-export const DONOR_LEVELS: DonorLevel[] = [
-  { name: 'Futuro Doador',           color: 'gray',    minPoints: 0,    nextThreshold: 50 },
-  { name: 'Doador Iniciante',        color: 'primary',  minPoints: 50,   nextThreshold: 150 },
-  { name: 'Semeador Solidário',      color: 'emerald', minPoints: 150,  nextThreshold: 350 },
-  { name: 'Agente do Bem',           color: 'amber',   minPoints: 350,  nextThreshold: 700 },
-  { name: 'Multiplicador Solidário', color: 'indigo',  minPoints: 700,  nextThreshold: 1200 },
-  { name: 'Guardião da Generosidade',color: 'violet',  minPoints: 1200, nextThreshold: 2000 },
-  { name: 'Embaixador do Impacto',   color: 'rose',    minPoints: 2000 },
-];
+const donorLevelBase = [
+  { name: 'Primeiro Gesto', color: 'gray', minPoints: 0 },
+  { name: 'Doador Iniciante', color: 'primary', minPoints: 80 },
+  { name: 'Semeador Solidário', color: 'emerald', minPoints: 240 },
+  { name: 'Aliado do Bem', color: 'amber', minPoints: 500 },
+  { name: 'Guardião Local', color: 'indigo', minPoints: 850 },
+  { name: 'Guardião da Generosidade', color: 'violet', minPoints: 1250 },
+  { name: 'Ponte Solidária', color: 'rose', minPoints: 2000 },
+  { name: 'Mobilizador da Rede', color: 'primary', minPoints: 2900 },
+  { name: 'Multiplicador Solidário', color: 'emerald', minPoints: 4000 },
+  { name: 'Referência Comunitária', color: 'amber', minPoints: 5000 },
+  { name: 'Cuidador Frequente', color: 'indigo', minPoints: 6500 },
+  { name: 'Parceiro da Esperança', color: 'violet', minPoints: 8300 },
+  { name: 'Força Coletiva', color: 'rose', minPoints: 10400 },
+  { name: 'Líder de Impacto', color: 'primary', minPoints: 12800 },
+  { name: 'Farol Solidário', color: 'emerald', minPoints: 15500 },
+  { name: 'Construtor de Pontes', color: 'amber', minPoints: 18500 },
+  { name: 'Guardião da Rede', color: 'indigo', minPoints: 21800 },
+  { name: 'Mestre da Constância', color: 'violet', minPoints: 25400 },
+  { name: 'Voz da Comunidade', color: 'rose', minPoints: 29300 },
+  { name: 'Embaixador do Impacto', color: 'primary', minPoints: 33500 },
+  { name: 'Benfeitor Regional', color: 'emerald', minPoints: 38100 },
+  { name: 'Elo Transformador', color: 'amber', minPoints: 43100 },
+  { name: 'Guardião Supremo', color: 'indigo', minPoints: 48500 },
+  { name: 'Arquiteto do Bem', color: 'violet', minPoints: 54300 },
+  { name: 'Legado Solidário', color: 'rose', minPoints: 60500 },
+  { name: 'Referência Nacional', color: 'primary', minPoints: 67200 },
+  { name: 'Inspirador da Rede', color: 'emerald', minPoints: 74400 },
+  { name: 'Grande Embaixador', color: 'amber', minPoints: 82100 },
+  { name: 'Lenda Solidária', color: 'indigo', minPoints: 90300 },
+  { name: 'Herói Solidário Supremo', color: 'violet', minPoints: 99000 },
+] satisfies Array<Omit<DonorLevel, 'nextThreshold'>>;
+
+// Curva de 30 níveis. Os níveis 1-10 seguem a base definida pelo produto:
+// 0, 80, 240, 500, 850, 1250, 2000, 2900, 4000, 5000.
+// Do 11 ao 30, os saltos crescem progressivamente para exigir mais esforço
+// a cada faixa. A fonte oficial de pontos continua sendo o backend atual;
+// o ledger definitivo e as regras por item entram na Fase 2.
+export const DONOR_LEVELS: DonorLevel[] = donorLevelBase.map((level, index) => ({
+  ...level,
+  nextThreshold: donorLevelBase[index + 1]?.minPoints,
+}));
 
 export function getDonorLevel(points: number): DonorLevel {
-  const level = [...DONOR_LEVELS].reverse().find((l) => points >= l.minPoints);
+  const level = [...DONOR_LEVELS].reverse().find((item) => points >= item.minPoints);
   return level ?? DONOR_LEVELS[0];
 }
 
@@ -39,13 +70,9 @@ export type ImpactSnapshot = {
   points: number;
   pointsLabel: string;
   levelTitle: string;
-  /** Short, human-readable level name (e.g. "Semeador Solidário") */
   levelName: string;
-  /** Tailwind color key for the level chip */
   levelColor: DonorLevel['color'];
-  /** Progress within the current level (0–1) */
   levelProgress: number;
-  /** Points needed to reach the next level (0 if already at max) */
   pointsToNextLevel: number;
   nextMilestone: {
     label: string;
@@ -99,13 +126,20 @@ export type PostDonationReward = {
 
 const MONTHLY_GOAL_TARGET = 4;
 const POINT_MILESTONES = [
-  { label: 'Primeiro marco solidário', target: 120 },
-  { label: 'Constância em evolução', target: 300 },
-  { label: 'Guardião da recorrência', target: 500 },
-  { label: 'Solidariedade recorrente', target: 800 },
-  { label: 'Referência comunitária', target: 1200 },
+  { label: 'Nível 2', target: 80 },
+  { label: 'Nível 3', target: 240 },
+  { label: 'Nível 4', target: 500 },
+  { label: 'Nível 5', target: 850 },
+  { label: 'Nível 6', target: 1250 },
+  { label: 'Nível 7', target: 2000 },
+  { label: 'Nível 8', target: 2900 },
+  { label: 'Nível 9', target: 4000 },
+  { label: 'Nível 10', target: 5000 },
 ];
 
+// Regra oficial atual do backend: pointsAwarded ainda vem por status.
+// A regra final por item, estado, multiplicadores e distribuição depende
+// de PointLedger/DonationPointEvent na Fase 2 e não é recalculada aqui.
 const STATUS_POINTS: Record<DonationStatus, number> = {
   PENDING: 60,
   AT_POINT: 90,
@@ -137,15 +171,15 @@ function getCurrentMonthKey() {
 }
 
 function getMonthlyStreak(donations: DonationRecord[]) {
-  if (donations.length === 0) {
-    return 0;
-  }
+  if (donations.length === 0) return 0;
 
   const monthSet = new Set(donations.map((donation) => getMonthKey(donation.createdAt)));
-  const mostRecent = new Date(donations[0].createdAt);
-  let streak = 0;
-
+  const ordered = [...donations].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+  const mostRecent = new Date(ordered[0].createdAt);
   const cursor = new Date(Date.UTC(mostRecent.getUTCFullYear(), mostRecent.getUTCMonth(), 1));
+  let streak = 0;
 
   while (monthSet.has(`${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`)) {
     streak += 1;
@@ -155,20 +189,16 @@ function getMonthlyStreak(donations: DonationRecord[]) {
   return streak;
 }
 
-/** Legacy descriptive title — kept for backward compat with any existing usage */
-function getLevelTitle(points: number) {
-  const level = getDonorLevel(points);
-  return level.name;
-}
-
-function computeLevelProgress(points: number, level: DonorLevel): { progress: number; pointsToNext: number } {
+function computeLevelProgress(points: number, level: DonorLevel) {
   if (!level.nextThreshold) {
     return { progress: 1, pointsToNext: 0 };
   }
+
   const range = level.nextThreshold - level.minPoints;
   const gained = points - level.minPoints;
+
   return {
-    progress: Math.min(1, gained / range),
+    progress: Math.min(1, Math.max(0, gained / range)),
     pointsToNext: Math.max(0, level.nextThreshold - points),
   };
 }
@@ -177,11 +207,14 @@ function getNextMilestone(points: number) {
   const next = POINT_MILESTONES.find((milestone) => milestone.target > points);
 
   if (!next) {
+    const level = getDonorLevel(points);
     return {
-      label: 'Referência comunitária',
+      label: level.nextThreshold ? `Próximo nível` : 'Nível máximo',
       current: points,
-      target: points,
-      note: 'Você já ultrapassou os marcos iniciais desta fase.',
+      target: level.nextThreshold ?? points,
+      note: level.nextThreshold
+        ? `Faltam ${level.nextThreshold - points} pontos para o próximo nível.`
+        : 'Você alcançou o último nível desta curva.',
     };
   }
 
@@ -189,8 +222,15 @@ function getNextMilestone(points: number) {
     label: next.label,
     current: points,
     target: next.target,
-    note: `Faltam ${next.target - points} pontos para o próximo marco.`,
+    note: `Faltam ${next.target - points} pontos para o próximo nível.`,
   };
+}
+
+function getItemQuantity(donations: DonationRecord[]) {
+  return donations.reduce((sum, donation) => {
+    const itemQuantity = donation.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+    return sum + (itemQuantity > 0 ? itemQuantity : donation.itemCount);
+  }, 0);
 }
 
 export function getPredictedDonationPoints(status: DonationStatus = 'PENDING') {
@@ -205,7 +245,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
   const completed = ordered.filter((donation) => COMPLETED_STATUSES.includes(donation.status));
   const tracked = ordered.filter((donation) => TRACKED_STATUSES.includes(donation.status));
   const active = ordered.filter((donation) => ACTIVE_STATUSES.includes(donation.status));
-  const itemCount = ordered.reduce((sum, donation) => sum + donation.itemCount, 0);
+  const itemCount = getItemQuantity(ordered);
   const monthlyDonations = ordered.filter(
     (donation) => getMonthKey(donation.createdAt) === getCurrentMonthKey(),
   ).length;
@@ -215,12 +255,15 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
   const streakMonths = getMonthlyStreak(ordered);
   const nextMilestone = getNextMilestone(totalPoints);
   const level = getDonorLevel(totalPoints);
-  const { progress: levelProgress, pointsToNext: pointsToNextLevel } = computeLevelProgress(totalPoints, level);
+  const { progress: levelProgress, pointsToNext: pointsToNextLevel } = computeLevelProgress(
+    totalPoints,
+    level,
+  );
 
   return {
     points: totalPoints,
     pointsLabel: 'Pontos solidários',
-    levelTitle: getLevelTitle(totalPoints),
+    levelTitle: level.name,
     levelName: level.name,
     levelColor: level.color,
     levelProgress,
@@ -243,7 +286,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
     ranking: {
       position: null,
       scope: 'comunidade local',
-      note: 'Ranking opt-in segue preparado para uma integração futura com dados de comunidade.',
+      note: 'Ranking mensal real depende da Fase 2 de backend.',
     },
     stats: [
       { value: String(completed.length), label: 'doações concluídas' },
