@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Bell,
@@ -14,6 +14,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { AchievementsScroller } from '@/components/profile/achievements-scroller';
+import { GamificationSyncToast } from '@/components/profile/gamification-sync-toast';
 import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
 import { PublicProfileHero } from '@/components/profile/public-profile-hero';
 import {
@@ -21,10 +22,12 @@ import {
   getMyProfile,
   getUserDonations,
   requestEmailVerification,
+  syncMyGamification,
   updateMyProfile,
   uploadProfileAsset,
   type DonorGamificationResponse,
   type DonationRecord,
+  type GamificationSyncResponse,
   type MyProfile,
 } from '@/lib/api';
 
@@ -66,6 +69,7 @@ function formatDayLabel(input: string) {
 
 export default function PerfilPage() {
   const { data: session, status, update: updateSession } = useSession();
+  const syncedTokenRef = useRef<string | null>(null);
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [loadingImpact, setLoadingImpact] = useState(true);
   const [impactError, setImpactError] = useState<string | null>(null);
@@ -77,6 +81,7 @@ export default function PerfilPage() {
   const [emailVerificationSending, setEmailVerificationSending] = useState(false);
   const [emailVerificationMessage, setEmailVerificationMessage] = useState<string | null>(null);
   const [emailVerificationError, setEmailVerificationError] = useState<string | null>(null);
+  const [gamificationSync, setGamificationSync] = useState<GamificationSyncResponse | null>(null);
 
   const loadOperationalProfile = useCallback(async () => {
     if (!session?.user?.accessToken || session.user.role === 'DONOR') {
@@ -121,6 +126,21 @@ export default function PerfilPage() {
           setDonations(donationResponse.data);
           setProfile(nextProfile);
           setGamification(nextGamification);
+
+          if (syncedTokenRef.current !== session.user.accessToken) {
+            syncedTokenRef.current = session.user.accessToken;
+
+            try {
+              const sync = await syncMyGamification(session.user.accessToken);
+              setGamification(sync.gamification);
+
+              if (sync.pointsAwarded > 0 || sync.achievementsChanged > 0) {
+                setGamificationSync(sync);
+              }
+            } catch {
+              setImpactError('Perfil carregado, mas nao foi possivel sincronizar conquistas agora.');
+            }
+          }
         } catch {
           setProfileError('Não foi possível carregar seu perfil agora.');
           setImpactError('Não foi possível carregar seu histórico agora.');
@@ -139,7 +159,7 @@ export default function PerfilPage() {
     if (status !== 'loading') {
       void loadProfileContext();
     }
-  }, [loadOperationalProfile, session?.user?.accessToken, status]);
+  }, [loadOperationalProfile, session?.user?.accessToken, session?.user?.role, status]);
 
   const achievements = gamification?.achievements ?? [];
   const completedDonationsCount = gamification?.summary.confirmedDonationsCount ?? 0;
@@ -200,7 +220,12 @@ export default function PerfilPage() {
         },
       });
       setProfile(updated);
-      setGamification(await getMyGamification(session.user.accessToken));
+      const sync = await syncMyGamification(session.user.accessToken);
+      setGamification(sync.gamification);
+
+      if (sync.pointsAwarded > 0 || sync.achievementsChanged > 0) {
+        setGamificationSync(sync);
+      }
     } catch (error) {
       setProfileError(
         error instanceof Error
@@ -247,6 +272,7 @@ export default function PerfilPage() {
         levelName={gamification?.level.name ?? 'Semente Solidaria'}
         streakMonths={gamification?.summary.consecutiveActiveMonths ?? 0}
         points={gamification?.points ?? 0}
+        pointsBreakdown={gamification?.pointsBreakdown ?? null}
         donationsCount={gamification?.summary.donationsCount ?? donations.length}
         completedCount={completedDonationsCount}
         itemsCount={deliveredItemsTotal}
@@ -258,6 +284,11 @@ export default function PerfilPage() {
         emailVerificationError={emailVerificationError}
         onAvatarFileSelected={handleDonorAvatarUpload}
         onResendEmailVerification={() => void handleResendEmailVerification()}
+      />
+
+      <GamificationSyncToast
+        sync={gamificationSync}
+        onDismiss={() => setGamificationSync(null)}
       />
 
       {(profileError || impactError) && (

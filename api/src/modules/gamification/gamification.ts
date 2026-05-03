@@ -1,4 +1,10 @@
-import { DonationStatus, Prisma, UserRole } from '@prisma/client';
+import {
+  DonationStatus,
+  PointLedgerSourceType,
+  Prisma,
+  PrismaClient,
+  UserRole,
+} from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 import { AppError, ForbiddenError, NotFoundError, toErrorResponse } from '../../shared/errors';
 import {
@@ -6,6 +12,7 @@ import {
   getDonationPointsValue,
   isConfirmedDonationStatus,
 } from '../../shared/donation-points';
+import { createNotifications } from '../../shared/notifications';
 import { getOperationalProfileChecklist } from '../profiles/profile-shared';
 
 type AchievementTier = 'BRONZE' | 'PRATA' | 'OURO' | 'DIAMANTE' | 'RUBY';
@@ -36,6 +43,53 @@ type AchievementResponse = {
   levels: AchievementLevel[];
 };
 
+export type SyncTrigger =
+  | 'PROFILE_VIEW'
+  | 'DONATION_CREATED'
+  | 'DONATION_STATUS_CHANGED'
+  | 'PROFILE_UPDATED'
+  | 'MANUAL';
+
+type GamificationChange = {
+  key: string;
+  title: string;
+  fromTier: AchievementTier | null;
+  toTier: AchievementTier;
+  pointsAwarded: number;
+  hidden: boolean;
+};
+
+type DonorGamificationResponse = {
+  points: number;
+  pointsBreakdown: {
+    donationPoints: number;
+    achievementPoints: number;
+    totalPoints: number;
+  };
+  level: ReturnType<typeof getLevel>;
+  achievements: AchievementResponse[];
+  summary: {
+    donationsCount: number;
+    confirmedDonationsCount: number;
+    distributedDonationsCount: number;
+    donatedItemsQuantity: number;
+    usedCategoriesCount: number;
+    usedCollectionPointsCount: number;
+    consecutiveActiveMonths: number;
+    highlightedMonthsCount: number;
+    seasonalCampaignsCount: number;
+  };
+};
+
+type GamificationSyncResponse = {
+  pointsAwarded: number;
+  achievementsChanged: number;
+  changes: GamificationChange[];
+  gamification: DonorGamificationResponse;
+};
+
+type GamificationPrisma = PrismaClient | Prisma.TransactionClient;
+
 const ORDERED_TIERS: Array<Exclude<AchievementTier, 'RUBY'>> = [
   'BRONZE',
   'PRATA',
@@ -50,6 +104,9 @@ const ACHIEVEMENT_TIER_POINTS: Record<AchievementTier, number> = {
   DIAMANTE: 160,
   RUBY: 400,
 };
+
+const ACHIEVEMENT_SOURCE_PREFIX = 'achievement';
+const MAX_SYNC_ITERATIONS = 5;
 
 // Curva oficial de 30 niveis exposta pelo endpoint de gamificacao.
 // Mantem os niveis 1-10 definidos pelo produto e os niveis 11-30
@@ -136,6 +193,18 @@ const donorProfileSelect = {
 
 type DonorProfile = Prisma.UserGetPayload<{ select: typeof donorProfileSelect }>;
 
+const userAchievementSelect = {
+  key: true,
+  tier: true,
+  hidden: true,
+  pointsAwarded: true,
+  unlockedAt: true,
+} satisfies Prisma.UserAchievementSelect;
+
+type PersistedAchievement = Prisma.UserAchievementGetPayload<{
+  select: typeof userAchievementSelect;
+}>;
+
 function getAchievementPoints(tier: AchievementTier | null) {
   if (!tier) return 0;
   if (tier === 'RUBY') return ACHIEVEMENT_TIER_POINTS.RUBY;
@@ -145,6 +214,32 @@ function getAchievementPoints(tier: AchievementTier | null) {
     (sum, currentTier) => sum + ACHIEVEMENT_TIER_POINTS[currentTier],
     0,
   );
+}
+
+function getAchievementTierIncrement(tier: AchievementTier) {
+  return ACHIEVEMENT_TIER_POINTS[tier];
+}
+
+function getAchievementSourceKey(key: string, tier: AchievementTier) {
+  return `${ACHIEVEMENT_SOURCE_PREFIX}:${key}:${tier}`;
+}
+
+function getTierRank(tier: AchievementTier | null) {
+  if (!tier) return -1;
+  if (tier === 'RUBY') return ORDERED_TIERS.length;
+  return ORDERED_TIERS.indexOf(tier);
+}
+
+function getMaxTier(left: AchievementTier | null, right: AchievementTier | null) {
+  return getTierRank(left) >= getTierRank(right) ? left : right;
+}
+
+function getAwardableTiers(tier: AchievementTier | null): AchievementTier[] {
+  if (!tier) return [];
+  if (tier === 'RUBY') return ['RUBY'];
+
+  const index = ORDERED_TIERS.indexOf(tier);
+  return ORDERED_TIERS.slice(0, index + 1);
 }
 
 function getLevel(points: number) {
@@ -636,6 +731,396 @@ function buildAchievements(params: {
   ];
 }
 
+function normalizeAchievementTier(tier: string | null): AchievementTier | null {
+  if (
+    tier === 'BRONZE' ||
+    tier === 'PRATA' ||
+    tier === 'OURO' ||
+    tier === 'DIAMANTE' ||
+    tier === 'RUBY'
+  ) {
+    return tier;
+  }
+
+  return null;
+}
+
+function getDonationPointsTotal(donations: GamificationDonation[]) {
+  return donations.reduce((sum, donation) => sum + getDonationPointsValue(donation.status), 0);
+}
+
+function buildProgressMetadata(achievement: AchievementResponse) {
+  return {
+    tier: achievement.tier,
+    nextTier: achievement.nextTier,
+    progressValue: achievement.progressValue,
+    progressTarget: achievement.progressTarget,
+    progressLabel: achievement.progressLabel,
+    unavailable: achievement.unavailable,
+    unavailableReason: achievement.unavailableReason ?? null,
+  };
+}
+
+function getPersistedAchievementTier(
+  achievement: AchievementResponse,
+  persisted: Map<string, PersistedAchievement>,
+) {
+  return normalizeAchievementTier(persisted.get(achievement.key)?.tier ?? null);
+}
+
+function applyPersistedAchievements(
+  achievements: AchievementResponse[],
+  persistedAchievements: PersistedAchievement[],
+) {
+  const persisted = new Map(
+    persistedAchievements.map((achievement) => [achievement.key, achievement]),
+  );
+
+  return achievements.map((achievement) => {
+    const persistedTier = getPersistedAchievementTier(achievement, persisted);
+    const tier = getMaxTier(achievement.tier, persistedTier);
+    const persistedAchievement = persisted.get(achievement.key);
+
+    return {
+      ...achievement,
+      tier,
+      nextTier: tier ? getNextTier(tier, achievement.levels) : achievement.nextTier,
+      hidden: tier ? false : achievement.hidden,
+      unlocked: Boolean(tier),
+      points: getAchievementPoints(tier),
+      unlockedAt: persistedAchievement?.unlockedAt?.toISOString() ?? achievement.unlockedAt ?? null,
+    };
+  });
+}
+
+async function buildDonorGamification(
+  prisma: GamificationPrisma,
+  userId: string,
+): Promise<DonorGamificationResponse> {
+  const profile = await prisma.user.findUnique({
+    where: { id: userId },
+    select: donorProfileSelect,
+  });
+
+  if (!profile) {
+    throw new NotFoundError('Perfil');
+  }
+
+  const [donations, allConfirmedDonations, achievementLedger, persistedAchievements] =
+    await Promise.all([
+      prisma.donation.findMany({
+        where: { donorId: userId },
+        orderBy: { createdAt: 'desc' },
+        select: gamificationDonationSelect,
+      }),
+      prisma.donation.findMany({
+        where: { status: { in: CONFIRMED_DONATION_STATUSES } },
+        select: gamificationDonationSelect,
+      }),
+      prisma.pointLedger.aggregate({
+        where: {
+          userId,
+          sourceType: PointLedgerSourceType.ACHIEVEMENT_TIER,
+        },
+        _sum: { points: true },
+      }),
+      prisma.userAchievement.findMany({
+        where: { userId },
+        select: userAchievementSelect,
+      }),
+    ]);
+
+  const confirmedDonations = donations.filter((donation) =>
+    isConfirmedDonationStatus(donation.status),
+  );
+  const donationPoints = getDonationPointsTotal(donations);
+  const achievementPoints = achievementLedger._sum.points ?? 0;
+  const totalPoints = donationPoints + achievementPoints;
+  const level = getLevel(totalPoints);
+  const highlightedMonthsCount = getHighlightedMonthsCount(allConfirmedDonations, userId);
+  const seasonalCampaignsCount = new Set(
+    confirmedDonations.map((donation) => donation.seasonalCampaignId).filter(Boolean),
+  ).size;
+  const nonCancelledDonations = donations.filter(
+    (donation) => donation.status !== DonationStatus.CANCELLED,
+  );
+  const achievements = applyPersistedAchievements(
+    buildAchievements({
+      profile,
+      donations,
+      confirmedDonations,
+      highlightedMonthsCount,
+      seasonalCampaignsCount,
+      level,
+    }),
+    persistedAchievements,
+  );
+
+  return {
+    points: totalPoints,
+    pointsBreakdown: {
+      donationPoints,
+      achievementPoints,
+      totalPoints,
+    },
+    level,
+    achievements,
+    summary: {
+      donationsCount: nonCancelledDonations.length,
+      confirmedDonationsCount: confirmedDonations.length,
+      distributedDonationsCount: getDistributedCount(confirmedDonations),
+      donatedItemsQuantity: getTotalQuantity(confirmedDonations),
+      usedCategoriesCount: getUniqueCategoryCount(confirmedDonations),
+      usedCollectionPointsCount: getUsedCollectionPointCount(confirmedDonations),
+      consecutiveActiveMonths: getConsecutiveActiveMonths(nonCancelledDonations),
+      highlightedMonthsCount,
+      seasonalCampaignsCount,
+    },
+  };
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+async function awardAchievementTiersInTransaction(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  achievements: AchievementResponse[],
+  trigger: SyncTrigger,
+) {
+  const [persistedAchievements, ledgerEntries] = await Promise.all([
+    tx.userAchievement.findMany({
+      where: { userId },
+      select: userAchievementSelect,
+    }),
+    tx.pointLedger.findMany({
+      where: {
+        userId,
+        sourceType: PointLedgerSourceType.ACHIEVEMENT_TIER,
+      },
+      select: {
+        sourceKey: true,
+      },
+    }),
+  ]);
+  const persisted = new Map(
+    persistedAchievements.map((achievement) => [achievement.key, achievement]),
+  );
+  const existingSourceKeys = new Set(ledgerEntries.map((entry) => entry.sourceKey));
+  const changes: GamificationChange[] = [];
+
+  for (const achievement of achievements) {
+    const persistedTier = getPersistedAchievementTier(achievement, persisted);
+    const targetTier = getMaxTier(achievement.tier, persistedTier);
+    const tiersToAward = getAwardableTiers(targetTier);
+    let pointsAwarded = 0;
+
+    for (const tier of tiersToAward) {
+      const sourceKey = getAchievementSourceKey(achievement.key, tier);
+
+      if (existingSourceKeys.has(sourceKey)) {
+        continue;
+      }
+
+      const points = getAchievementTierIncrement(tier);
+
+      try {
+        const result = await tx.pointLedger.createMany({
+          data: [
+            {
+              userId,
+              sourceType: PointLedgerSourceType.ACHIEVEMENT_TIER,
+              sourceKey,
+              points,
+              reason: `Achievement ${achievement.title} ${tier}`,
+              metadata: {
+                achievementKey: achievement.key,
+                achievementTitle: achievement.title,
+                tier,
+                trigger,
+              } satisfies Prisma.InputJsonValue,
+            },
+          ],
+          skipDuplicates: true,
+        });
+
+        existingSourceKeys.add(sourceKey);
+
+        if (result.count > 0) {
+          pointsAwarded += points;
+        }
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) {
+          throw error;
+        }
+
+        // Concorrencia defensiva: se outra transacao concedeu a mesma tier
+        // primeiro, mantemos o UserAchievement coerente sem contar pontos novos.
+        existingSourceKeys.add(sourceKey);
+      }
+    }
+
+    const finalTier = getMaxTier(targetTier, persistedTier);
+    const existing = persisted.get(achievement.key);
+    const unlockedAt =
+      finalTier && !existing?.unlockedAt
+        ? new Date()
+        : existing?.unlockedAt ?? undefined;
+
+    await tx.userAchievement.upsert({
+      where: {
+        userId_key: {
+          userId,
+          key: achievement.key,
+        },
+      },
+      create: {
+        userId,
+        key: achievement.key,
+        tier: finalTier,
+        hidden: finalTier ? false : achievement.hidden,
+        pointsAwarded: getAchievementPoints(finalTier),
+        lastProgress: buildProgressMetadata(achievement) as Prisma.InputJsonValue,
+        unlockedAt,
+      },
+      update: {
+        tier: finalTier,
+        hidden: finalTier ? false : achievement.hidden,
+        pointsAwarded: getAchievementPoints(finalTier),
+        lastProgress: buildProgressMetadata(achievement) as Prisma.InputJsonValue,
+        ...(unlockedAt ? { unlockedAt } : {}),
+      },
+    });
+
+    if (pointsAwarded > 0 && finalTier) {
+      changes.push({
+        key: achievement.key,
+        title: achievement.title,
+        fromTier: persistedTier,
+        toTier: finalTier,
+        pointsAwarded,
+        hidden: achievement.hidden && !finalTier,
+      });
+    }
+  }
+
+  return changes;
+}
+
+async function awardAchievementTiers(
+  prisma: PrismaClient,
+  userId: string,
+  achievements: AchievementResponse[],
+  trigger: SyncTrigger,
+) {
+  return prisma.$transaction((tx) =>
+    awardAchievementTiersInTransaction(tx, userId, achievements, trigger),
+  );
+}
+
+async function notifyGamificationChanges(
+  fastify: FastifyInstance,
+  userId: string,
+  changes: GamificationChange[],
+) {
+  if (changes.length === 0) return;
+
+  const pointsAwarded = changes.reduce((sum, change) => sum + change.pointsAwarded, 0);
+
+  try {
+    if (changes.length === 1) {
+      const [change] = changes;
+
+      await createNotifications(fastify, [
+        {
+          userId,
+          type: 'BADGE_EARNED' as const,
+          title: `Conquista desbloqueada: ${change.title}`,
+          body: `${change.toTier} liberada. +${change.pointsAwarded} pontos adicionados ao seu perfil.`,
+          href: '/perfil#conquistas',
+          payload: {
+            achievementKey: change.key,
+            achievementTitle: change.title,
+            fromTier: change.fromTier,
+            toTier: change.toTier,
+            pointsAwarded: change.pointsAwarded,
+            totalChangedInSync: 1,
+          },
+        },
+      ]);
+      return;
+    }
+
+    await createNotifications(fastify, [
+      {
+        userId,
+        type: 'BADGE_EARNED' as const,
+        title: `${changes.length} conquistas atualizadas`,
+        body: `Voce ganhou +${pointsAwarded} pontos em conquistas do perfil.`,
+        href: '/perfil#conquistas',
+        payload: {
+          pointsAwarded,
+          totalChangedInSync: changes.length,
+          achievements: changes.map((change) => ({
+            achievementKey: change.key,
+            achievementTitle: change.title,
+            fromTier: change.fromTier,
+            toTier: change.toTier,
+            pointsAwarded: change.pointsAwarded,
+          })),
+        },
+      },
+    ]);
+  } catch (error) {
+    fastify.log.error({ err: error, userId }, 'Falha ao criar notificacao de gamificacao');
+  }
+}
+
+export async function syncDonorGamification(
+  fastify: FastifyInstance,
+  userId: string,
+  options: { trigger?: SyncTrigger } = {},
+): Promise<GamificationSyncResponse> {
+  const trigger = options.trigger ?? 'MANUAL';
+  const changes: GamificationChange[] = [];
+  let latestGamification = await buildDonorGamification(fastify.prisma, userId);
+
+  for (let iteration = 0; iteration < MAX_SYNC_ITERATIONS; iteration += 1) {
+    const iterationChanges = await awardAchievementTiers(
+      fastify.prisma,
+      userId,
+      latestGamification.achievements,
+      trigger,
+    );
+
+    if (iterationChanges.length === 0) {
+      break;
+    }
+
+    changes.push(...iterationChanges);
+    latestGamification = await buildDonorGamification(fastify.prisma, userId);
+
+    if (iteration === MAX_SYNC_ITERATIONS - 1) {
+      fastify.log.warn(
+        { userId, trigger, iterations: MAX_SYNC_ITERATIONS },
+        'Limite de reconciliacao de gamificacao atingido',
+      );
+    }
+  }
+
+  await notifyGamificationChanges(fastify, userId, changes);
+
+  const pointsAwarded = changes.reduce((sum, change) => sum + change.pointsAwarded, 0);
+
+  return {
+    pointsAwarded,
+    achievementsChanged: changes.length,
+    changes,
+    gamification: latestGamification,
+  };
+}
+
 export default async function gamificationRoutes(fastify: FastifyInstance) {
   fastify.get('/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
@@ -643,70 +1128,25 @@ export default async function gamificationRoutes(fastify: FastifyInstance) {
         throw new ForbiddenError('Gamificacao disponivel apenas para doadores');
       }
 
-      const profile = await fastify.prisma.user.findUnique({
-        where: { id: request.user.id },
-        select: donorProfileSelect,
-      });
-
-      if (!profile) {
-        throw new NotFoundError('Perfil');
+      return reply.send(await buildDonorGamification(fastify.prisma, request.user.id));
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.code(err.statusCode).send(toErrorResponse(err));
       }
 
-      const [donations, allConfirmedDonations] = await Promise.all([
-        fastify.prisma.donation.findMany({
-          where: { donorId: request.user.id },
-          orderBy: { createdAt: 'desc' },
-          select: gamificationDonationSelect,
-        }),
-        fastify.prisma.donation.findMany({
-          where: { status: { in: CONFIRMED_DONATION_STATUSES } },
-          select: gamificationDonationSelect,
-        }),
-      ]);
+      throw err;
+    }
+  });
 
-      const confirmedDonations = donations.filter((donation) =>
-        isConfirmedDonationStatus(donation.status),
-      );
-      const points = donations.reduce(
-        (sum, donation) => sum + getDonationPointsValue(donation.status),
-        0,
-      );
-      const level = getLevel(points);
-      const highlightedMonthsCount = getHighlightedMonthsCount(
-        allConfirmedDonations,
-        request.user.id,
-      );
-      const seasonalCampaignsCount = new Set(
-        confirmedDonations.map((donation) => donation.seasonalCampaignId).filter(Boolean),
-      ).size;
-      const nonCancelledDonations = donations.filter(
-        (donation) => donation.status !== DonationStatus.CANCELLED,
-      );
-      const achievements = buildAchievements({
-        profile,
-        donations,
-        confirmedDonations,
-        highlightedMonthsCount,
-        seasonalCampaignsCount,
-        level,
-      });
+  fastify.post('/me/sync', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      if (request.user.role !== UserRole.DONOR) {
+        throw new ForbiddenError('Gamificacao disponivel apenas para doadores');
+      }
 
-      return reply.send({
-        points,
-        level,
-        achievements,
-        summary: {
-          donationsCount: nonCancelledDonations.length,
-          confirmedDonationsCount: confirmedDonations.length,
-          distributedDonationsCount: getDistributedCount(confirmedDonations),
-          donatedItemsQuantity: getTotalQuantity(confirmedDonations),
-          usedCategoriesCount: getUniqueCategoryCount(confirmedDonations),
-          usedCollectionPointsCount: getUsedCollectionPointCount(confirmedDonations),
-          consecutiveActiveMonths: getConsecutiveActiveMonths(nonCancelledDonations),
-          highlightedMonthsCount,
-          seasonalCampaignsCount,
-        },
-      });
+      return reply.send(
+        await syncDonorGamification(fastify, request.user.id, { trigger: 'PROFILE_VIEW' }),
+      );
     } catch (err) {
       if (err instanceof AppError) {
         return reply.code(err.statusCode).send(toErrorResponse(err));

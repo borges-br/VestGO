@@ -1,11 +1,9 @@
 import {
-  DonationStatus,
   NotificationType,
   Prisma,
   UserRole,
 } from '@prisma/client';
 import { FastifyInstance } from 'fastify';
-import { CONFIRMED_DONATION_STATUSES } from './donation-points';
 
 type NotificationPayload = Prisma.InputJsonValue;
 
@@ -30,102 +28,6 @@ export const notificationSelect = {
 } satisfies Prisma.NotificationSelect;
 
 type NotificationRecord = Prisma.NotificationGetPayload<{ select: typeof notificationSelect }>;
-
-type GamificationDonation = {
-  id: string;
-  status: DonationStatus;
-  createdAt: Date;
-  collectionPointId: string | null;
-};
-
-type BadgeDefinition = {
-  id: string;
-  label: string;
-  description: string;
-};
-
-function getMonthKey(input: Date) {
-  return `${input.getUTCFullYear()}-${String(input.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-function getMonthlyStreak(donations: GamificationDonation[]) {
-  if (donations.length === 0) {
-    return 0;
-  }
-
-  const monthSet = new Set(donations.map((donation) => getMonthKey(donation.createdAt)));
-  const ordered = [...donations].sort(
-    (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
-  );
-  const mostRecent = ordered[0].createdAt;
-  const cursor = new Date(
-    Date.UTC(mostRecent.getUTCFullYear(), mostRecent.getUTCMonth(), 1),
-  );
-  let streak = 0;
-
-  while (monthSet.has(`${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`)) {
-    streak += 1;
-    cursor.setUTCMonth(cursor.getUTCMonth() - 1);
-  }
-
-  return streak;
-}
-
-function getEarnedBadges(donations: GamificationDonation[]): BadgeDefinition[] {
-  const ordered = [...donations].sort(
-    (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
-  );
-  const trackedCount = ordered.filter((donation) =>
-    CONFIRMED_DONATION_STATUSES.includes(donation.status),
-  ).length;
-  const usedDropOffPoints = new Set(
-    ordered.map((donation) => donation.collectionPointId).filter(Boolean),
-  ).size;
-  const streakMonths = getMonthlyStreak(ordered);
-
-  const badges: Array<BadgeDefinition & { earned: boolean }> = [
-    {
-      id: 'first-donation',
-      label: 'Primeira entrega',
-      description: 'Reconhece a primeira doacao registrada na plataforma.',
-      earned: ordered.length >= 1,
-    },
-    {
-      id: 'tracked-impact',
-      label: 'Jornada rastreada',
-      description: 'Doacao acompanhada ate uma etapa real da jornada logistica.',
-      earned: trackedCount >= 1,
-    },
-    {
-      id: 'steady-donor',
-      label: 'Constancia solidaria',
-      description: 'Participacao recorrente em mais de um ciclo mensal.',
-      earned: streakMonths >= 2,
-    },
-    {
-      id: 'local-impact',
-      label: 'Impacto local',
-      description: 'Uso recorrente da rede parceira em mais de um ponto da comunidade.',
-      earned: usedDropOffPoints >= 2,
-    },
-    // Placeholder para badges futuras:
-    // - badges sazonais por campanha
-    // - badges por volume de itens por categoria
-    // - badges por recorrencia em janelas customizadas
-    // - badges por engajamento comunitario/local ranking
-  ];
-
-  return badges.filter((badge) => badge.earned);
-}
-
-export function getNewlyUnlockedBadges(
-  before: GamificationDonation[],
-  after: GamificationDonation[],
-) {
-  const beforeIds = new Set(getEarnedBadges(before).map((badge) => badge.id));
-
-  return getEarnedBadges(after).filter((badge) => !beforeIds.has(badge.id));
-}
 
 export function mapNotification(notification: NotificationRecord) {
   return {
@@ -195,19 +97,4 @@ export async function createAdminNotifications(
       })),
     ),
   );
-}
-
-export async function loadDonorGamificationDonations(
-  fastify: FastifyInstance,
-  donorId: string,
-) {
-  return fastify.prisma.donation.findMany({
-    where: { donorId },
-    select: {
-      id: true,
-      status: true,
-      createdAt: true,
-      collectionPointId: true,
-    },
-  });
 }

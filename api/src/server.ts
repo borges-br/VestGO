@@ -17,6 +17,7 @@ import operationalBatchRoutes from './modules/operational-batches/operational-ba
 import operationalDonationRoutes from './modules/operational-batches/operational-donations';
 import partnershipRoutes from './modules/partnerships/partnerships';
 import pickupRequestRoutes from './modules/pickup-requests/pickup-requests';
+import seasonalCampaignRoutes from './modules/seasonal-campaigns/seasonal-campaigns';
 import uploadRoutes from './modules/uploads/uploads';
 import authPlugin from './plugins/auth';
 import prismaPlugin from './plugins/prisma';
@@ -86,6 +87,7 @@ app.register(profileRoutes, { prefix: '/profiles' });
 app.register(adminProfileRoutes, { prefix: '/admin/profiles' });
 app.register(partnershipRoutes, { prefix: '/partnerships' });
 app.register(pickupRequestRoutes, { prefix: '/pickup-requests' });
+app.register(seasonalCampaignRoutes, { prefix: '/seasonal-campaigns' });
 app.register(uploadRoutes, { prefix: '/uploads' });
 
 const start = async () => {

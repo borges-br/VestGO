@@ -256,6 +256,11 @@ export type DonorAchievement = {
 
 export type DonorGamificationResponse = {
   points: number;
+  pointsBreakdown: {
+    donationPoints: number;
+    achievementPoints: number;
+    totalPoints: number;
+  };
   level: {
     currentLevel: number;
     totalLevels: number;
@@ -277,6 +282,22 @@ export type DonorGamificationResponse = {
     highlightedMonthsCount: number;
     seasonalCampaignsCount: number;
   };
+};
+
+export type GamificationSyncChange = {
+  key: string;
+  title: string;
+  fromTier: AchievementTier | null;
+  toTier: AchievementTier;
+  pointsAwarded: number;
+  hidden: boolean;
+};
+
+export type GamificationSyncResponse = {
+  pointsAwarded: number;
+  achievementsChanged: number;
+  changes: GamificationSyncChange[];
+  gamification: DonorGamificationResponse;
 };
 
 export type OperationalFilters = {
@@ -984,6 +1005,15 @@ export async function getMyGamification(
   accessToken: string,
 ): Promise<DonorGamificationResponse> {
   return apiFetch<DonorGamificationResponse>('/gamification/me', { accessToken });
+}
+
+export async function syncMyGamification(
+  accessToken: string,
+): Promise<GamificationSyncResponse> {
+  return apiFetch<GamificationSyncResponse>('/gamification/me/sync', {
+    method: 'POST',
+    accessToken,
+  });
 }
 
 export async function getOperationalDonations(

@@ -16,6 +16,7 @@ type PublicProfileHeroProps = {
   levelName: string;
   streakMonths: number;
   points: number;
+  pointsBreakdown: DonorGamificationResponse['pointsBreakdown'] | null;
   donationsCount: number;
   completedCount: number;
   itemsCount: number;
@@ -39,6 +40,7 @@ export function PublicProfileHero({
   levelName,
   streakMonths,
   points,
+  pointsBreakdown,
   donationsCount,
   completedCount,
   itemsCount,
@@ -177,11 +179,19 @@ export function PublicProfileHero({
           </div>
         </div>
 
-        <LevelRing
-          points={points}
-          level={level}
-          className="justify-self-center lg:justify-self-end"
-        />
+        <div className="justify-self-center lg:justify-self-end">
+          <LevelRing
+            points={points}
+            level={level}
+          />
+          {pointsBreakdown && (
+            <p className="mx-auto mt-3 max-w-[250px] text-center text-xs leading-5 text-primary-deeper/55">
+              {pointsBreakdown.totalPoints.toLocaleString('pt-BR')} pontos -{' '}
+              {pointsBreakdown.donationPoints.toLocaleString('pt-BR')} de doacoes +{' '}
+              {pointsBreakdown.achievementPoints.toLocaleString('pt-BR')} de conquistas
+            </p>
+          )}
+        </div>
       </div>
     </header>
   );

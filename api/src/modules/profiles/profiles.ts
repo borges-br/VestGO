@@ -15,6 +15,7 @@ import {
 } from '../../shared/errors';
 import { geocodeAddress } from '../../shared/geocoding';
 import { createAdminNotifications } from '../../shared/notifications';
+import { syncDonorGamification } from '../gamification/gamification';
 import {
   buildOpeningHoursSummary,
   getOperationalProfileChecklist,
@@ -25,6 +26,14 @@ import {
   type OpeningScheduleEntry,
   type ProfileWriteInput,
 } from './profile-shared';
+
+async function syncDonorProfileGamificationSafely(fastify: FastifyInstance, userId: string) {
+  try {
+    await syncDonorGamification(fastify, userId, { trigger: 'PROFILE_UPDATED' });
+  } catch (error) {
+    fastify.log.error({ err: error, userId }, 'Falha ao sincronizar gamificacao apos perfil');
+  }
+}
 
 const editableProfileSelect = {
   id: true,
@@ -1290,6 +1299,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
             },
           },
         ]);
+      }
+
+      if (updatedUser.role === UserRole.DONOR) {
+        await syncDonorProfileGamificationSafely(fastify, updatedUser.id);
       }
 
       return reply.send(mapEditableProfile(updatedUser));

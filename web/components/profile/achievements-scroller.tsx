@@ -54,7 +54,11 @@ export function AchievementsScroller({ achievements }: AchievementsScrollerProps
   }
 
   return (
-    <section className="px-5 py-16 sm:px-8 lg:px-12" aria-labelledby="achievements-heading">
+    <section
+      id="conquistas"
+      className="scroll-mt-8 px-5 py-16 sm:px-8 lg:px-12"
+      aria-labelledby="achievements-heading"
+    >
       <div className="mx-auto max-w-[1080px]">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>

@@ -15,17 +15,17 @@ import {
   NotFoundError,
   toErrorResponse,
 } from '../../shared/errors';
-import {
-  createNotifications,
-  getNewlyUnlockedBadges,
-  loadDonorGamificationDonations,
-} from '../../shared/notifications';
+import { createNotifications } from '../../shared/notifications';
 import { getDonationPointsValue } from '../../shared/donation-points';
 import {
   sendDonationRegisteredOperationalEmail,
   sendDonationStatusOperationalEmail,
 } from '../../shared/operational-emails';
 import { findMatchingSeasonalCampaign } from '../../shared/seasonal-campaigns';
+import {
+  syncDonorGamification,
+  type SyncTrigger,
+} from '../gamification/gamification';
 
 const createDonationSchema = z.object({
   collectionPointId: z.string().min(1),
@@ -582,6 +582,18 @@ function buildStatusCounts(donations: ReturnType<typeof mapDonation>[]) {
   }, {});
 }
 
+async function syncDonorGamificationSafely(
+  fastify: FastifyInstance,
+  userId: string,
+  trigger: SyncTrigger,
+) {
+  try {
+    await syncDonorGamification(fastify, userId, { trigger });
+  } catch (error) {
+    fastify.log.error({ err: error, userId, trigger }, 'Falha ao sincronizar gamificacao do doador');
+  }
+}
+
 export default async function donationRoutes(fastify: FastifyInstance) {
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
@@ -650,17 +662,6 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         select: donationSelect,
       });
 
-      const donorDonationsAfter = await loadDonorGamificationDonations(
-        fastify,
-        request.user.id,
-      );
-      const donorDonationsBefore = donorDonationsAfter.filter(
-        (donation) => donation.id !== createdDonation.id,
-      );
-      const newlyUnlockedBadges = getNewlyUnlockedBadges(
-        donorDonationsBefore,
-        donorDonationsAfter,
-      );
       const creationPoints = getDonationPointsValue(createdDonation.status);
 
       await createNotifications(fastify, [
@@ -689,17 +690,9 @@ export default async function donationRoutes(fastify: FastifyInstance) {
             status: createdDonation.status,
           },
         },
-        ...newlyUnlockedBadges.map((badge) => ({
-          userId: request.user.id,
-          type: 'BADGE_EARNED' as const,
-          title: `Badge conquistada: ${badge.label}`,
-          body: badge.description,
-          href: '/inicio',
-          payload: {
-            badgeId: badge.id,
-          },
-        })),
       ]);
+
+      await syncDonorGamificationSafely(fastify, request.user.id, 'DONATION_CREATED');
 
       await sendDonationRegisteredOperationalEmail(fastify, {
         userId: request.user.id,
@@ -896,17 +889,6 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         select: donationSelect,
       });
 
-      const donorDonationsAfter = await loadDonorGamificationDonations(
-        fastify,
-        donation.donorId,
-      );
-      const donorDonationsBefore = donorDonationsAfter.map((record) =>
-        record.id === updatedDonation.id ? { ...record, status: donation.status } : record,
-      );
-      const newlyUnlockedBadges = getNewlyUnlockedBadges(
-        donorDonationsBefore,
-        donorDonationsAfter,
-      );
       const previousPoints = getDonationPointsValue(donation.status);
       const nextPoints = getDonationPointsValue(updatedDonation.status);
       const pointsDelta = nextPoints - previousPoints;
@@ -956,16 +938,6 @@ export default async function donationRoutes(fastify: FastifyInstance) {
               },
             ]
           : []),
-        ...newlyUnlockedBadges.map((badge) => ({
-          userId: donation.donorId,
-          type: 'BADGE_EARNED' as const,
-          title: `Badge conquistada: ${badge.label}`,
-          body: badge.description,
-          href: '/inicio',
-          payload: {
-            badgeId: badge.id,
-          },
-        })),
       ]);
 
       if (updatedDonation.status !== DonationStatus.CANCELLED) {
@@ -983,6 +955,8 @@ export default async function donationRoutes(fastify: FastifyInstance) {
           pointsDelta,
         });
       }
+
+      await syncDonorGamificationSafely(fastify, donation.donorId, 'DONATION_STATUS_CHANGED');
 
       return reply.send(mapDonation(updatedDonation, request.user));
     } catch (err) {
