@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { DonorAchievement } from '@/lib/achievements';
-import { getUnlockedAchievementCount } from '@/lib/achievements';
+import type { DonorAchievement } from '@/lib/api';
 import { AchievementDialog } from '@/components/profile/achievement-dialog';
 import { AchievementMedal } from '@/components/profile/achievement-medal';
 
@@ -20,7 +19,7 @@ export function AchievementsScroller({ achievements }: AchievementsScrollerProps
     () => achievements.filter((achievement) => !achievement.hidden),
     [achievements],
   );
-  const unlocked = getUnlockedAchievementCount(visibleAchievements);
+  const unlocked = visibleAchievements.filter((achievement) => achievement.unlocked).length;
 
   const updateScrollState = useCallback(() => {
     const element = scrollerRef.current;
@@ -88,7 +87,7 @@ export function AchievementsScroller({ achievements }: AchievementsScrollerProps
           >
             {visibleAchievements.map((achievement) => (
               <AchievementMedal
-                key={achievement.id}
+                key={achievement.key}
                 achievement={achievement}
                 onSelect={setSelectedAchievement}
               />

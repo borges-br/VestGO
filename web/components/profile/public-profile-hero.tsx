@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Camera, CheckCircle2, Loader2, MailWarning, Send, Settings } from 'lucide-react';
 import { LevelRing } from '@/components/profile/level-ring';
 import { cn } from '@/lib/utils';
+import type { DonorGamificationResponse } from '@/lib/api';
 
 type PublicProfileHeroProps = {
   name: string;
@@ -11,6 +12,7 @@ type PublicProfileHeroProps = {
   emailVerifiedAt: string | null;
   avatarUrl: string | null;
   initials: string;
+  level: DonorGamificationResponse['level'] | null;
   levelName: string;
   streakMonths: number;
   points: number;
@@ -33,6 +35,7 @@ export function PublicProfileHero({
   emailVerifiedAt,
   avatarUrl,
   initials,
+  level,
   levelName,
   streakMonths,
   points,
@@ -174,7 +177,11 @@ export function PublicProfileHero({
           </div>
         </div>
 
-        <LevelRing points={points} className="justify-self-center lg:justify-self-end" />
+        <LevelRing
+          points={points}
+          level={level}
+          className="justify-self-center lg:justify-self-end"
+        />
       </div>
     </header>
   );

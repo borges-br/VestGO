@@ -183,6 +183,18 @@ export type DonationBatchSummary = {
   status: OperationalBatchStatus;
 };
 
+export type SeasonalCampaignSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string;
+  categories: ItemCategory[];
+  multiplier: number;
+  active: boolean;
+};
+
 export type DonationRecord = {
   id: string;
   code: string;
@@ -199,6 +211,7 @@ export type DonationRecord = {
   collectionPoint: DonationPoint | null;
   ngo: DonationPoint | null;
   partnership: DonationPartnership | null;
+  seasonalCampaign: SeasonalCampaignSummary | null;
   operationalBatch: DonationBatchSummary | null;
   dropOffPoint: DonationPoint | null;
   items: DonationItem[];
@@ -210,6 +223,59 @@ export type DonationListResponse = {
   data: DonationRecord[];
   meta: {
     count: number;
+  };
+};
+
+export type AchievementTier = 'BRONZE' | 'PRATA' | 'OURO' | 'DIAMANTE' | 'RUBY';
+
+export type AchievementLevel = {
+  tier: AchievementTier;
+  targetValue?: number;
+  targetLabel: string;
+};
+
+export type DonorAchievement = {
+  key: string;
+  title: string;
+  description: string;
+  howToEarn: string;
+  metricLabel: string;
+  tier: AchievementTier | null;
+  nextTier: AchievementTier | null;
+  hidden: boolean;
+  unlocked: boolean;
+  points: number;
+  progressValue: number | null;
+  progressTarget: number | null;
+  progressLabel: string;
+  unavailable: boolean;
+  unavailableReason?: string;
+  unlockedAt?: string | null;
+  levels: AchievementLevel[];
+};
+
+export type DonorGamificationResponse = {
+  points: number;
+  level: {
+    currentLevel: number;
+    totalLevels: number;
+    name: string;
+    minPoints: number;
+    nextThreshold: number | null;
+    pointsToNextLevel: number;
+    progress: number;
+  };
+  achievements: DonorAchievement[];
+  summary: {
+    donationsCount: number;
+    confirmedDonationsCount: number;
+    distributedDonationsCount: number;
+    donatedItemsQuantity: number;
+    usedCategoriesCount: number;
+    usedCollectionPointsCount: number;
+    consecutiveActiveMonths: number;
+    highlightedMonthsCount: number;
+    seasonalCampaignsCount: number;
   };
 };
 
@@ -912,6 +978,12 @@ export async function getUserDonations(
 
   const suffix = qs.toString() ? `?${qs}` : '';
   return apiFetch<DonationListResponse>(`/donations${suffix}`, { accessToken });
+}
+
+export async function getMyGamification(
+  accessToken: string,
+): Promise<DonorGamificationResponse> {
+  return apiFetch<DonorGamificationResponse>('/gamification/me', { accessToken });
 }
 
 export async function getOperationalDonations(

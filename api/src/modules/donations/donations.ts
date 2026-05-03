@@ -17,14 +17,15 @@ import {
 } from '../../shared/errors';
 import {
   createNotifications,
-  getDonationPointsValue,
   getNewlyUnlockedBadges,
   loadDonorGamificationDonations,
 } from '../../shared/notifications';
+import { getDonationPointsValue } from '../../shared/donation-points';
 import {
   sendDonationRegisteredOperationalEmail,
   sendDonationStatusOperationalEmail,
 } from '../../shared/operational-emails';
+import { findMatchingSeasonalCampaign } from '../../shared/seasonal-campaigns';
 
 const createDonationSchema = z.object({
   collectionPointId: z.string().min(1),
@@ -97,6 +98,7 @@ export const donationSelect = {
   collectionPointId: true,
   ngoId: true,
   operationalPartnershipId: true,
+  seasonalCampaignId: true,
   notes: true,
   scheduledAt: true,
   createdAt: true,
@@ -127,6 +129,19 @@ export const donationSelect = {
   collectionPoint: { select: pointSelect },
   ngo: { select: pointSelect },
   operationalPartnership: { select: operationalPartnershipSelect },
+  seasonalCampaign: {
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+      startsAt: true,
+      endsAt: true,
+      categories: true,
+      multiplier: true,
+      active: true,
+    },
+  },
   operationalBatchItem: {
     select: {
       batch: {
@@ -147,15 +162,6 @@ export type DonationAccessRecord = Pick<
   'status' | 'donorId' | 'collectionPointId' | 'ngoId'
 >;
 export type Viewer = { id: string; role: string };
-
-const STATUS_POINTS: Record<DonationStatus, number> = {
-  PENDING: 60,
-  AT_POINT: 90,
-  IN_TRANSIT: 110,
-  DELIVERED: 150,
-  DISTRIBUTED: 180,
-  CANCELLED: 0,
-};
 
 const STATUS_EVENT_DESCRIPTION: Record<DonationStatus, string> = {
   PENDING: 'Doação registrada na plataforma.',
@@ -193,10 +199,6 @@ async function generateUniqueDonationCode(fastify: FastifyInstance) {
   }
 
   return `VGO-${Date.now().toString().slice(-6)}`;
-}
-
-function getDonationPoints(status: DonationStatus) {
-  return STATUS_POINTS[status] ?? 0;
 }
 
 function ensureDonationCreationAllowed(user: { role: string }) {
@@ -315,6 +317,24 @@ function mapPartnership(partnership: DonationRecord['operationalPartnership'] | 
   };
 }
 
+function mapSeasonalCampaign(campaign: DonationRecord['seasonalCampaign'] | null) {
+  if (!campaign) {
+    return null;
+  }
+
+  return {
+    id: campaign.id,
+    slug: campaign.slug,
+    title: campaign.title,
+    description: campaign.description,
+    startsAt: campaign.startsAt.toISOString(),
+    endsAt: campaign.endsAt.toISOString(),
+    categories: campaign.categories,
+    multiplier: campaign.multiplier,
+    active: campaign.active,
+  };
+}
+
 function mapTimelineEvent(event: DonationRecord['timeline'][number]) {
   return {
     id: event.id,
@@ -338,7 +358,7 @@ export function mapDonation(donation: DonationRecord, viewer?: Viewer) {
     scheduledAt: donation.scheduledAt?.toISOString() ?? null,
     createdAt: donation.createdAt.toISOString(),
     updatedAt: donation.updatedAt.toISOString(),
-    pointsAwarded: getDonationPoints(donation.status),
+    pointsAwarded: getDonationPointsValue(donation.status),
     itemCount: totalQuantity,
     itemLabel:
       donation.items.length === 1
@@ -349,6 +369,7 @@ export function mapDonation(donation: DonationRecord, viewer?: Viewer) {
     collectionPoint: mapPoint(donation.collectionPoint, viewer),
     ngo: mapPoint(donation.ngo, viewer),
     partnership: mapPartnership(donation.operationalPartnership),
+    seasonalCampaign: mapSeasonalCampaign(donation.seasonalCampaign),
     operationalBatch: donation.operationalBatchItem
       ? {
           id: donation.operationalBatchItem.batch.id,
@@ -594,6 +615,10 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         );
       }
 
+      const seasonalCampaign = await findMatchingSeasonalCampaign(
+        fastify.prisma,
+        body.items.map((item) => item.category),
+      );
       const code = await generateUniqueDonationCode(fastify);
       const createdDonation = await fastify.prisma.donation.create({
         data: {
@@ -602,6 +627,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
           collectionPointId: collectionPoint.id,
           ngoId: partnership.ngoId,
           operationalPartnershipId: partnership.id,
+          seasonalCampaignId: seasonalCampaign?.id,
           notes: body.notes,
           scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
           items: {
@@ -820,7 +846,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         donationId: donation.id,
         code: donation.code,
         status: donation.status,
-        pointsAwarded: getDonationPoints(donation.status),
+        pointsAwarded: getDonationPointsValue(donation.status),
         data: donation.timeline.map(mapTimelineEvent),
       });
     } catch (err) {

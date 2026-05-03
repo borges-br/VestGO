@@ -1,22 +1,29 @@
 'use client';
 
 import { DONOR_LEVELS, getDonorLevel } from '@/lib/gamification';
+import type { DonorGamificationResponse } from '@/lib/api';
 
 type LevelRingProps = {
   points: number;
+  level?: DonorGamificationResponse['level'] | null;
   className?: string;
 };
 
-export function LevelRing({ points, className }: LevelRingProps) {
-  const level = getDonorLevel(points);
-  const currentIndex = DONOR_LEVELS.findIndex((item) => item.minPoints === level.minPoints);
-  const totalLevels = DONOR_LEVELS.length;
-  const nextThreshold = level.nextThreshold ?? level.minPoints;
-  const range = Math.max(nextThreshold - level.minPoints, 1);
-  const progress = level.nextThreshold
-    ? Math.min(Math.max((points - level.minPoints) / range, 0), 1)
+export function LevelRing({ points, level, className }: LevelRingProps) {
+  const fallbackLevel = getDonorLevel(points);
+  const totalLevels = level?.totalLevels ?? DONOR_LEVELS.length;
+  const currentIndex = level
+    ? Math.max(0, level.currentLevel - 1)
+    : DONOR_LEVELS.findIndex((item) => item.minPoints === fallbackLevel.minPoints);
+  const fallbackNextThreshold = fallbackLevel.nextThreshold ?? fallbackLevel.minPoints;
+  const fallbackRange = Math.max(fallbackNextThreshold - fallbackLevel.minPoints, 1);
+  const fallbackProgress = fallbackLevel.nextThreshold
+    ? Math.min(Math.max((points - fallbackLevel.minPoints) / fallbackRange, 0), 1)
     : 1;
-  const pointsToNext = level.nextThreshold ? Math.max(level.nextThreshold - points, 0) : 0;
+  const progress = level?.progress ?? fallbackProgress;
+  const pointsToNext =
+    level?.pointsToNextLevel ??
+    (fallbackLevel.nextThreshold ? Math.max(fallbackLevel.nextThreshold - points, 0) : 0);
   const size = 244;
   const stroke = 14;
   const radius = (size - stroke) / 2;

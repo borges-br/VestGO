@@ -205,6 +205,7 @@ async function maybeResetDatabase() {
   await prisma.donationEvent.deleteMany();
   await prisma.donationItem.deleteMany();
   await prisma.donation.deleteMany();
+  await prisma.seasonalCampaign.deleteMany();
   await prisma.operationalPartnership.deleteMany();
   await prisma.user.deleteMany();
 

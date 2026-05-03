@@ -2,15 +2,18 @@
 
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
-import type { AchievementTier, DonorAchievement } from '@/lib/achievements';
+import type { AchievementTier, DonorAchievement } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-const tierLabels: Record<Exclude<AchievementTier, 'RUBY'>, string> = {
+const tierLabels: Record<AchievementTier, string> = {
   BRONZE: 'Bronze',
   PRATA: 'Prata',
   OURO: 'Ouro',
   DIAMANTE: 'Diamante',
+  RUBY: 'Ruby',
 };
+
+const tierOrder: AchievementTier[] = ['BRONZE', 'PRATA', 'OURO', 'DIAMANTE', 'RUBY'];
 
 type AchievementDialogProps = {
   achievement: DonorAchievement | null;
@@ -68,7 +71,7 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
           Conquista
         </p>
         <h3 id={titleId} className="mt-2 pr-10 text-2xl font-extrabold tracking-tight text-primary-deeper">
-          {achievement.name}
+          {achievement.title}
         </h3>
         <p id={descriptionId} className="mt-3 text-sm leading-7 text-primary-deeper/65">
           {achievement.description}
@@ -98,7 +101,7 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
               Nível atual
             </dt>
             <dd className="mt-2 text-sm font-bold text-primary-deeper">
-              {achievement.currentTier ? tierLabels[achievement.currentTier] : 'Bloqueada'}
+              {achievement.tier ? tierLabels[achievement.tier] : 'Bloqueada'}
             </dd>
           </div>
           <div className="rounded-2xl border border-primary-deeper/10 p-4">
@@ -106,7 +109,7 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
               Pontos
             </dt>
             <dd className="mt-2 text-sm font-bold text-primary-deeper">
-              {achievement.achievementPoints.toLocaleString('pt-BR')}
+              {achievement.points.toLocaleString('pt-BR')}
             </dd>
           </div>
         </dl>
@@ -118,13 +121,12 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
           <ul className="mt-3 space-y-2">
             {achievement.levels.map((level) => {
               const reached =
-                achievement.currentTier != null &&
-                ['BRONZE', 'PRATA', 'OURO', 'DIAMANTE'].indexOf(level.tier) <=
-                  ['BRONZE', 'PRATA', 'OURO', 'DIAMANTE'].indexOf(achievement.currentTier);
+                achievement.tier != null &&
+                tierOrder.indexOf(level.tier) <= tierOrder.indexOf(achievement.tier);
 
               return (
                 <li
-                  key={`${achievement.id}-${level.tier}`}
+                  key={`${achievement.key}-${level.tier}`}
                   className={cn(
                     'flex items-start justify-between gap-4 rounded-2xl px-4 py-3 text-sm',
                     reached ? 'bg-primary-light text-primary-deeper' : 'bg-surface text-primary-deeper/65',
@@ -139,8 +141,8 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
         </div>
 
         <p className="mt-5 text-xs leading-6 text-primary-deeper/45">
-          Nesta fase, os pontos de conquista são exibidos pela regra de produto e não são somados
-          ao total oficial sem o ledger/backend da Fase 2.
+          Os pontos de conquista vêm do backend de gamificação. O total oficial do perfil ainda
+          usa a pontuação atual das doações até existir um ledger dedicado.
         </p>
       </section>
     </div>

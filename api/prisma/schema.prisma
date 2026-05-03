@@ -237,6 +237,9 @@ model Donation {
   operationalPartnership   OperationalPartnership? @relation("DonationOperationalPartnership", fields: [operationalPartnershipId], references: [id])
   operationalPartnershipId String?
 
+  seasonalCampaign   SeasonalCampaign? @relation(fields: [seasonalCampaignId], references: [id])
+  seasonalCampaignId String?
+
   items                DonationItem[]
   timeline             DonationEvent[]
   operationalBatchItem OperationalBatchItem?
@@ -247,7 +250,27 @@ model Donation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([seasonalCampaignId])
   @@map("donations")
+}
+
+model SeasonalCampaign {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime
+  categories  ItemCategory[] @default([])
+  multiplier  Float          @default(2)
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  donations Donation[]
+
+  @@index([active, startsAt, endsAt])
+  @@map("seasonal_campaigns")
 }
 
 model OperationalPartnership {

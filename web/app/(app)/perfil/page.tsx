@@ -17,18 +17,16 @@ import { AchievementsScroller } from '@/components/profile/achievements-scroller
 import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
 import { PublicProfileHero } from '@/components/profile/public-profile-hero';
 import {
+  getMyGamification,
   getMyProfile,
-  getTwoFactorStatus,
   getUserDonations,
   requestEmailVerification,
   updateMyProfile,
   uploadProfileAsset,
+  type DonorGamificationResponse,
   type DonationRecord,
   type MyProfile,
-  type TwoFactorStatus,
 } from '@/lib/api';
-import { buildDonorAchievements } from '@/lib/achievements';
-import { buildImpactSnapshot } from '@/lib/gamification';
 
 const footerLinks = [
   { icon: Edit3, label: 'Configurações da conta', href: '/configuracoes' },
@@ -66,20 +64,15 @@ function formatDayLabel(input: string) {
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit' }).format(new Date(input));
 }
 
-function getDonationQuantity(donation: DonationRecord) {
-  const itemQuantity = donation.items.reduce((sum, item) => sum + item.quantity, 0);
-  return itemQuantity > 0 ? itemQuantity : donation.itemCount;
-}
-
 export default function PerfilPage() {
   const { data: session, status, update: updateSession } = useSession();
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [loadingImpact, setLoadingImpact] = useState(true);
   const [impactError, setImpactError] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [gamification, setGamification] = useState<DonorGamificationResponse | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [twoFactorStatus, setTwoFactorStatus] = useState<TwoFactorStatus | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [emailVerificationSending, setEmailVerificationSending] = useState(false);
   const [emailVerificationMessage, setEmailVerificationMessage] = useState<string | null>(null);
@@ -119,15 +112,15 @@ export default function PerfilPage() {
         setProfileError(null);
 
         try {
-          const [donationResponse, nextProfile, nextTwoFactorStatus] = await Promise.all([
+          const [donationResponse, nextProfile, nextGamification] = await Promise.all([
             getUserDonations(session.user.accessToken, { limit: 100 }),
             getMyProfile(session.user.accessToken),
-            getTwoFactorStatus(session.user.accessToken).catch(() => null),
+            getMyGamification(session.user.accessToken),
           ]);
 
           setDonations(donationResponse.data);
           setProfile(nextProfile);
-          setTwoFactorStatus(nextTwoFactorStatus);
+          setGamification(nextGamification);
         } catch {
           setProfileError('Não foi possível carregar seu perfil agora.');
           setImpactError('Não foi possível carregar seu histórico agora.');
@@ -148,19 +141,9 @@ export default function PerfilPage() {
     }
   }, [loadOperationalProfile, session?.user?.accessToken, status]);
 
-  const snapshot = useMemo(() => buildImpactSnapshot(donations), [donations]);
-  const achievements = useMemo(
-    () => buildDonorAchievements({ donations, profile, twoFactorStatus }),
-    [donations, profile, twoFactorStatus],
-  );
-  const completedDonations = useMemo(
-    () => donations.filter((donation) => donation.status === 'DELIVERED' || donation.status === 'DISTRIBUTED'),
-    [donations],
-  );
-  const deliveredItemsTotal = useMemo(
-    () => completedDonations.reduce((sum, donation) => sum + getDonationQuantity(donation), 0),
-    [completedDonations],
-  );
+  const achievements = gamification?.achievements ?? [];
+  const completedDonationsCount = gamification?.summary.confirmedDonationsCount ?? 0;
+  const deliveredItemsTotal = gamification?.summary.donatedItemsQuantity ?? 0;
   const recentDonations = useMemo(() => donations.slice(0, 5), [donations]);
 
   if (status === 'loading') {
@@ -217,6 +200,7 @@ export default function PerfilPage() {
         },
       });
       setProfile(updated);
+      setGamification(await getMyGamification(session.user.accessToken));
     } catch (error) {
       setProfileError(
         error instanceof Error
@@ -259,11 +243,12 @@ export default function PerfilPage() {
         emailVerifiedAt={emailVerifiedAt}
         avatarUrl={userAvatar}
         initials={getInitials(userName)}
-        levelName={snapshot.levelName}
-        streakMonths={snapshot.streak.value}
-        points={snapshot.points}
-        donationsCount={donations.length}
-        completedCount={completedDonations.length}
+        level={gamification?.level ?? null}
+        levelName={gamification?.level.name ?? 'Semente Solidaria'}
+        streakMonths={gamification?.summary.consecutiveActiveMonths ?? 0}
+        points={gamification?.points ?? 0}
+        donationsCount={gamification?.summary.donationsCount ?? donations.length}
+        completedCount={completedDonationsCount}
         itemsCount={deliveredItemsTotal}
         showPrivateEmail={isOwner}
         showSettingsLink={isOwner}
