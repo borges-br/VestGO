@@ -191,7 +191,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
   const hideSensitiveNgoLocation = isNgo && (!session || isDonor);
   const partnerNgo = !isNgo ? point.donationEligibility?.activeNgo ?? null : null;
   const galleryImages = point.galleryImageUrls ?? [];
-  const donationShortcutHref = `/doar?selectedPointId=${point.id}&selectionApplied=1&step=2`;
+  const donationShortcutHref = `/doar?selectedPointId=${point.id}&selectionApplied=1&source=point-profile&step=0`;
   const googleMapsUrl =
     !hideSensitiveNgoLocation && point.latitude != null && point.longitude != null
       ? `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`
@@ -392,7 +392,7 @@ export default async function CollectionPointDetailPage({ params }: Props) {
               ) : isOperationalViewer ? (
                 <p>
                   Perfis operacionais e administração acompanham parceiros e operações, mas não
-                  iniciam doações por este CTA.
+                  iniciam doações por este caminho.
                 </p>
               ) : isDonor ? (
                 <Link

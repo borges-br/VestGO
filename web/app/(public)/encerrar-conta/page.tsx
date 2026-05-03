@@ -8,6 +8,7 @@ import { Suspense, useState } from 'react';
 import { motion } from 'framer-motion';
 import { VestgoLogo } from '@/components/branding/vestgo-logo';
 import { AuthSplitScene } from '@/components/ui/auth-split-scene';
+import { notifyAccountClosed } from '@/components/layout/account-session-guard';
 import { confirmAccountDeletion } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -15,8 +16,8 @@ type Status = 'ready' | 'submitting' | 'success' | 'missing-token' | 'invalid-to
 
 const statusContent: Record<Status, { title: string; message: string }> = {
   ready: {
-    title: 'Confirmar encerramento',
-    message: 'Revise a ação e confirme para encerrar a conta.',
+    title: 'Confirmar encerramento da conta',
+    message: 'Revise esta ação antes de continuar. Ao confirmar, sua conta será encerrada e seus dados pessoais serão tratados conforme nossa política de privacidade.',
   },
   submitting: {
     title: 'Encerrando conta',
@@ -28,7 +29,7 @@ const statusContent: Record<Status, { title: string; message: string }> = {
   },
   'missing-token': {
     title: 'Link incompleto',
-    message: 'Não encontramos um token de encerramento neste link.',
+    message: 'Não encontramos os dados necessários para concluir o encerramento neste link.',
   },
   'invalid-token': {
     title: 'Link inválido ou expirado',
@@ -55,8 +56,9 @@ function EncerrarContaInner() {
 
     try {
       await confirmAccountDeletion(token);
+      notifyAccountClosed();
       setStatus('success');
-      await signOut({ redirect: false });
+      await signOut({ callbackUrl: '/login?accountClosed=1' });
     } catch (err) {
       const message = err instanceof Error ? err.message.toLowerCase() : '';
       setStatus(
@@ -142,7 +144,7 @@ function EncerrarContaInner() {
 
               {isReady && (
                 <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
-                  Esta ação é irreversível para o acesso da conta. A confirmação só será enviada à API após clicar no botão abaixo.
+                  Esta ação encerra o acesso à sua conta. Depois da confirmação, você será desconectado automaticamente.
                 </div>
               )}
 

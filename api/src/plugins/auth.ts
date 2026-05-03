@@ -32,11 +32,26 @@ export default fp(async (fastify) => {
 
       const session = await fastify.prisma.userSession.findUnique({
         where: { id: sessionId },
-        select: { revokedAt: true, expiresAt: true },
+        select: {
+          revokedAt: true,
+          expiresAt: true,
+          user: {
+            select: {
+              anonymizedAt: true,
+            },
+          },
+        },
       });
 
       if (!session || session.revokedAt || session.expiresAt < new Date()) {
         return reply.code(401).send({ error: 'SESSION_REVOKED' });
+      }
+
+      if (session.user.anonymizedAt) {
+        return reply.code(401).send({
+          error: 'ACCOUNT_CLOSED',
+          message: 'Esta conta foi encerrada.',
+        });
       }
     },
   );

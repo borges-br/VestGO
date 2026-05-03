@@ -24,7 +24,7 @@ const statusContent: Record<Status, { title: string; message: string }> = {
   },
   'missing-token': {
     title: 'Link incompleto',
-    message: 'Não encontramos um token de confirmação neste link.',
+    message: 'Não encontramos os dados necessários para confirmar seu e-mail neste link.',
   },
   'invalid-token': {
     title: 'Link inválido ou expirado',
@@ -47,16 +47,14 @@ function getSupportMailto() {
     '',
     'Estou com problema para confirmar meu e-mail no VestGO.',
     '',
-    'Tipo: email_confirmation_failed',
-    'Página: /confirmar-email',
-    'Código: LINK_INVALID_OR_EXPIRED',
+    'Motivo: não consegui confirmar meu e-mail pelo link recebido.',
     `Domínio: ${window.location.origin}`,
-    `URL pública: ${appUrl}`,
+    `Página: ${appUrl}`,
     `Data/hora local: ${now}`,
     `Timezone: ${timezone}`,
     `Navegador: ${userAgent}`,
     '',
-    'Não incluí token ou dados sensíveis nesta mensagem.',
+    'Não incluí dados sensíveis nesta mensagem.',
   ].join('\n');
 
   return `mailto:suporte@mosfet.com.br?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -193,7 +191,7 @@ function ConfirmarEmailInner() {
 
               {!isSuccess && !isLoading && (
                 <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200">
-                  Por segurança, nenhum dado do link foi exibido nesta tela.
+                  Por segurança, os dados do link não foram exibidos nesta tela.
                 </div>
               )}
 

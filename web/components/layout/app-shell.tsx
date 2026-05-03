@@ -118,7 +118,7 @@ function EmailVerificationBanner() {
           )}
           {status === 'skipped' && (
             <p className="mt-1 text-xs font-semibold text-primary-deeper">
-              Envio de e-mail desativado neste ambiente.
+              Não foi possível enviar agora. Tente novamente em instantes.
             </p>
           )}
           {status === 'verified' && (

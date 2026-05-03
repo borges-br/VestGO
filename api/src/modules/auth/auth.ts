@@ -13,6 +13,7 @@ import {
 import {
   accountDeletedTemplate,
   accountDeletionRequestTemplate,
+  emailVerificationTemplate,
 } from '../../shared/email-templates';
 import { getWebPublicUrl, sendEmail } from '../../shared/email';
 import { normalizeBrazilianPhone } from '../../shared/phone';
@@ -62,6 +63,7 @@ type AuthSafeUser = {
   phone: string | null;
   organizationName: string | null;
   publicProfileState: PublicProfileState;
+  emailVerifiedAt: Date | null;
   createdAt: Date;
 };
 
@@ -75,6 +77,7 @@ function safeUser(user: AuthSafeUser) {
     phone: user.phone,
     organizationName: user.organizationName,
     publicProfileState: user.publicProfileState,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
     createdAt: user.createdAt,
   };
 }
@@ -180,7 +183,11 @@ const accountDeletionRequestSchema = z.object({
 });
 
 const accountDeletionConfirmSchema = z.object({
-  token: z.string().trim().min(1, 'Token obrigatorio'),
+  token: z.string().trim().min(1, 'Link de confirmacao invalido'),
+});
+
+const emailVerificationSchema = z.object({
+  token: z.string().trim().min(1, 'Link invalido'),
 });
 
 async function consumeRecoveryCode(
@@ -319,6 +326,114 @@ function buildAccountDeletionUrl(token: string) {
   const url = new URL('/encerrar-conta', getWebPublicUrl());
   url.searchParams.set('token', token);
   return url.toString();
+}
+
+function getEmailVerificationExpiresMinutes() {
+  const parsed = Number(process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES ?? 24 * 60);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 24 * 60;
+  }
+
+  return Math.min(Math.floor(parsed), 7 * 24 * 60);
+}
+
+function buildEmailVerificationUrl(token: string) {
+  const url = new URL('/confirmar-email', getWebPublicUrl());
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+async function sendEmailVerificationMessage(
+  fastify: FastifyInstance,
+  userId: string,
+) {
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerifiedAt: true,
+      anonymizedAt: true,
+    },
+  });
+
+  if (!user || user.anonymizedAt) {
+    throw new UnauthorizedError('Sessao invalida.');
+  }
+
+  if (user.emailVerifiedAt) {
+    return { sent: false, alreadyVerified: true, expiresAt: null };
+  }
+
+  const { token, expiresAt } = await createUserToken({
+    prisma: fastify.prisma,
+    userId: user.id,
+    type: UserTokenType.EMAIL_VERIFICATION,
+    expiresInMinutes: getEmailVerificationExpiresMinutes(),
+  });
+
+  const template = emailVerificationTemplate({
+    name: user.name,
+    actionUrl: buildEmailVerificationUrl(token),
+  });
+
+  try {
+    const result = await sendEmail({
+      to: user.email,
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
+    });
+
+    if (result.skipped || !result.sent) {
+      throw new AppError(
+        'Nao foi possivel enviar o email agora. Tente novamente em alguns minutos.',
+        503,
+        'EMAIL_DELIVERY_UNAVAILABLE',
+      );
+    }
+
+    fastify.log.info({ userId: user.id }, 'Email verification message sent.');
+    return { sent: true, alreadyVerified: false, expiresAt };
+  } catch (err) {
+    await fastify.prisma.userToken.updateMany({
+      where: {
+        userId: user.id,
+        type: UserTokenType.EMAIL_VERIFICATION,
+        usedAt: null,
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    fastify.log.error(
+      { err, userId: user.id },
+      'Failed to send email verification message.',
+    );
+    throw new AppError(
+      'Nao foi possivel enviar o email agora. Tente novamente em alguns minutos.',
+      503,
+      'EMAIL_DELIVERY_UNAVAILABLE',
+    );
+  }
+}
+
+function ensureActiveUser<T extends { anonymizedAt?: Date | null }>(
+  user: T | null,
+): asserts user is T {
+  if (!user) {
+    throw new NotFoundError('Usuario');
+  }
+
+  if (user.anonymizedAt) {
+    throw new AppError('Esta conta foi encerrada.', 401, 'ACCOUNT_CLOSED');
+  }
 }
 
 async function revokePendingAccountDeletionTokens(
@@ -565,10 +680,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
         describeRequest(request),
       );
 
+      let emailVerificationSent = false;
+      try {
+        const verification = await sendEmailVerificationMessage(fastify, user.id);
+        emailVerificationSent = verification.sent;
+      } catch (err) {
+        fastify.log.warn(
+          { err, userId: user.id },
+          'Failed to send registration email verification message.',
+        );
+      }
+
       return reply.code(201).send({
         user: safeUser(user),
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
+        emailVerificationSent,
       });
     } catch (err) {
       return handleErrors(reply, err);
@@ -596,6 +723,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (!user) {
         throw new UnauthorizedError('E-mail ou senha incorretos');
       }
+
+      ensureActiveUser(user);
 
       const passwordMatch = await bcrypt.compare(body.password, user.passwordHash);
       if (!passwordMatch) {
@@ -648,6 +777,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         await fastify.redis.del(challengeKey(body.challengeId));
         throw new UnauthorizedError('2FA nao habilitado para este usuario');
       }
+
+      ensureActiveUser(user);
 
       let verified = false;
 
@@ -712,12 +843,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const user = await fastify.prisma.user.findUnique({
         where: { id: payload.id },
-        select: { id: true, email: true, role: true },
+        select: { id: true, email: true, role: true, anonymizedAt: true },
       });
 
-      if (!user) {
-        throw new NotFoundError('Usuario');
-      }
+      ensureActiveUser(user);
 
       const tokens = await rotateSessionTokens(fastify, user, session.id);
 
@@ -767,6 +896,53 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  fastify.post(
+    '/request-email-verification',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const allowed = await rateLimit(fastify, request, 'email-verification', 5, 60);
+        if (!allowed) return tooManyAttempts(reply);
+
+        const result = await sendEmailVerificationMessage(fastify, request.user.id);
+
+        return reply.code(200).send({
+          emailVerificationSent: result.sent,
+          alreadyVerified: result.alreadyVerified,
+          expiresAt: result.expiresAt?.toISOString() ?? null,
+        });
+      } catch (err) {
+        return handleErrors(reply, err);
+      }
+    },
+  );
+
+  fastify.post('/verify-email', async (request, reply) => {
+    try {
+      const body = emailVerificationSchema.parse(request.body);
+      const consumed = await consumeUserTokenWithDiagnostics({
+        prisma: fastify.prisma,
+        type: UserTokenType.EMAIL_VERIFICATION,
+        token: body.token,
+      });
+
+      if (!consumed.ok) {
+        throw new UnauthorizedError('Link invalido, expirado ou ja utilizado.');
+      }
+
+      const user = await fastify.prisma.user.update({
+        where: { id: consumed.userId },
+        data: { emailVerifiedAt: new Date() },
+      });
+
+      ensureActiveUser(user);
+
+      return reply.code(200).send({ user: safeUser(user) });
+    } catch (err) {
+      return handleErrors(reply, err);
+    }
+  });
 
   fastify.post(
     '/change-password',

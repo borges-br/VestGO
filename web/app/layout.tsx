@@ -5,6 +5,7 @@ import { SessionProvider } from 'next-auth/react';
 import { auth } from '@/lib/auth';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { CookieConsentBanner } from '@/components/layout/cookie-consent-banner';
+import { AccountSessionGuard } from '@/components/layout/account-session-guard';
 
 export const metadata: Metadata = {
   title: 'VestGO - Doar com proposito',
@@ -55,6 +56,7 @@ export default async function RootLayout({
         >
           <ThemeProvider>
             {children}
+            <AccountSessionGuard />
             <CookieConsentBanner />
           </ThemeProvider>
         </SessionProvider>

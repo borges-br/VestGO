@@ -35,6 +35,7 @@ const editableProfileSelect = {
   emailNotificationsEnabled: true,
   birthDate: true,
   phone: true,
+  cpf: true,
   avatarUrl: true,
   coverImageUrl: true,
   galleryImageUrls: true,
@@ -139,6 +140,7 @@ type EditableProfileView = {
   emailNotificationsEnabled: boolean;
   birthDate: Date | null;
   phone: string | null;
+  cpf: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
   galleryImageUrls: string[];
@@ -480,6 +482,7 @@ function mapEditableProfile(user: EditableProfileRecord) {
   const view = overlayPendingRevision(user);
   const checklist = getOperationalProfileChecklist(view.role, {
     birthDate: view.birthDate?.toISOString().slice(0, 10) ?? undefined,
+    cpf: view.cpf ?? undefined,
     organizationName: view.organizationName ?? undefined,
     description: view.description ?? undefined,
     purpose: view.purpose ?? undefined,
@@ -509,6 +512,7 @@ function mapEditableProfile(user: EditableProfileRecord) {
     emailNotificationsEnabled: view.emailNotificationsEnabled,
     birthDate: view.birthDate?.toISOString().slice(0, 10) ?? null,
     phone: view.phone,
+    cpf: view.cpf,
     avatarUrl: view.avatarUrl,
     coverImageUrl: view.coverImageUrl,
     galleryImageUrls: view.galleryImageUrls,
@@ -665,6 +669,130 @@ function sanitizeNotificationPayload(payload: Prisma.JsonValue | null) {
   }
 
   return Object.keys(safePayload).length > 0 ? safePayload : null;
+}
+
+type PortableProfileUser = {
+  id: string;
+  role: UserRole;
+  name: string;
+  email: string;
+  emailVerifiedAt: Date | null;
+  emailNotificationsEnabled: boolean;
+  birthDate: Date | null;
+  phone: string | null;
+  cpf: string | null;
+  cnpj: string | null;
+  avatarUrl: string | null;
+  coverImageUrl: string | null;
+  galleryImageUrls: string[];
+  organizationName: string | null;
+  description: string | null;
+  purpose: string | null;
+  address: string | null;
+  addressNumber: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  zipCode: string | null;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  openingHours: string | null;
+  openingSchedule: Prisma.JsonValue | null;
+  openingHoursExceptions: string | null;
+  publicNotes: string | null;
+  accessibilityDetails: string | null;
+  accessibilityFeatures: string[];
+  estimatedCapacity: string | null;
+  serviceRegions: string[];
+  rules: string[];
+  nonAcceptedItems: string[];
+  acceptedCategories: string[];
+  donationInterestCategories: string[];
+  publicProfileState: PublicProfileState;
+  verifiedAt: Date | null;
+  pendingPublicRevisionStatus: PublicProfileRevisionStatus | null;
+  pendingPublicRevisionFields: string[];
+  pendingPublicRevisionSubmittedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  anonymizedAt: Date | null;
+};
+
+function mapPersonalExportFields(user: PortableProfileUser) {
+  return {
+    id: user.id,
+    role: user.role,
+    name: user.name,
+    email: user.email,
+    emailVerifiedAt: user.emailVerifiedAt,
+    emailNotificationsEnabled: user.emailNotificationsEnabled,
+    birthDate: user.birthDate,
+    phone: user.phone,
+    cpf: user.cpf,
+    avatarUrl: user.avatarUrl,
+    city: user.city,
+    state: user.state,
+    donationInterestCategories: user.donationInterestCategories,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+}
+
+function mapProfileForExport(user: PortableProfileUser) {
+  if (user.role === UserRole.DONOR) {
+    return mapPersonalExportFields(user);
+  }
+
+  if (user.role === UserRole.ADMIN) {
+    return {
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt,
+      emailNotificationsEnabled: user.emailNotificationsEnabled,
+      birthDate: user.birthDate,
+      phone: user.phone,
+      cpf: user.cpf,
+      avatarUrl: user.avatarUrl,
+      city: user.city,
+      state: user.state,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  return {
+    ...mapPersonalExportFields(user),
+    cnpj: user.cnpj,
+    organizationName: user.organizationName,
+    description: user.description,
+    purpose: user.purpose,
+    address: user.address,
+    addressNumber: user.addressNumber,
+    addressComplement: user.addressComplement,
+    neighborhood: user.neighborhood,
+    zipCode: user.zipCode,
+    latitude: user.latitude,
+    longitude: user.longitude,
+    openingHours: user.openingHours,
+    openingSchedule: user.openingSchedule,
+    openingHoursExceptions: user.openingHoursExceptions,
+    publicNotes: user.publicNotes,
+    accessibilityDetails: user.accessibilityDetails,
+    accessibilityFeatures: user.accessibilityFeatures,
+    estimatedCapacity: user.estimatedCapacity,
+    serviceRegions: user.serviceRegions,
+    rules: user.rules,
+    nonAcceptedItems: user.nonAcceptedItems,
+    acceptedCategories: user.acceptedCategories,
+    publicProfileState: user.publicProfileState,
+    verifiedAt: user.verifiedAt,
+    pendingPublicRevisionStatus: user.pendingPublicRevisionStatus,
+    pendingPublicRevisionFields: user.pendingPublicRevisionFields,
+    pendingPublicRevisionSubmittedAt: user.pendingPublicRevisionSubmittedAt,
+  };
 }
 
 export default async function profileRoutes(fastify: FastifyInstance) {
@@ -851,7 +979,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           exportedAt: new Date().toISOString(),
           userId: user.id,
         },
-        profile: user,
+        profile: mapProfileForExport(user),
         preferences: {
           emailNotificationsEnabled: user.emailNotificationsEnabled,
         },
@@ -956,6 +1084,17 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         }
       }
 
+      if (body.cpf) {
+        const duplicateCpf = await fastify.prisma.user.findUnique({
+          where: { cpf: body.cpf },
+          select: { id: true },
+        });
+
+        if (duplicateCpf && duplicateCpf.id !== existingUser.id) {
+          throw new ConflictError('Este CPF já está vinculado a outra conta.');
+        }
+      }
+
       const nextOpeningHours =
         buildOpeningHoursSummary(body.openingSchedule, body.openingHoursExceptions) ??
         body.openingHours;
@@ -1034,6 +1173,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         name: body.name,
         email: body.email,
         birthDate: parseBirthDate(body.birthDate),
+        cpf: body.cpf,
         organizationName: body.organizationName,
         description: body.description,
         purpose: body.purpose,

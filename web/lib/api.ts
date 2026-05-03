@@ -383,6 +383,7 @@ export type MyProfile = {
   emailNotificationsEnabled: boolean;
   birthDate: string | null;
   phone: string | null;
+  cpf: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
   galleryImageUrls: string[];
@@ -445,6 +446,7 @@ export type UpdateMyProfileInput = {
   email: string;
   birthDate?: string;
   phone?: string;
+  cpf?: string;
   avatarUrl?: string;
   coverImageUrl?: string;
   galleryImageUrls?: string[];
@@ -578,6 +580,7 @@ export type AuthApiUser = {
   phone: string | null;
   organizationName: string | null;
   publicProfileState: PublicProfileState;
+  emailVerifiedAt: string | null;
   createdAt: string;
 };
 
@@ -655,7 +658,15 @@ async function apiFetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T>
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new ApiError(err.message ?? `API error ${res.status}`, res.status, err.error);
+    const code = typeof err.error === 'string' ? err.error : undefined;
+    if (typeof window !== 'undefined' && (code === 'ACCOUNT_CLOSED' || code === 'SESSION_REVOKED')) {
+      window.dispatchEvent(new CustomEvent('vestgo:auth-invalid', { detail: { code } }));
+    }
+    throw new ApiError(
+      err.message ?? 'Nao foi possivel concluir a acao agora.',
+      res.status,
+      code,
+    );
   }
 
   if (res.status === 204) {

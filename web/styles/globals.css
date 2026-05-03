@@ -186,6 +186,16 @@
     box-shadow: none;
   }
 
+  .vg-map-surface .leaflet-container,
+  .vg-map-surface .leaflet-map-pane {
+    z-index: 0;
+  }
+
+  .vg-map-surface .leaflet-control-container {
+    position: relative;
+    z-index: 20;
+  }
+
   .dark .leaflet-tile-pane {
     filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
   }

@@ -84,7 +84,7 @@ const categoryLabels: Record<string, string> = {
   OTHER: 'Outros',
 };
 
-const categoryToApiCategory: Record<CategoryId, string> = {
+const categoryToDonationCategory: Record<CategoryId, string> = {
   adult: 'CLOTHING',
   child: 'CLOTHING',
   shoes: 'SHOES',
@@ -92,10 +92,10 @@ const categoryToApiCategory: Record<CategoryId, string> = {
   other: 'OTHER',
 };
 
-const DONATION_WIZARD_STORAGE_KEY = 'vestgo:donation-wizard-draft';
+const DONATION_DRAFT_STORAGE_KEY = 'vestgo:donation-draft';
 const DEFAULT_DISCOVERY_CENTER = { lat: -23.50153, lng: -47.45256 };
 
-type DonationWizardDraft = {
+type DonationDraft = {
   currentStep: number;
   selectedCategories: CategoryId[];
   quantity: string;
@@ -124,7 +124,7 @@ function mergeCollectionPoints(primary: CollectionPoint[], secondary: Collection
   return Array.from(map.values());
 }
 
-function readWizardDraft(): DonationWizardDraft {
+function readDonationDraft(): DonationDraft {
   if (typeof window === 'undefined') {
     return {
       currentStep: 0,
@@ -138,7 +138,7 @@ function readWizardDraft(): DonationWizardDraft {
     };
   }
 
-  const rawDraft = window.sessionStorage.getItem(DONATION_WIZARD_STORAGE_KEY);
+  const rawDraft = window.sessionStorage.getItem(DONATION_DRAFT_STORAGE_KEY);
 
   if (!rawDraft) {
     return {
@@ -154,7 +154,7 @@ function readWizardDraft(): DonationWizardDraft {
   }
 
   try {
-    const parsed = JSON.parse(rawDraft) as Partial<DonationWizardDraft>;
+    const parsed = JSON.parse(rawDraft) as Partial<DonationDraft>;
 
     return {
       currentStep:
@@ -368,6 +368,7 @@ export default function DoarPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftReady, setDraftReady] = useState(false);
   const [selectionFeedback, setSelectionFeedback] = useState<string | null>(null);
+  const [showPreselectedPointNotice, setShowPreselectedPointNotice] = useState(false);
 
   useEffect(() => {
     if (status === 'authenticated' && !isDonor) {
@@ -376,7 +377,7 @@ export default function DoarPage() {
   }, [isDonor, router, status]);
 
   useEffect(() => {
-    const draft = readWizardDraft();
+    const draft = readDonationDraft();
     setCurrentStep(draft.currentStep);
     setSelectedCategories(draft.selectedCategories.length > 0 ? draft.selectedCategories : ['adult']);
     setQuantity(draft.quantity);
@@ -393,22 +394,30 @@ export default function DoarPage() {
 
     const selectedPointId = searchParams.get('selectedPointId');
     const selectionApplied = searchParams.get('selectionApplied') === '1';
+    const source = searchParams.get('source');
     const stepParam = searchParams.get('step');
 
-    if (!selectedPointId && !selectionApplied && !stepParam) {
+    if (!selectedPointId && !selectionApplied && !stepParam && !source) {
       return;
     }
+
+    const cameFromPointProfile = source === 'point-profile';
 
     if (selectedPointId) {
       setPointId(selectedPointId);
       setConfirmed(false);
+      setShowPreselectedPointNotice(cameFromPointProfile);
     }
 
     if (selectionApplied) {
-      setSelectionFeedback('Ponto aplicado com sucesso. Você já pode continuar a doação.');
+      setSelectionFeedback(
+        cameFromPointProfile
+          ? null
+          : 'Ponto selecionado. Você poderá revisar antes de finalizar.',
+      );
     }
 
-    const parsedStep = Number.parseInt(stepParam ?? '2', 10);
+    const parsedStep = Number.parseInt(stepParam ?? (cameFromPointProfile ? '0' : '2'), 10);
     if (Number.isFinite(parsedStep)) {
       setCurrentStep(Math.min(Math.max(parsedStep, 0), steps.length - 1));
     }
@@ -416,6 +425,8 @@ export default function DoarPage() {
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete('selectedPointId');
     nextParams.delete('selectionApplied');
+    nextParams.delete('source');
+    nextParams.delete('returnStep');
     nextParams.delete('step');
     const nextUrl = nextParams.toString() ? `${pathname}?${nextParams}` : pathname;
     router.replace(nextUrl, { scroll: false });
@@ -425,7 +436,7 @@ export default function DoarPage() {
     if (!draftReady || !isDonor || typeof window === 'undefined') return;
 
     window.sessionStorage.setItem(
-      DONATION_WIZARD_STORAGE_KEY,
+      DONATION_DRAFT_STORAGE_KEY,
       JSON.stringify({
         currentStep,
         selectedCategories,
@@ -435,7 +446,7 @@ export default function DoarPage() {
         notes,
         pointId,
         confirmed,
-      } satisfies DonationWizardDraft),
+      } satisfies DonationDraft),
     );
   }, [condition, confirmed, currentStep, draftReady, isDonor, notes, pointId, quantity, selectedCategories, volume]);
 
@@ -457,6 +468,7 @@ export default function DoarPage() {
         if (!isDonationEligiblePoint(point)) {
           setPointId('');
           setConfirmed(false);
+          setShowPreselectedPointNotice(false);
           setPointsError(point.donationEligibility?.message ?? 'Este ponto ainda não pode finalizar doações.');
         } else {
           setPointsError(null);
@@ -465,6 +477,7 @@ export default function DoarPage() {
         if (!cancelled) {
           setPointId('');
           setConfirmed(false);
+          setShowPreselectedPointNotice(false);
           setPointsError('O ponto escolhido anteriormente não está mais disponível. Escolha outro para seguir.');
         }
       }
@@ -543,6 +556,7 @@ export default function DoarPage() {
 
     setPointId('');
     setConfirmed(false);
+    setShowPreselectedPointNotice(false);
     setPointsError(
       currentPoint.donationEligibility?.message ??
         'Este ponto ainda não pode finalizar doações.',
@@ -592,6 +606,7 @@ export default function DoarPage() {
   }
 
   const selectedPoint = points.find((item) => item.id === pointId) ?? null;
+  const selectedPointLabel = selectedPoint?.organizationName ?? selectedPoint?.name ?? null;
   const step = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
   const estimatedQuantity = getEstimatedQuantity(quantity);
@@ -599,7 +614,8 @@ export default function DoarPage() {
   const mapSelectionParams = new URLSearchParams({
     mode: 'select-point',
     returnTo: '/doar',
-    step: '2',
+    source: 'donation-flow',
+    returnStep: '2',
   });
 
   if (pointId) {
@@ -654,14 +670,14 @@ export default function DoarPage() {
 
     const quantities = splitQuantity(Math.max(estimatedQuantity, selectedCategories.length), selectedCategories.length);
     const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? condition;
-    const payload = {
+    const donationInput = {
       collectionPointId: selectedPoint.id,
       notes: [`Volume aproximado: ${volume}`, `Condição declarada: ${conditionLabel}`, notes ? `Observações: ${notes}` : null].filter(Boolean).join(' | '),
       items: selectedCategories.map((categoryId, index) => {
         const category = categories.find((item) => item.id === categoryId)!;
         return {
           name: category.label,
-          category: categoryToApiCategory[categoryId],
+          category: categoryToDonationCategory[categoryId],
           quantity: quantities[index] ?? 1,
           description: category.hint,
         };
@@ -672,9 +688,9 @@ export default function DoarPage() {
     setSubmitError(null);
 
     try {
-      const donation = await createDonation(payload, session.user.accessToken);
+      const donation = await createDonation(donationInput, session.user.accessToken);
       if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem(DONATION_WIZARD_STORAGE_KEY);
+        window.sessionStorage.removeItem(DONATION_DRAFT_STORAGE_KEY);
       }
       router.push(`/rastreio/${donation.id}?celebrate=1`);
     } catch (error) {
@@ -771,6 +787,12 @@ export default function DoarPage() {
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_360px]">
           <section className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
+            {showPreselectedPointNotice && currentStep < 2 && (
+              <div className="mb-5 rounded-[1.5rem] border border-primary/15 bg-primary-light/45 px-4 py-3 text-sm text-primary-deeper dark:border-primary/30 dark:bg-primary/10 dark:text-primary-muted">
+                Ponto selecionado{selectedPointLabel ? `: ${selectedPointLabel}` : ''}. Agora informe os itens da doação.
+              </div>
+            )}
+
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{step.eyebrow}</p>
@@ -1023,6 +1045,7 @@ export default function DoarPage() {
 
                             setPointId(point.id);
                             setPointsError(null);
+                            setShowPreselectedPointNotice(false);
                           }}
                           disabled={!canDonateHere}
                           className={cn(

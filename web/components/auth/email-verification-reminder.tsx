@@ -79,7 +79,7 @@ export function EmailVerificationReminder() {
                 <span className="text-primary-deeper dark:text-primary-muted">Enviamos um novo link de confirmação.</span>
               )}
               {status === 'skipped' && (
-                <span className="text-primary-deeper dark:text-primary-muted">Envio de e-mail desativado neste ambiente.</span>
+                <span className="text-primary-deeper dark:text-primary-muted">Não foi possível enviar agora. Tente novamente em instantes.</span>
               )}
               {status === 'error' && (
                 <span className="text-red-600 dark:text-red-300">Não foi possível enviar agora. Tente novamente em instantes.</span>

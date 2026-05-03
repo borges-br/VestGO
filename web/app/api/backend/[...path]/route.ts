@@ -59,7 +59,7 @@ async function proxyRequest(
     return NextResponse.json(
       {
         error: 'UPSTREAM_UNAVAILABLE',
-        message: 'Nao foi possivel conectar ao backend.',
+        message: 'Nao foi possivel conectar ao servico agora.',
       },
       { status: 503 },
     );

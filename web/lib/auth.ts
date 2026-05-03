@@ -53,6 +53,7 @@ type SessionUpdateUser = {
   name?: string | null;
   email?: string | null;
   image?: string | null;
+  emailVerifiedAt?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,6 +81,14 @@ function resolveSessionUpdateUser(value: unknown): SessionUpdateUser | null {
 
   if ('image' in candidate && (typeof candidate.image === 'string' || candidate.image === null)) {
     update.image = candidate.image;
+    hasKnownField = true;
+  }
+
+  if (
+    'emailVerifiedAt' in candidate &&
+    (typeof candidate.emailVerifiedAt === 'string' || candidate.emailVerifiedAt === null)
+  ) {
+    update.emailVerifiedAt = candidate.emailVerifiedAt;
     hasKnownField = true;
   }
 
@@ -317,6 +326,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         mutableToken.accessToken = appUser.accessToken;
         mutableToken.refreshToken = appUser.refreshToken;
         mutableToken.accessTokenExpiresAt = appUser.accessTokenExpiresAt;
+        mutableToken.emailVerifiedAt = appUser.emailVerifiedAt;
         mutableToken.error = undefined;
         return mutableToken;
       }
@@ -332,6 +342,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if ('image' in sessionUpdate) {
           mutableToken.picture = sessionUpdate.image ?? null;
+        }
+
+        if ('emailVerifiedAt' in sessionUpdate) {
+          mutableToken.emailVerifiedAt = sessionUpdate.emailVerifiedAt ?? null;
         }
       }
 

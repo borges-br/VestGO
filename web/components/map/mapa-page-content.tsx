@@ -76,11 +76,17 @@ function mergeCollectionPoints(primary: CollectionPoint[], secondary: Collection
   return Array.from(map.values());
 }
 
-function buildReturnUrl(returnTo: string, selectedPointId: string) {
+function buildReturnUrl(
+  returnTo: string,
+  selectedPointId: string,
+  source: string,
+  returnStep: string | null,
+) {
   const nextUrl = new URL(returnTo, window.location.origin);
   nextUrl.searchParams.set('selectedPointId', selectedPointId);
   nextUrl.searchParams.set('selectionApplied', '1');
-  nextUrl.searchParams.set('step', '2');
+  nextUrl.searchParams.set('source', source || 'donation-flow');
+  nextUrl.searchParams.set('step', source === 'point-profile' ? '0' : returnStep ?? '2');
   return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
 }
 
@@ -92,6 +98,8 @@ export function MapaPageContent() {
   const currentRole = session?.user?.role ?? null;
   const isSelectionMode = searchParams.get('mode') === 'select-point';
   const returnTo = searchParams.get('returnTo') ?? '/doar';
+  const selectionSource = searchParams.get('source') ?? 'donation-flow';
+  const returnStep = searchParams.get('returnStep');
   const initialSelectedPointId = searchParams.get('selectedPointId');
   const canSeeNgoLocations =
     currentRole === 'NGO' || currentRole === 'COLLECTION_POINT' || currentRole === 'ADMIN';
@@ -333,8 +341,8 @@ export function MapaPageContent() {
 
   const handleConfirmSelection = useCallback(() => {
     if (!selectedPointId || !isDonationSelectablePoint(selectedPoint)) return;
-    router.push(buildReturnUrl(returnTo, selectedPointId));
-  }, [returnTo, router, selectedPoint, selectedPointId]);
+    router.push(buildReturnUrl(returnTo, selectedPointId, selectionSource, returnStep));
+  }, [returnStep, returnTo, router, selectedPoint, selectedPointId, selectionSource]);
 
   const handleSelectAddressSuggestion = useCallback(
     (suggestion: {
@@ -475,7 +483,7 @@ export function MapaPageContent() {
   );
 
   return (
-    <div className={`vg-dark-fix flex flex-col bg-surface font-sans dark:bg-surface-ink ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
+    <div className={`vg-dark-fix isolate flex flex-col bg-surface font-sans dark:bg-surface-ink ${isLoggedIn ? 'min-h-full' : 'min-h-screen'}`}>
       {!isLoggedIn && (
         <header className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 bg-white px-5 py-4 dark:border-white/10 dark:bg-surface-inkSoft">
           <Link href="/" className="text-lg font-bold text-primary-deeper dark:text-primary-muted">
@@ -509,7 +517,7 @@ export function MapaPageContent() {
               />
 
               {searchFocused && (hasAddressSuggestionQuery || addressSuggestionsLoading) && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg dark:border-white/10 dark:bg-surface-inkSoft dark:shadow-none">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg dark:border-white/10 dark:bg-surface-inkSoft dark:shadow-none">
                   <div className="border-b border-gray-100 px-4 py-3 dark:border-white/10">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
                       Ir para um lugar
@@ -591,11 +599,11 @@ export function MapaPageContent() {
                     Selecionar ponto para doação
                   </p>
                   <p className="mt-2 text-sm leading-7 text-gray-500 dark:text-gray-400">
-                    Escolha um ponto de coleta, confirme a seleção e volte direto para a etapa 3 do wizard.
+                    Escolha um ponto de coleta para continuar seu registro de doação.
                   </p>
                   <p className="mt-2 text-sm font-semibold text-primary-deeper dark:text-primary-muted">
                     {selectedPoint
-                      ? `Ponto atual: ${selectedPoint.organizationName ?? selectedPoint.name}`
+                      ? `Ponto selecionado: ${selectedPoint.organizationName ?? selectedPoint.name}`
                       : 'Nenhum ponto confirmado ainda.'}
                   </p>
                 </div>
@@ -606,7 +614,7 @@ export function MapaPageContent() {
                     onClick={() => router.push(returnTo)}
                     className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:text-gray-300 dark:hover:border-primary-muted dark:hover:text-primary-muted"
                   >
-                    Voltar ao wizard
+                    Voltar para a doação
                   </button>
                   <button
                     type="button"
@@ -618,7 +626,7 @@ export function MapaPageContent() {
                         : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink dark:text-gray-600'
                     }`}
                   >
-                    Confirmar ponto e voltar
+                    Confirmar ponto e continuar
                   </button>
                 </div>
               </div>
@@ -634,7 +642,7 @@ export function MapaPageContent() {
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 sm:px-5 lg:px-6 lg:pb-6">
           <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)]">
-            <section className="order-2 flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white p-3 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:order-1 lg:h-full">
+            <section className="relative z-0 order-2 flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white p-3 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:order-1 lg:h-full">
               <div className="mb-3 flex items-center justify-between gap-3 px-1">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
@@ -683,7 +691,7 @@ export function MapaPageContent() {
                   </p>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {isSelectionMode
-                      ? 'Selecione um ponto de coleta e confirme para voltar ao wizard.'
+                      ? 'Você poderá revisar o ponto escolhido antes de finalizar.'
                       : 'Perfis públicos de pontos de coleta e ONGs em operação.'}
                   </p>
                 </div>

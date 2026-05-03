@@ -1,5 +1,7 @@
 import { ItemCategory, PublicProfileState, UserRole } from '@prisma/client';
 import { z } from 'zod';
+import { validateBrazilianLocation } from '../../shared/brazil-locations';
+import { normalizeCpf } from '../../shared/cpf';
 
 const WEEKDAY_IDS = [
   'MONDAY',
@@ -36,6 +38,29 @@ const optionalDate = z
   .optional()
   .or(z.literal(''))
   .transform((value) => (value && value.length > 0 ? value : undefined));
+
+const optionalCpf = z
+  .string()
+  .trim()
+  .optional()
+  .or(z.literal(''))
+  .transform((value, ctx) => {
+    if (!value) {
+      return undefined;
+    }
+
+    const normalized = normalizeCpf(value);
+
+    if (!normalized) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Informe um CPF valido.',
+      });
+      return z.NEVER;
+    }
+
+    return normalized;
+  });
 
 const RELATIVE_ASSET_URL_PATTERN = /^\/api\/backend\/uploads\/[a-zA-Z0-9._%-]+$/;
 const MAX_PROFILE_GALLERY_IMAGES = 6;
@@ -137,11 +162,12 @@ export const openingScheduleSchema = z
   .optional()
   .transform((value) => normalizeOpeningSchedule(value));
 
-export const profileWriteSchema = z.object({
+const profileWriteBaseSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email(),
   birthDate: optionalDate,
   phone: optionalText(30),
+  cpf: optionalCpf,
   organizationName: optionalText(160),
   description: optionalText(1200),
   purpose: optionalText(1200),
@@ -173,6 +199,28 @@ export const profileWriteSchema = z.object({
   nonAcceptedItems: optionalStringArray(20, 80),
   rules: optionalStringArray(16, 140),
   serviceRegions: optionalStringArray(12, 80),
+});
+
+export const profileWriteSchema = profileWriteBaseSchema.transform((value, ctx) => {
+  const location = validateBrazilianLocation({
+    city: value.city,
+    state: value.state,
+  });
+
+  if (!location.ok) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [location.field],
+      message: location.message,
+    });
+    return z.NEVER;
+  }
+
+  return {
+    ...value,
+    city: location.city,
+    state: location.state,
+  };
 });
 
 export type ProfileWriteInput = z.infer<typeof profileWriteSchema>;
@@ -211,6 +259,7 @@ type CompletionPayload = Pick<
   | 'description'
   | 'purpose'
   | 'birthDate'
+  | 'cpf'
   | 'address'
   | 'addressNumber'
   | 'addressComplement'
@@ -240,6 +289,7 @@ export function getOperationalProfileChecklist(
         label: 'Data de nascimento',
         complete: hasValue(payload.birthDate),
       },
+      { key: 'cpf', label: 'CPF', complete: hasValue(payload.cpf) },
       { key: 'city', label: 'Cidade', complete: hasValue(payload.city) },
       { key: 'state', label: 'Estado', complete: hasValue(payload.state) },
       {

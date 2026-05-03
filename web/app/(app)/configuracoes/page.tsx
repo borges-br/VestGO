@@ -38,8 +38,8 @@ const RADIUS_STORAGE_KEY = 'vestgo:donation-radius';
 const DONOR_ONLY_LINK = {
   href: '/configuracoes/perfil',
   icon: UserCircle2,
-  label: 'Perfil complementar',
-  description: 'Data de nascimento, cidade e interesses de doação.',
+  label: 'Configurações de cadastro',
+  description: 'CPF, data de nascimento, cidade e interesses de doação.',
 };
 
 const SHARED_LINKS = [

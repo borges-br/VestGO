@@ -263,5 +263,5 @@ export function CollectionMap({
     };
   }, [mapReady, onPointClick, points, selectedId]);
 
-  return <div ref={mapRef} className="h-full w-full overflow-hidden rounded-[1.75rem]" />;
+  return <div ref={mapRef} className="vg-map-surface relative z-0 h-full w-full overflow-hidden rounded-[1.75rem]" />;
 }

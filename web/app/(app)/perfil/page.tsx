@@ -11,8 +11,12 @@ import {
   Edit3,
   Flame,
   HelpCircle,
+  Loader2,
   LogOut,
+  MailCheck,
+  MailWarning,
   Package,
+  Send,
   Shield,
   Sparkles,
   TrendingUp,
@@ -21,6 +25,7 @@ import { AwardBadge, type AwardBadgeTier, type AwardBadgeType } from '@/componen
 import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
 import {
   getMyProfile,
+  requestEmailVerification,
   getUserDonations,
   updateMyProfile,
   uploadProfileAsset,
@@ -151,6 +156,9 @@ export default function PerfilPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [emailVerificationSending, setEmailVerificationSending] = useState(false);
+  const [emailVerificationMessage, setEmailVerificationMessage] = useState<string | null>(null);
+  const [emailVerificationError, setEmailVerificationError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadOperationalProfile = useCallback(async () => {
@@ -255,6 +263,7 @@ export default function PerfilPage() {
   const userEmail = session?.user?.email ?? '';
   const userRole = session?.user?.role ?? 'DONOR';
   const userAvatar = session?.user?.image ?? profile?.avatarUrl ?? null;
+  const emailVerifiedAt = profile?.emailVerifiedAt ?? session?.user?.emailVerifiedAt ?? null;
   const initials = userName
     .split(' ')
     .map((name) => name[0])
@@ -294,6 +303,27 @@ export default function PerfilPage() {
       );
     } finally {
       setAvatarUploading(false);
+    }
+  }
+
+  async function handleResendEmailVerification() {
+    if (!session?.user?.accessToken) return;
+
+    setEmailVerificationSending(true);
+    setEmailVerificationMessage(null);
+    setEmailVerificationError(null);
+
+    try {
+      const response = await requestEmailVerification(session.user.accessToken);
+      setEmailVerificationMessage(
+        response.alreadyVerified
+          ? 'Seu e-mail já está confirmado.'
+          : 'Enviamos um novo e-mail de confirmação.',
+      );
+    } catch {
+      setEmailVerificationError('Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos.');
+    } finally {
+      setEmailVerificationSending(false);
     }
   }
 
@@ -347,6 +377,40 @@ export default function PerfilPage() {
                   {userName}
                 </h1>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{userEmail}</p>
+                <div className="mt-3 flex flex-col items-center gap-2 lg:items-start">
+                  {emailVerifiedAt ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+                      <MailCheck size={12} />
+                      Email verificado
+                    </span>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
+                        <MailWarning size={12} />
+                        Email não verificado
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleResendEmailVerification()}
+                        disabled={emailVerificationSending}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-semibold text-primary transition-colors hover:border-primary/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-surface-inkSoft dark:text-primary-muted"
+                      >
+                        {emailVerificationSending ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Send size={12} />
+                        )}
+                        Reenviar confirmação
+                      </button>
+                    </div>
+                  )}
+                  {emailVerificationMessage && (
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300">{emailVerificationMessage}</p>
+                  )}
+                  {emailVerificationError && (
+                    <p className="text-xs text-red-600 dark:text-red-300">{emailVerificationError}</p>
+                  )}
+                </div>
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-gray-700 dark:text-gray-300 lg:justify-start">
                   <span className="inline-flex items-center gap-1.5 font-medium">
                     <Sparkles size={14} className="text-primary" />
@@ -576,13 +640,13 @@ export default function PerfilPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-primary-deeper dark:text-white">
-                      Complete seu perfil
+                      Complete suas informações de cadastro
                     </p>
                     <p className="mt-1 text-xs text-primary-deeper/70 dark:text-primary-muted">
                       {donorCompletion?.completedItems ?? 0} de {donorCompletion?.totalItems ?? 0} itens preenchidos.
                     </p>
                     <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary group-hover:translate-x-0.5 transition-transform">
-                      Continuar nas configurações
+                      Abrir configurações de cadastro
                       <ChevronRight size={12} />
                     </span>
                   </div>
@@ -596,7 +660,7 @@ export default function PerfilPage() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                      Perfil complementar em dia
+                      Configurações de cadastro em dia
                     </p>
                     <p className="mt-1 text-xs text-emerald-700/70 dark:text-emerald-300/70">
                       Tudo certo. Você pode revisar quando quiser em configurações.

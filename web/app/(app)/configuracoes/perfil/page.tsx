@@ -6,6 +6,8 @@ import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { getMyProfile, updateMyProfile, type MyProfile } from '@/lib/api';
+import { BRAZIL_STATES, fetchBrazilCities } from '@/lib/brazil-locations';
+import { formatCpfInput, isValidCpf, normalizeCpfInput } from '@/lib/cpf';
 
 const DONATION_INTEREST_OPTIONS = [
   { value: 'CLOTHING', label: 'Roupas' },
@@ -23,8 +25,11 @@ export default function ConfiguracoesPerfilPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [cities, setCities] = useState<string[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(false);
   const [form, setForm] = useState({
     birthDate: '',
+    cpf: '',
     city: '',
     state: '',
     donationInterestCategories: [] as string[],
@@ -47,11 +52,16 @@ export default function ConfiguracoesPerfilPage() {
     setError(null);
     try {
       const data = await getMyProfile(accessToken);
+      const normalizedState =
+        BRAZIL_STATES.find(
+          (state) => state.uf === data.state?.toUpperCase() || state.name === data.state,
+        )?.uf ?? data.state ?? '';
       setProfile(data);
       setForm({
         birthDate: data.birthDate ?? '',
+        cpf: data.cpf ? formatCpfInput(data.cpf) : '',
         city: data.city ?? '',
-        state: data.state ?? '',
+        state: normalizedState,
         donationInterestCategories: data.donationInterestCategories ?? [],
       });
     } catch {
@@ -66,6 +76,37 @@ export default function ConfiguracoesPerfilPage() {
       void reload();
     }
   }, [status, isDonor, reload]);
+
+  useEffect(() => {
+    if (!form.state) {
+      setCities([]);
+      return;
+    }
+
+    let cancelled = false;
+    setCitiesLoading(true);
+
+    fetchBrazilCities(form.state)
+      .then((nextCities) => {
+        if (!cancelled) {
+          setCities(nextCities);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCities([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCitiesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.state]);
 
   if (status === 'authenticated' && role && !isDonor) {
     // Render-time guard while redirect effect runs.
@@ -96,12 +137,27 @@ export default function ConfiguracoesPerfilPage() {
     setSaving(true);
     setError(null);
     setSuccess(null);
+
+    const normalizedCpf = normalizeCpfInput(form.cpf);
+    if (normalizedCpf && !isValidCpf(normalizedCpf)) {
+      setSaving(false);
+      setError('Informe um CPF válido.');
+      return;
+    }
+
+    if (form.state && form.city && cities.length > 0 && !cities.includes(form.city)) {
+      setSaving(false);
+      setError('Selecione uma cidade da lista.');
+      return;
+    }
+
     try {
       const updated = await updateMyProfile(
         {
           name: profile.name,
           email: profile.email,
           birthDate: form.birthDate || undefined,
+          cpf: normalizedCpf || undefined,
           city: form.city || undefined,
           state: form.state || undefined,
           donationInterestCategories: form.donationInterestCategories,
@@ -109,12 +165,18 @@ export default function ConfiguracoesPerfilPage() {
         accessToken,
       );
       setProfile(updated);
-      setSuccess('Perfil complementar salvo.');
+      setForm((current) => ({
+        ...current,
+        cpf: updated.cpf ? formatCpfInput(updated.cpf) : current.cpf,
+        city: updated.city ?? current.city,
+        state: updated.state ?? current.state,
+      }));
+      setSuccess('Configurações de cadastro salvas.');
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Não foi possível salvar seu perfil complementar agora.',
+          : 'Não foi possível salvar suas informações de cadastro agora.',
       );
     } finally {
       setSaving(false);
@@ -136,9 +198,9 @@ export default function ConfiguracoesPerfilPage() {
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
         Configurações
       </p>
-      <h1 className="text-3xl font-bold text-primary-deeper dark:text-white">Perfil complementar</h1>
+      <h1 className="text-3xl font-bold text-primary-deeper dark:text-white">Configurações de cadastro</h1>
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        Esses dados continuam opcionais. Eles ajudam a personalizar sua experiência.
+        Revise seus dados pessoais, sua cidade e suas preferências de doação.
       </p>
 
       {loading ? (
@@ -155,7 +217,7 @@ export default function ConfiguracoesPerfilPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
-                  {isComplete ? 'Perfil complementar em dia' : 'Faltam alguns detalhes'}
+                  {isComplete ? 'Informações de cadastro em dia' : 'Faltam alguns detalhes'}
                 </p>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   {completion ? `${completion.completedItems} de ${completion.totalItems} itens preenchidos.` : ''}
@@ -170,7 +232,7 @@ export default function ConfiguracoesPerfilPage() {
           </div>
 
           <div className="rounded-3xl bg-white p-5 shadow-card dark:bg-surface-inkSoft dark:shadow-none">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <label className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
                 <span className="font-semibold text-on-surface dark:text-gray-100">Data de nascimento</span>
                 <input
@@ -185,29 +247,59 @@ export default function ConfiguracoesPerfilPage() {
               </label>
 
               <label className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="font-semibold text-on-surface dark:text-gray-100">Cidade</span>
+                <span className="font-semibold text-on-surface dark:text-gray-100">CPF</span>
                 <input
-                  value={form.city}
+                  inputMode="numeric"
+                  value={form.cpf}
                   onChange={(event) => {
-                    setForm((current) => ({ ...current, city: event.target.value }));
+                    setForm((current) => ({ ...current, cpf: formatCpfInput(event.target.value) }));
                     setSuccess(null);
                   }}
-                  placeholder="Ex.: Sorocaba"
+                  placeholder="000.000.000-00"
                   className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500"
                 />
               </label>
 
               <label className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
                 <span className="font-semibold text-on-surface dark:text-gray-100">Estado</span>
-                <input
+                <select
                   value={form.state}
                   onChange={(event) => {
-                    setForm((current) => ({ ...current, state: event.target.value }));
+                    setForm((current) => ({ ...current, state: event.target.value, city: '' }));
                     setSuccess(null);
                   }}
-                  placeholder="Ex.: SP"
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500"
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-100"
+                >
+                  <option value="">Selecione</option>
+                  {BRAZIL_STATES.map((state) => (
+                    <option key={state.uf} value={state.uf}>
+                      {state.name} ({state.uf})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                <span className="font-semibold text-on-surface dark:text-gray-100">Cidade</span>
+                <input
+                  value={form.city}
+                  list="vestgo-brazil-cities"
+                  disabled={!form.state}
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, city: event.target.value }));
+                    setSuccess(null);
+                  }}
+                  placeholder={form.state ? 'Digite para buscar' : 'Escolha o estado primeiro'}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-white/5"
                 />
+                <datalist id="vestgo-brazil-cities">
+                  {cities.map((city) => (
+                    <option key={city} value={city} />
+                  ))}
+                </datalist>
+                {citiesLoading && (
+                  <span className="block text-xs text-gray-400 dark:text-gray-500">Carregando cidades...</span>
+                )}
               </label>
             </div>
 
@@ -257,7 +349,7 @@ export default function ConfiguracoesPerfilPage() {
                 disabled={saving}
                 className="inline-flex items-center justify-center rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving ? 'Salvando...' : 'Salvar perfil complementar'}
+                {saving ? 'Salvando...' : 'Salvar configurações de cadastro'}
               </button>
             </div>
           </div>

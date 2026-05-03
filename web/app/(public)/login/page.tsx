@@ -63,6 +63,7 @@ function LoginInner() {
   const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl'));
   const authError = searchParams.get('error');
   const sessionExpired = searchParams.get('sessionExpired') === '1';
+  const accountClosed = searchParams.get('accountClosed') === '1';
 
   const [tab, setTab] = useState<Tab>('login');
   const [email, setEmail] = useState('');
@@ -78,10 +79,11 @@ function LoginInner() {
 
   const errorMessage = useMemo(() => {
     if (error) return error;
+    if (accountClosed) return 'Sua conta foi encerrada. Você foi desconectado com segurança.';
     if (sessionExpired) return 'Sua sessão expirou. Entre novamente para continuar.';
     if (authError) return 'E-mail ou senha incorretos.';
     return null;
-  }, [authError, error, sessionExpired]);
+  }, [accountClosed, authError, error, sessionExpired]);
 
   useEffect(() => {
     if (authError) setLoading(false);
