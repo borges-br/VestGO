@@ -1,539 +1,647 @@
-# VestGO Architecture
+# VestGO — Arquitetura
 
-## Visao geral
+Documentação técnica do projeto. Reflete o estado real do código no commit corrente do branch. Decisões idealizadas estão marcadas como "planejado" ou "pendente".
 
-VestGO e uma aplicacao full-stack com frontend em Next.js e backend em Fastify/Prisma. A arquitetura atual prioriza evolucao incremental: regras de negocio no backend, App Router no frontend, descoberta publica baseada em perfis operacionais reais e integracoes enxutas com eventos de dominio ja existentes.
+---
 
-## Monorepo
+## 1. Visão geral
+
+VestGO é um monorepo full-stack:
+
+- **Frontend** em Next.js 14 (App Router) servindo a interface web e fazendo proxy de chamadas para a API.
+- **Backend** em Fastify + Prisma expondo uma REST API com autenticação JWT.
+- **Banco** PostgreSQL (imagem `postgis/postgis:16-3.4-alpine`).
+- **Cache/sessão**: Redis.
+- **Storage**: MinIO (S3-compatible).
+- **Orquestração local e de produção**: Docker Compose.
+- **CI/CD**: GitHub Actions publicando imagens em GHCR e disparando webhook do Portainer.
+
+Não há serviços externos obrigatórios fora desta stack. O geocoding pode usar Mapbox (padrão) ou Nominatim, ambos opcionais.
+
+---
+
+## 2. Estrutura do monorepo
 
 ```text
 VestGO/
-|-- api/                     # Fastify + Prisma
-|-- web/                     # Next.js 14 App Router
-|-- infra/                   # artefatos de infra
-|-- docker-compose.yml
-|-- docker-compose.dev.yml
-|-- docker-compose.prod.yml
-|-- README.MD
-`-- ARCHITECTURE.md
+├─ api/                       # Backend Fastify + Prisma
+│  ├─ prisma/
+│  │  ├─ schema.prisma
+│  │  ├─ seed.ts
+│  │  └─ migrations/          # 15 migrations versionadas
+│  ├─ src/
+│  │  ├─ bootstrap/
+│  │  ├─ modules/
+│  │  ├─ plugins/
+│  │  ├─ shared/
+│  │  └─ server.ts
+│  ├─ Dockerfile
+│  ├─ package.json
+│  └─ tsconfig.json
+├─ web/                       # Frontend Next.js 14
+│  ├─ app/
+│  │  ├─ (public)/
+│  │  ├─ (app)/
+│  │  ├─ api/                 # Next route handlers
+│  │  └─ layout.tsx
+│  ├─ components/
+│  ├─ hooks/
+│  ├─ lib/
+│  ├─ public/
+│  ├─ styles/
+│  ├─ middleware.ts
+│  ├─ Dockerfile
+│  └─ package.json
+├─ infra/
+│  └─ postgres/init.sql       # extensions: uuid-ossp, postgis
+├─ docs/
+│  └─ PRODUCTION.md
+├─ docker-compose.yml         # ambiente padrão (build local)
+├─ docker-compose.dev.yml     # overlay de dev (volumes, watch)
+├─ docker-compose.prod.yml    # imagens GHCR + rede do NPM
+├─ .github/workflows/deploy.yml
+├─ README.md
+├─ ARCHITECTURE.md
+└─ CONTEXT.md
 ```
 
-## Frontend
+---
 
-### Organizacao de rotas
+## 3. Tecnologias e versões principais
 
-- `web/app/(public)`: landing, login, cadastro e detalhes publicos
-- `web/app/(app)`: rotas autenticadas e areas internas
-- `web/middleware.ts`: protege rotas internas e deixa a descoberta publica acessivel
+Versões a partir dos arquivos reais (`api/package.json`, `web/package.json`).
 
-### Shell e navegacao
+### Backend (`api/package.json`)
 
-- `AppShell` envolve a experiencia autenticada
-- `/mapa` pode ser usado publicamente; nesse caso o shell autenticado e suprimido
-- a navegacao principal e role-aware:
-  - `DONOR`: `/inicio`, `/mapa`, `/doar`, `/rastreio`
-  - `COLLECTION_POINT` / `NGO`: `/inicio`, `/mapa`, `/operacoes`, `/rastreio`
-  - `ADMIN`: `/inicio`, `/admin/perfis`, `/operacoes`, `/mapa`
-- o shell autenticado agora tambem fornece o contexto real de notificacoes via `NotificationsProvider`
+- Node 20 (Dockerfile: `node:20-alpine`)
+- Fastify ^4.28
+- @fastify/cors ^9, @fastify/jwt ^8
+- Prisma + @prisma/client ^5.15
+- Redis ^4.6
+- MinIO ^7.1
+- bcrypt ^5.1
+- otplib ^12 (TOTP)
+- nodemailer ^8
+- zod ^3.23
+- dotenv ^16
+- TypeScript ^5.5, tsx, ESLint
 
-### Sessao, refresh e logout controlado
+### Frontend (`web/package.json`)
 
-O frontend continua usando Auth.js com sessao JWT, mas agora com sincronizacao real com o backend:
+- Next.js 14.2.35
+- React 18.3
+- next-auth ^5.0.0-beta.30
+- @tanstack/react-query ^5.51
+- Tailwind CSS ^3.4 + tailwind-merge + @tailwindcss/typography
+- framer-motion ^11
+- three ^0.168 + @react-three/fiber + @react-three/drei
+- leaflet ^1.9 + react-leaflet ^4.2
+- @zxing/browser ^0.2 (leitura de QR)
+- react-qr-code ^2 (geração de QR)
+- lucide-react, clsx, zod
 
-- o login salva `accessToken`, `refreshToken` e expiracao do access token do backend
-- o callback `jwt` do Auth.js tenta refresh automatico quando o token esta perto de expirar
-- se o refresh falhar, a sessao recebe `RefreshAccessTokenError`
-- `AppShell` reage a esse erro e faz sign-out controlado, redirecionando para `/login?sessionExpired=1`
-- o `SessionProvider` usa refetch em foco e intervalo leve para manter a sessao coerente
+### Pipeline (deploy.yml)
 
-Isso evita o estado anterior em que o usuario parecia autenticado no frontend, mas o backend ja respondia `401` por access token expirado.
+- `actions/setup-node` com Node 24 (apenas no CI; runtime do container é Node 20)
+- `docker/build-push-action@v7` publicando em `ghcr.io/<owner>/vestgo-web` e `ghcr.io/<owner>/vestgo-api`
+- Webhook do Portainer disparado após publicação
 
-### Paginas relevantes
+---
 
-- `/inicio`: branch minima por papel
-- `/doar`: wizard real, mas so para `DONOR`
-- `/operacoes`: fila operacional atual
-- `/perfil/operacional`: onboarding/edicao de perfis operacionais
-- `/perfil`: resumo operacional com a UI minima de parceria ponto -> ONG
-- `/inicio`: para papeis operacionais, tambem funciona como dashboard/contexto de retirada
-- `/notificacoes`: listagem real de notificacoes do usuario autenticado
-- `/mapa`: descoberta publica com busca real e modo opcional de selecao para o wizard
-- `/pontos`: redireciona para `/mapa`
+## 4. Frontend
 
-### Wizard de doacao
+### 4.1 Organização de rotas
 
-O wizard em `web/app/(app)/doar/page.tsx` continua client-side, mas possui um contrato explicito com o mapa:
+App Router em `web/app/`:
 
-- o rascunho da doacao e preservado em `sessionStorage`
-- a etapa 3 pode abrir `/mapa` em modo de selecao
-- ao confirmar um ponto no mapa, o retorno para `/doar` aplica `selectedPointId`
-- se o ponto escolhido nao estiver na lista curta carregada pelo wizard, o frontend hidrata esse ponto via `GET /collection-points/:id?forDonation=true`
+- `web/app/(public)/`:
+  - `page.tsx` (landing)
+  - `login/`, `cadastro/`
+  - `mapa/` (mapa público sem shell autenticado)
+  - `confirmar-email/`, `esqueci-senha/`, `redefinir-senha/`, `encerrar-conta/`
+- `web/app/(app)/`:
+  - `inicio/`, `mapa/`, `doar/`, `rastreio/`, `rastreio/[id]/`
+  - `operacoes/`, `notificacoes/`, `suporte/`
+  - `perfil/` (resumo), `perfil/operacional/`, `perfil/privacidade/`
+  - `configuracoes/`, `configuracoes/perfil/`
+  - `admin/perfis/`
+  - `pontos/` (redireciona para `/mapa`)
+- `web/app/api/`:
+  - `auth/[...nextauth]/route.ts` — handler do Auth.js
+  - `backend/[...path]/route.ts` — proxy para o backend (resolve CORS no navegador)
 
-Isso evita perda de contexto ao sair do wizard e permite concluir a doacao com o ponto realmente escolhido no mapa.
+### 4.2 Middleware (`web/middleware.ts`)
 
-### Regras de elegibilidade no fluxo doador
+- Define rotas protegidas: `/inicio`, `/doar`, `/rastreio`, `/operacoes`, `/configuracoes`, `/perfil`, `/notificacoes`, `/suporte`.
+- Redireciona para `/login?callbackUrl=...` quando o `accessToken` não está na sessão.
+- Redireciona para `/inicio` quando usuário autenticado tenta acessar `/login` ou `/cadastro`.
 
-- o fluxo doador nunca seleciona `NGO` como destino
-- a busca de pontos para doacao usa `forDonation=true` no backend
-- pontos sem parceria `ACTIVE` continuam visiveis, mas ficam indisponiveis para confirmacao
-- a UI mostra esse estado como `Aguardando ONG`
+### 4.3 Sessão e refresh
 
-### Formularios operacionais e endereco inteligente
+- Auth.js (next-auth v5 beta) com `Credentials` provider em `web/lib/auth.ts`.
+- O backend retorna `accessToken`, `refreshToken` e expiração no `/auth/login`. Esses dados são guardados na sessão JWT do Auth.js.
+- O callback `jwt` tenta refresh quando o access token está perto de expirar; em falha, marca `RefreshAccessTokenError` e o `AppShell` força sign-out.
+- `SessionProvider` usa refetch em foco e em intervalo leve.
 
-Os formularios operacionais em `web/components/profile/operational-profile-form.tsx` agora usam endereco estruturado:
+### 4.4 Comunicação com o backend
 
-- `address`: logradouro
-- `addressNumber`: numero
-- `addressComplement`: complemento
-- `neighborhood`, `city`, `state`, `zipCode`
-- `latitude`, `longitude`
+- No navegador: chamadas vão para `/api/backend/...`, que é o proxy em `web/app/api/backend/[...path]/route.ts`. O proxy reenvia para `INTERNAL_API_URL` ou `NEXT_PUBLIC_API_URL`.
+- No SSR: `web/lib/api.ts` usa `INTERNAL_API_URL` direto.
 
-Fluxo atual no frontend:
+### 4.5 Estado e dados
 
-- o usuario digita o endereco base
-- o hook `web/hooks/use-address-suggestions.ts` aplica debounce e chama o backend
-- ao selecionar uma sugestao, o formulario preenche automaticamente os campos disponiveis
-- as coordenadas sugeridas ficam visiveis antes do save
-- o backend continua sendo a fonte autoritativa para persistencia e geocoding final
+- `@tanstack/react-query` para cache HTTP em vários componentes.
+- `web/hooks/use-notifications.tsx` mantém estado das notificações com proteção contra refetch fora de ordem (request versioning).
+- `web/hooks/use-address-suggestions.ts` aplica debounce e chama `/addresses/suggestions`.
 
-### Dashboards operacionais em `/inicio`
+### 4.6 Componentes relevantes
 
-Sem abrir uma nova area pesada nesta fase, `/inicio` foi expandido como dashboard por papel:
+- `components/layout/app-shell.tsx`, `sidebar.tsx`, `topbar.tsx`, `bottom-nav.tsx`, `theme-provider.tsx`, `navigation.ts` (nav role-aware).
+- `components/map/mapa-page-content.tsx`, `collection-map.tsx` — modos exploração e seleção.
+- `components/profile/operational-profile-form.tsx` e `operational-profile-summary.tsx`.
+- `components/donations/operational-board.tsx`, `status-action-panel.tsx`, `post-donation-rating.tsx`, `donation-status.ts`.
+- `components/operations/code-qr-card.tsx`, `operational-code-scanner.tsx`, `operational-batches-panel.tsx`, `operational-batch-trace-card.tsx`, `pickup-requests-panel.tsx`.
+- `components/auth/email-verification-reminder.tsx`.
+- `components/gamification/impact-widgets.tsx`.
+- `components/branding/vestgo-logo.tsx`, `vestgo-mark.tsx`.
+- `components/layout/account-session-guard.tsx` — guarda que reage a expiração da sessão.
+- `components/layout/cookie-consent-banner.tsx` + `web/lib/cookie-consent.ts` — banner de consentimento de cookies.
+- `web/lib/cpf.ts`, `web/lib/phone.ts`, `web/lib/brazil-locations.ts` — utilitários client-side espelhando a validação do backend.
 
-- `COLLECTION_POINT`: estado do perfil, parceria ativa, pendencias de retirada e acoes de aprovar/rejeitar
-- `NGO`: estado do perfil, parceria ativa, historico de retiradas e acao de solicitar retirada
-- `ADMIN`: visao sintetica de governanca com aprovacoes iniciais, revisoes pendentes e alertas relevantes
+### 4.7 Navegação por papel (`components/layout/navigation.ts`)
 
-`/operacoes` continua sendo a fila operacional compartilhada para execucao detalhada.
+- `DONOR`: `/inicio`, `/mapa`, `/doar`, `/rastreio`.
+- `COLLECTION_POINT` e `NGO`: `/inicio`, `/mapa`, `/operacoes`, `/rastreio`.
+- `ADMIN`: `/inicio`, `/admin/perfis`, `/operacoes`, `/mapa`.
 
-### Distincao entre rastreio e operacoes
+---
 
-Para papeis operacionais, `/rastreio` deixou de redirecionar para `/operacoes`.
+## 5. Backend
 
-Agora:
+### 5.1 Bootstrap (`api/src/server.ts`)
 
-- `/rastreio` funciona como visao operacional read-only de timeline e acompanhamento
-- `/operacoes` continua sendo a fila de trabalho acionavel
+- Carrega `dotenv`.
+- Registra plugins: `prisma`, `redis`, `storage` (MinIO), `auth` (decora Fastify com `authenticate`).
+- Registra `@fastify/cors` com lista derivada de `CORS_ORIGIN`.
+- Registra `@fastify/jwt` com `JWT_SECRET` e expiração `JWT_EXPIRES_IN`.
+- Após `app.ready()`, executa `ensureBootstrapAdmin` (idempotente) e ouve em `0.0.0.0:PORT`.
 
-Isso elimina a ambiguidade anterior em que os dois itens pareciam levar ao mesmo lugar.
+### 5.2 Plugins (`api/src/plugins/`)
 
-### Governanca inicial e revisoes publicas
+- `prisma.ts` — instancia o `PrismaClient` e faz `decorate('prisma', ...)`.
+- `redis.ts` — cliente Redis (rate limit, desafios 2FA, setup TOTP).
+- `storage.ts` — cliente MinIO.
+- `auth.ts` — decorator `fastify.authenticate` que valida JWT e injeta `request.user` (id, email, role, sessionId).
 
-O fluxo administrativo agora diferencia dois tipos de pendencia:
+### 5.3 Módulos (`api/src/modules/`)
 
-- aprovacao inicial de novos perfis operacionais (`publicProfileState = PENDING`)
-- revisoes publicas pendentes em perfis ja publicados
+| Módulo | Arquivos | Prefixo |
+| --- | --- | --- |
+| auth | `auth.ts`, `auth-sessions.ts`, `auth-totp.ts`, `auth-crypto.ts` | `/auth` |
+| profiles | `profiles.ts`, `profile-shared.ts` | `/profiles` |
+| admin | `admin-profiles.ts` | `/admin/profiles` |
+| addresses | `addresses.ts` | `/addresses` |
+| collection-points | `collection-points.ts` | `/collection-points` |
+| donations | `donations.ts` | `/donations` |
+| notifications | `notifications.ts` | `/notifications` |
+| partnerships | `partnerships.ts` | `/partnerships` |
+| pickup-requests | `pickup-requests.ts` | `/pickup-requests` |
+| operational-batches | `operational-batches.ts` | `/operational-batches` |
+| operational-donations | `operational-donations.ts` | `/operational-donations` |
+| uploads | `uploads.ts` | `/uploads` |
+| health | `health.ts` | `/health` |
 
-`/admin/perfis` deixou de filtrar revisoes pendentes por padrao, para que novos perfis aparecam corretamente na fila de aprovacao inicial.
+### 5.4 Endpoints reais
 
-### Mapa e descoberta publica
+Lista derivada diretamente do código (`grep` em `api/src/modules`).
 
-`web/components/map/mapa-page-content.tsx` agora trabalha com duas camadas separadas:
+**Health**
 
-- busca textual de parceiros cadastrados
-- sugestoes de endereco/lugar para recentralizar o mapa
+- `GET /health`
 
-Essa separacao evita churn desnecessario no Leaflet.
-
-Comportamentos ativos:
-
-- tentativa automatica de `navigator.geolocation` ao abrir o mapa
-- fallback previsivel para Sorocaba quando a localizacao nao esta disponivel
-- selecao visual de ponto na lista e no marcador
-- confirmacao explicita antes de retornar ao wizard
-- correcao de `setView` e `invalidateSize()` para evitar cortes, areas brancas e loops de tiles
-
-### Notificacoes no frontend
-
-A UI atual de notificacoes foi preservada e ligada ao backend real:
-
-- `web/hooks/use-notifications.tsx` centraliza listagem, contador e marcacao como lida
-- `web/components/layout/app-shell.tsx` injeta o provider no shell autenticado
-- `web/components/layout/topbar.tsx` mostra preview e contador real
-- `web/app/(app)/notificacoes/page.tsx` usa os dados persistidos do backend
-
-Nao ha websocket nesta fase. O consumo atual usa refetch controlado:
-
-- carga inicial
-- foco da janela
-- `visibilitychange`
-- polling leve
-
-O provider tambem protege o estado local contra respostas fora de ordem:
-
-- request versioning
-- reconciliacao apos mutation
-- protecao para que `mark as read` e `read-all` nao sejam sobrescritos por refetch antigo
-
-## Backend
-
-### Modulos principais
-
-- `auth`: login, cadastro, refresh e logout
-- `profiles`: leitura e edicao do proprio perfil
-- `donations`: criacao, listagem, detalhe, timeline e mudanca de status
-- `collection-points`: descoberta publica e detalhe de ponto/ONG
-- `partnerships`: solicitacao e resposta minima de parceria operacional
-- `pickup-requests`: solicitacao e resposta minima de retirada entre ONG e ponto parceiro
-- `addresses`: sugestoes/autocomplete de endereco
-- `notifications`: listagem e leitura de notificacoes persistidas
-- `admin-profiles`: governanca minima de perfis operacionais
-
-### Endpoints importantes
+**Auth (`api/src/modules/auth/auth.ts`)**
 
 - `POST /auth/register`
 - `POST /auth/login`
+- `POST /auth/2fa/verify-login`
 - `POST /auth/refresh`
-- `POST /donations`
-- `GET /donations`
-- `GET /donations/:id`
-- `PATCH /donations/:id/status`
+- `POST /auth/logout` (autenticado)
+- `GET /auth/me` (autenticado)
+- `POST /auth/change-password` (autenticado)
+- `GET /auth/sessions` (autenticado)
+- `DELETE /auth/sessions/:id` (autenticado, não pode revogar a atual)
+- `POST /auth/sessions/revoke-others` (autenticado)
+- `GET /auth/2fa/status` (autenticado)
+- `POST /auth/2fa/setup` (autenticado)
+- `POST /auth/2fa/confirm` (autenticado)
+- `POST /auth/2fa/disable` (autenticado)
+- `POST /auth/2fa/recovery-codes/regenerate` (autenticado)
+- `POST /auth/verify-email`
+- `POST /auth/request-email-verification` (autenticado)
+- `POST /auth/account-deletion/request` (autenticado)
+- `POST /auth/account-deletion/confirm`
+- `POST /auth/request-account-deletion` (autenticado, alias mantido para compatibilidade)
+
+> **Pendentes (chamados pelo frontend, mas ainda sem rota no backend)**: `POST /auth/request-password-reset` e `POST /auth/reset-password`. O template `passwordResetTemplate` já existe em `api/src/shared/email-templates.ts` e o utilitário `UserToken` (tipo `PASSWORD_RESET`) também — o que falta é criar as duas rotas e disparar o e-mail.
+
+**Profiles**
+
 - `GET /profiles/me`
 - `PATCH /profiles/me`
-- `GET /collection-points`
-- `GET /collection-points/:id`
-- `GET /partnerships`
-- `POST /partnerships`
-- `PATCH /partnerships/:id/status`
-- `GET /pickup-requests`
-- `POST /pickup-requests`
-- `PATCH /pickup-requests/:id/status`
-- `GET /addresses/suggestions`
-- `GET /notifications`
-- `PATCH /notifications/:id/read`
-- `PATCH /notifications/read-all`
+- `PATCH /profiles/me/email-preferences`
+
+**Admin profiles**
+
 - `GET /admin/profiles`
 - `PATCH /admin/profiles/:id/status`
 - `PATCH /admin/profiles/:id/revision`
 
-## Modelo de papeis
+**Collection points (público)**
 
-Papeis atuais no schema Prisma:
+- `GET /collection-points`
+- `GET /collection-points/:id`
 
-- `DONOR`
-- `COLLECTION_POINT`
-- `NGO`
-- `ADMIN`
+**Donations**
 
-### Regras ativas
+- `POST /donations`
+- `GET /donations`
+- `GET /donations/operations`
+- `GET /donations/:id`
+- `GET /donations/:id/timeline`
+- `PATCH /donations/:id/status`
 
-- `POST /donations` aceita apenas `DONOR`
-- `COLLECTION_POINT` faz a etapa inicial da operacao
-- `NGO` conclui etapas posteriores
-- `ADMIN` acompanha e modera
-- o cadastro publico so aceita `DONOR`, `COLLECTION_POINT` e `NGO`
-- o doador so consegue concluir doacao com `COLLECTION_POINT` que possua parceria `ACTIVE`
+**Notifications**
 
-## Perfil operacional
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `PATCH /notifications/read-all`
 
-Os perfis operacionais usam um checklist para derivar o estado publico:
+**Partnerships**
 
-- `DRAFT`
-- `PENDING`
-- `ACTIVE`
-- `VERIFIED`
+- `GET /partnerships`
+- `POST /partnerships`
+- `PATCH /partnerships/:id/status`
 
-Arquivos centrais:
+**Pickup requests**
 
-- `api/src/modules/profiles/profile-shared.ts`
-- `api/src/modules/profiles/profiles.ts`
-- `web/components/profile/operational-profile-form.tsx`
+- `GET /pickup-requests`
+- `POST /pickup-requests`
+- `PATCH /pickup-requests/:id/status`
 
-### Dados operacionais estruturados
+**Operational batches**
 
-Nesta fase o perfil operacional passou a ter estruturas mais fortes para exibicao e governanca:
+- `GET /operational-batches`
+- `GET /operational-batches/by-code/:code`
+- `POST /operational-batches`
+- `GET /operational-batches/:id`
+- `POST /operational-batches/:id/items`
+- `DELETE /operational-batches/:id/items/:itemId`
+- `POST /operational-batches/:id/mark-ready`
+- `POST /operational-batches/:id/dispatch`
+- `POST /operational-batches/:id/confirm-delivery`
+- `POST /operational-batches/:id/close`
+- `POST /operational-batches/:id/cancel`
 
-- `openingSchedule` (`Json`) com dias da semana, abertura e fechamento
-- `openingHoursExceptions` para observacoes simples de excecao
-- `accessibilityFeatures` (`String[]`) como lista estruturada
-- `accessibilityDetails` como complemento opcional
+**Operational donations**
 
-No frontend, a UX de horario continua estruturada, mas agora com presets rapidos para aplicar em lote:
+- `GET /operational-donations/by-code/:code`
 
-- segunda a sexta
-- segunda a sabado
-- todos os dias
-- limpar grade
+**Addresses**
 
-`openingHours` continua existindo como resumo legivel/compativel, derivado da estrutura principal.
+- `GET /addresses/suggestions`
+- `GET /addresses/reverse`
 
-### Revisao pendente de alteracoes publicas
+**Uploads**
 
-Para perfis `ACTIVE` e `VERIFIED`, campos publicos criticos nao sao mais sobrescritos imediatamente.
+- `POST /uploads`
+- `GET /uploads/:key`
 
-O backend usa os campos do proprio `User` para guardar a revisao pendente:
+### 5.5 Validação e erros
 
-- `pendingPublicRevision`
-- `pendingPublicRevisionStatus`
-- `pendingPublicRevisionFields`
-- `pendingPublicRevisionSubmittedAt`
-- `pendingPublicRevisionReviewedAt`
-- `pendingPublicRevisionReviewNotes`
+- Toda entrada validada com `zod`.
+- Erros centralizados em `api/src/shared/errors.ts` (`AppError`, `UnauthorizedError`, `NotFoundError`, `ConflictError`, `toErrorResponse`).
+- Respostas JSON consistentes (`error`, `message`, `statusCode`).
 
-Comportamento atual:
+### 5.6 Infra compartilhada
 
-- `PATCH /profiles/me` grava alteracoes criticas em revisao pendente
-- `GET /profiles/me` faz overlay privado dessa revisao para que o usuario veja o que enviou
-- endpoints publicos continuam lendo apenas os campos publicados
-- `PATCH /admin/profiles/:id/revision` aprova ou rejeita a revisao
-- somente na aprovacao o payload pendente e promovido para os campos publicos do perfil
+- `api/src/shared/geocoding.ts` — wrapper de provider (`mapbox` padrão; `nominatim` alternativo).
+- `api/src/shared/notifications.ts` — criação de notificações in-app.
+- `api/src/shared/email.ts` + `email-templates.ts` + `operational-emails.ts` — SMTP via nodemailer.
+- `api/src/shared/rate-limit.ts` — utilitários para limitar por IP / chave.
+- `api/src/shared/user-tokens.ts` — geração e consumo seguro de `UserToken` (tipos `EMAIL_VERIFICATION`, `PASSWORD_RESET`, `ACCOUNT_DELETION`). Já consumido pelas rotas de verificação de e-mail e encerramento de conta. Pendente plug-in nas rotas de redefinição de senha.
+- `api/src/shared/cpf.ts` — validação de CPF.
+- `api/src/shared/phone.ts` — normalização e validação de telefone brasileiro.
+- `api/src/shared/brazil-locations.ts` — lista de estados e cidades brasileiras usada por autocompletes.
 
-## Geocoding e sugestoes de endereco
+---
 
-### Implementacao atual
+## 6. Banco de dados
 
-- arquivo central: `api/src/shared/geocoding.ts`
-- provider padrao: Nominatim (`https://nominatim.openstreetmap.org/search`)
-- entrada: endereco estruturado do perfil operacional ou consulta livre para sugestoes
-- saida:
-  - `latitude` e `longitude` persistidas no usuario
-  - lista de sugestoes de endereco com dados normalizados
-- estrategia:
-  - geocoding estruturado primeiro, com fallback textual progressivo
-  - sugestoes com vies geografico, cache curto e ordenacao por relevancia/distancia
+### 6.1 Estratégia
 
-### Fluxo de geocoding no save
+- `postgresql` via Prisma (`api/prisma/schema.prisma`).
+- Migrations versionadas em `api/prisma/migrations/` (15 migrations no commit atual).
+- Em todos os ambientes a stack roda `npx prisma migrate deploy` no startup do `vestgo-api` (definido nos compose files).
+- `prisma db push` **não é** usado como mecanismo padrão.
 
-1. usuario salva o perfil operacional
-2. backend valida se o endereco esta completo o suficiente
-3. backend normaliza CEP, estado e composicao do endereco
-4. backend chama o provider com tentativas progressivas
-5. coordenadas resolvidas sao persistidas
-6. checklist e estado publico passam a refletir a capacidade de descoberta no mapa
+### 6.2 Modelos principais (resumo do `schema.prisma`)
 
-Se o endereco estiver completo, mas nao puder ser geolocalizado, o backend responde erro de validacao em vez de persistir coordenadas inconsistentes.
-Se o provider estiver indisponivel, o backend responde erro temporario de servico.
+- `User` — usuário com campos pessoais e operacionais (endereço estruturado, lat/long, organização, descrição, regras, categorias, openingSchedule, accessibility, galleryImageUrls, pendingPublicRevision, anonymizedAt, etc.).
+- `UserToken` — tokens com tipo `EMAIL_VERIFICATION` / `PASSWORD_RESET` / `ACCOUNT_DELETION`.
+- `UserSession` — sessão de refresh token (`refreshTokenHash`, `userAgent`, `ipAddress`, `expiresAt`, `revokedAt`).
+- `UserTwoFactor` + `UserTwoFactorRecoveryCode` — segredo TOTP criptografado e códigos de recuperação.
+- `Donation` + `DonationItem` + `DonationEvent` — doação com itens e timeline.
+- `OperationalPartnership` — parceria ponto ↔ ONG (`PENDING` / `ACTIVE` / `REJECTED`).
+- `OperationalBatch` + `OperationalBatchItem` — lote operacional ligando várias doações para uma retirada.
+- `PickupRequest` — solicitação de retirada (`PENDING` / `APPROVED` / `REJECTED`).
+- `Notification` — notificações in-app por usuário com `type`, `title`, `body`, `payload`, `readAt`.
 
-### Fluxo de sugestao
+### 6.3 Enums
 
-`GET /addresses/suggestions` entrega uma camada controlada de autocomplete:
+`UserRole`, `DonationStatus`, `ItemCategory`, `PublicProfileState`, `OperationalPartnershipStatus`, `NotificationType`, `PickupRequestStatus`, `OperationalBatchStatus`, `PublicProfileRevisionStatus`, `UserTokenType`.
 
-- minimo de 3 caracteres
-- limite curto de resultados
-- vies por `lat/lng` quando disponivel
-- fallback para Sorocaba quando nao houver localizacao atual
-- cache em memoria para reduzir carga no provider externo
+### 6.4 Cuidados sensíveis
 
-## Descoberta publica
+- `passwordHash` (bcrypt), `tokenHash` (sha256), `refreshTokenHash` (sha256), `secretEncrypted` (AES com `TWO_FACTOR_ENCRYPTION_KEY`).
+- Anonimização: `User.anonymizedAt` é o ponto previsto para o fluxo de encerramento de conta — o backend já tem o campo, mas o endpoint que dispara isso ainda é pendente.
+- Backups: política não documentada no repositório (pendência operacional, ver `docs/PRODUCTION.md`).
 
-### Fonte unica
+---
 
-`GET /collection-points` e a fonte real para mapa e busca.
+## 7. Infraestrutura local (Docker)
 
-### Regras da consulta
+`docker-compose.yml` define cinco serviços:
 
-- inclui `COLLECTION_POINT` e `NGO`
-- inclui apenas perfis `ACTIVE` ou `VERIFIED`
-- exige `latitude` e `longitude` persistidas
-- aceita filtro por `category`
-- aceita filtro por `role`
-- aceita `forDonation=true` para blindar o fluxo doador contra `NGO`
-- aceita `search` por nome, organizacao, endereco, numero, bairro, CEP, cidade e estado
-- aceita busca por proximidade com `lat`, `lng` e `radius`
+| Serviço | Imagem | Função | Portas (host) |
+| --- | --- | --- | --- |
+| `vestgo-web` | build de `./web` | Next.js | 3000 |
+| `vestgo-api` | build de `./api` | Fastify + Prisma | 3001 |
+| `vestgo-db` | `postgis/postgis:16-3.4-alpine` | PostgreSQL | 5433 → 5432 |
+| `vestgo-redis` | `redis:7-alpine` | Cache + 2FA | — |
+| `vestgo-minio` | `minio/minio:latest` | Storage + console | 9000, 9001 |
 
-### Comportamento do mapa
+Detalhes:
 
-O mapa usa dois modos no frontend:
+- `vestgo-api` espera `vestgo-db`, `vestgo-redis` e `vestgo-minio` saudáveis e roda `npx prisma migrate deploy && npm run start`.
+- Redis exige senha (`REDIS_PASSWORD`) e roda com `--maxmemory 256mb --maxmemory-policy allkeys-lru`.
+- `infra/postgres/init.sql` ativa `uuid-ossp` e `postgis` no primeiro start do banco.
+- O alias de rede `vestgo-storage` aponta para o container do MinIO.
+- `docker-compose.dev.yml` é um overlay que troca o comando para `npm run dev` e monta volumes locais.
 
-- modo exploracao: lista parceiros publicos e detalhes gerais
-- modo selecao: restringe a lista a `COLLECTION_POINT` e so confirma pontos elegiveis para o fluxo de doacao
+`docker-compose.prod.yml`:
 
-Comportamentos implementados:
+- usa imagens publicadas (`${WEB_IMAGE}`, `${API_IMAGE}`) e `pull_policy: always`;
+- conecta os serviços de borda na rede externa `${NPM_EXTERNAL_NETWORK:-rvproxy_npm_backend_network}` para integrar com Nginx Proxy Manager;
+- `vestgo-storage` substitui `vestgo-minio` como nome do serviço.
 
-- geolocalizacao automatica controlada
-- fallback previsivel para Sorocaba
-- busca textual sincronizada com os resultados proximos
-- camada adicional de sugestao de endereco/lugar
-- distincao visual entre `COLLECTION_POINT`, `NGO` e ponto `Aguardando ONG`
+---
 
-## Login, cadastro e sessao
+## 8. Variáveis de ambiente
 
-O login via `Credentials` usa Auth.js com sessao JWT:
+Todas as variáveis abaixo aparecem em `.env.example`, `docker-compose.yml`, `docker-compose.prod.yml` ou `.github/workflows/deploy.yml`. Não inclui segredos reais.
 
-- a tela de login saneia `callbackUrl` e estabiliza a sessao antes do redirect
-- o cadastro usa o mesmo principio para evitar corrida entre `signIn`, cookie e navegacao
-- o middleware continua protegendo as rotas internas
-- `/inicio` recebe a sessao server-side via `auth()` ja no primeiro acesso autenticado
+### URLs e domínios
 
-### Cadastro orientado por perfil
+- `APP_PUBLIC_URL` — URL pública do frontend.
+- `WEB_PUBLIC_URL` — usado por templates de e-mail para gerar links absolutos.
+- `API_PUBLIC_URL` — URL pública da API.
+- `STORAGE_PUBLIC_URL` — URL pública do MinIO (S3 público).
+- `NEXT_PUBLIC_API_URL` — URL da API exposta ao navegador.
+- `INTERNAL_API_URL` — URL interna (rede Docker) usada no SSR e no proxy.
+- `NEXTAUTH_URL` — base do Auth.js.
+- `AUTH_TRUST_HOST` — confiança em proxy reverso (true em produção atrás de NPM).
 
-- os cards da tela de login enviam o usuario para `/cadastro` com o perfil correto
-- o cadastro aceita aliases e enums reais para evitar dupla escolha de papel
-- perfis operacionais seguem para `/perfil/operacional?setup=1` apos autenticacao
+### Auth
 
-## Dados e persistencia
+- `NEXTAUTH_SECRET` / `AUTH_SECRET` — segredo do Auth.js.
+- `JWT_SECRET` — assinatura do access token.
+- `JWT_REFRESH_SECRET` — assinatura do refresh token.
+- `JWT_EXPIRES_IN` (default `15m`) e `JWT_REFRESH_EXPIRES_IN` (default `7d`).
+- `TWO_FACTOR_ENCRYPTION_KEY` — chave hex de 32 bytes para criptografar segredos TOTP.
+
+### CORS / proxy
+
+- `CORS_ORIGIN` — lista separada por vírgula com origens permitidas.
+- `TRUST_PROXY` — habilita confiança em headers `X-Forwarded-*`.
 
 ### Banco
 
-- PostgreSQL via Prisma
-- schema central em `api/prisma/schema.prisma`
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`.
+- `DATABASE_URL` — string de conexão (ex.: `postgresql://vestgo:vestgo@vestgo-db:5432/vestgo`).
 
-### User
+### Redis
 
-O usuario agora concentra tambem os campos estruturados de endereco:
+- `REDIS_PASSWORD`, `REDIS_URL`.
 
-- `address`
-- `addressNumber`
-- `addressComplement`
-- `neighborhood`
-- `city`
-- `state`
-- `zipCode`
-- `latitude`
-- `longitude`
+### Storage (MinIO)
 
-### OperationalPartnership
+- `MINIO_ENDPOINT` (alias interno `vestgo-storage`).
+- `MINIO_PORT` (default 9000).
+- `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`.
+- `MINIO_CONSOLE_URL` — URL do console.
+- `MINIO_BROWSER_REDIRECT_URL` (compose) — para SSO de retorno do console.
 
-O modelo existente foi reaproveitado e endurecido:
+### E-mail
 
-- `status`: `PENDING`, `ACTIVE`, `REJECTED`
-- `isActive`: mantido por compatibilidade imediata
-- o status passou a ser a referencia principal para elegibilidade e resposta operacional
+- `EMAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`.
+- `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_NAME`, `SMTP_FROM_ADDRESS`.
+- `EMAIL_VERIFICATION_EXPIRES_MINUTES`, `PASSWORD_RESET_EXPIRES_MINUTES`, `ACCOUNT_DELETION_EXPIRES_MINUTES` — TTLs já listados em `.env.example`, mas só serão consumidos quando as rotas pendentes forem implementadas.
 
-Fluxo minimo atual:
+### Geocoding
 
-1. `COLLECTION_POINT` solicita parceria
-2. `NGO` aprova ou rejeita
-3. apenas `ACTIVE` torna o ponto elegivel para doacoes
+- `GEOCODING_PROVIDER` — `mapbox` (padrão) ou `nominatim`.
+- `GEOCODING_BASE_URL`, `GEOCODING_USER_AGENT`, `GEOCODING_ACCEPT_LANGUAGE`, `GEOCODING_COUNTRY_CODES`, `GEOCODING_TIMEOUT_MS`, `GEOCODING_EMAIL`.
+- `MAPBOX_SECRET_TOKEN`, `MAPBOX_PUBLIC_TOKEN` (também exposto como `NEXT_PUBLIC_MAPBOX_TOKEN`).
 
-### PickupRequest
+### Bootstrap admin (provisório)
 
-Nova entidade operacional minima para retirada:
+- `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`.
 
-- `operationalPartnershipId`
-- `collectionPointId`
-- `ngoId`
-- `status`: `PENDING`, `APPROVED`, `REJECTED`
-- `requestedDate`
-- `timeWindowStart`
-- `timeWindowEnd`
-- `notes`
-- `responseNotes`
-- `respondedAt`
-- `createdAt`
-- `updatedAt`
+### Deploy / produção
 
-Fluxo atual:
+- `WEB_IMAGE`, `API_IMAGE` — tags GHCR.
+- `NPM_EXTERNAL_NETWORK` — rede externa do Nginx Proxy Manager.
+- `PORTAINER_WEBHOOK_URL` (secret) — webhook que redepliará a stack.
+- `WEB_HEALTHCHECK_URL`, `API_HEALTHCHECK_URL` — usados pelo job de healthcheck do GitHub Actions.
 
-1. `NGO` cria uma solicitacao de retirada para uma parceria `ACTIVE`
-2. `COLLECTION_POINT` aprova ou rejeita
-3. a solicitacao pode carregar data prevista e janela de horario
-4. a mesma parceria nao pode manter mais de uma retirada `PENDING`
-5. a solicitacao alimenta dashboard e notificacoes de ambos os papeis
+---
 
-### Notification
+## 9. Fluxos técnicos principais
 
-Nova entidade persistida para notificacoes in-app:
+### 9.1 Autenticação
 
-- `userId`
-- `type`
-- `title`
-- `body`
-- `href`
-- `payload`
-- `readAt`
-- `createdAt`
-- `updatedAt`
+1. `POST /auth/register` ou `POST /auth/login` valida credenciais com bcrypt.
+2. Em caso de 2FA habilitado, `/auth/login` retorna um `challengeId` e exige `POST /auth/2fa/verify-login`.
+3. Sucesso cria uma `UserSession` com `refreshTokenHash` e devolve `accessToken` (15 min default) + `refreshToken` (7 dias default).
+4. O frontend guarda os tokens na sessão JWT do Auth.js.
+5. `POST /auth/refresh` valida o refresh token, compara com o hash da sessão e rotaciona ambos.
+6. `POST /auth/logout` revoga a sessão atual.
+7. Mudança de senha (`/auth/change-password`) revoga todas as sessões e emite tokens novos.
 
-Tipos atualmente usados:
+### 9.2 2FA (TOTP)
 
-- `DONATION_STATUS`
-- `DONATION_POINTS`
-- `BADGE_EARNED`
-- `DONATION_CREATED_FOR_POINT`
-- `PARTNERSHIP_REQUEST_RECEIVED`
-- `PARTNERSHIP_STATUS_CHANGED`
-- `PICKUP_REQUEST_CREATED`
-- `PICKUP_REQUEST_RECEIVED`
-- `PICKUP_REQUEST_STATUS_CHANGED`
+1. `POST /auth/2fa/setup` gera segredo, salva em Redis com TTL e retorna `otpauthUri`.
+2. Usuário escaneia no app autenticador.
+3. `POST /auth/2fa/confirm` valida o código, criptografa o segredo (`TWO_FACTOR_ENCRYPTION_KEY`) e gera códigos de recuperação.
+4. `GET /auth/2fa/status`, `POST /auth/2fa/disable`, `POST /auth/2fa/recovery-codes/regenerate` completam o ciclo.
 
-## Eventos reais conectados a notificacoes
+### 9.3 Sessões ativas
 
-### Donation events
+- `GET /auth/sessions` lista sessões não revogadas.
+- `DELETE /auth/sessions/:id` revoga (não permite revogar a atual).
+- `POST /auth/sessions/revoke-others` revoga todas exceto a atual.
 
-`api/src/modules/donations/donations.ts` agora cria notificacoes para:
+### 9.4 Perfil operacional
 
-- nova doacao recebida no ponto
-- mudanca relevante de status para o doador
-- pontuacao atualizada quando o evento gera pontos reais
-- badge conquistada quando a condicao atual e detectavel
+- `PATCH /profiles/me` aplica regras de `profile-shared.ts` para derivar `publicProfileState` (`DRAFT` / `PENDING` / `ACTIVE` / `VERIFIED`).
+- Para perfis `ACTIVE` ou `VERIFIED`, mudanças em campos públicos críticos não são publicadas direto: viram `pendingPublicRevision` e ficam em `/admin/perfis`.
+- O backend executa geocoding no save quando o endereço está completo o suficiente.
 
-### Partnership events
+### 9.5 Doação
 
-`api/src/modules/partnerships/partnerships.ts` agora cria notificacoes para:
+1. `POST /donations` (apenas `DONOR`) cria a doação ligada a um `COLLECTION_POINT` que tenha parceria `ACTIVE`.
+2. Notificações são criadas para o doador e para o ponto.
+3. E-mail operacional "doação registrada" é enviado se `EMAIL_ENABLED=true`.
+4. `PATCH /donations/:id/status` atualiza `DonationStatus` e gera `DonationEvent` na timeline.
+5. Mudança de status pode disparar e-mail operacional e notificações in-app (`DONATION_STATUS`, `DONATION_POINTS`, `BADGE_EARNED`).
 
-- nova solicitacao de parceria recebida pela ONG
-- aprovacao ou rejeicao da solicitacao
+### 9.6 Parceria e retirada
 
-### Pickup request events
+- `COLLECTION_POINT` cria parceria com `POST /partnerships`. ONG aprova via `PATCH /partnerships/:id/status`.
+- Com parceria `ACTIVE`, a ONG cria `POST /pickup-requests`. O ponto aprova/rejeita via `PATCH /pickup-requests/:id/status`.
+- Apenas uma `PickupRequest` `PENDING` por parceria.
 
-`api/src/modules/pickup-requests/pickup-requests.ts` agora cria notificacoes para:
+### 9.7 Lote operacional
 
-- nova solicitacao de retirada recebida pelo ponto de coleta
-- criacao da retirada para a ONG que iniciou o pedido
-- aprovacao ou rejeicao da retirada para a ONG solicitante
+- `POST /operational-batches` cria lote ligado à parceria.
+- `POST /operational-batches/:id/items` adiciona doações (uma doação só pode pertencer a um lote — restrição do schema).
+- Transições explícitas: `mark-ready`, `dispatch`, `confirm-delivery`, `close`, `cancel`.
 
-### Gamificacao
+### 9.8 Uploads / storage
 
-`web/lib/gamification.ts` foi mantido estavel.
+- `POST /uploads` aceita `target` (`avatar` | `cover` | `gallery`), `contentType`, `dataBase64`.
+- Validação: tamanho ≤ 5 MB, MIME declarado, magic bytes (jpeg/png/webp).
+- Arquivos vão para o bucket MinIO definido em `MINIO_BUCKET`.
+- `GET /uploads/:key` retorna o objeto via stream.
 
-No backend, `api/src/shared/notifications.ts` espelha apenas o minimo necessario para detectar:
+### 9.9 Geocoding
 
-- pontos ganhos por eventos reais de doacao
-- badges atualmente detectaveis
+- Entrada: endereço estruturado ou consulta livre.
+- Provider configurável (`GEOCODING_PROVIDER`).
+- Cache em memória com TTL curto.
+- Erros tratados: endereço incompleto / não encontrado / provider indisponível.
 
-O mesmo arquivo contem placeholders comentados para futuras badges, sem acoplamento prematuro a UI.
+### 9.10 Notificações
 
-## Infra de apoio
+- Sem WebSocket. Frontend usa `react-query` com refetch em foco e polling leve.
+- `notifications.ts` (frontend) protege contra mutações fora de ordem.
 
-- Redis para refresh token e suporte de autenticacao
-- MinIO para storage
-- Docker Compose para stack local e deploy
+### 9.11 Verificação de e-mail, encerramento de conta, redefinição de senha
 
-## Bootstrap admin temporario
+- **Verificação de e-mail (implementado)**: `POST /auth/request-email-verification` cria um `UserToken` `EMAIL_VERIFICATION`, envia o e-mail com `emailVerificationTemplate` e dispara `POST /auth/verify-email` na confirmação. A tela `/confirmar-email` consome esse fluxo.
+- **Encerramento de conta (implementado)**: `POST /auth/account-deletion/request` envia o link de confirmação; `POST /auth/account-deletion/confirm` consome o token e anonimiza o usuário (`User.anonymizedAt`). Mantido alias `POST /auth/request-account-deletion` para compatibilidade. Tela `/encerrar-conta`.
+- **Redefinição de senha (pendente)**: `web/lib/api.ts` chama `/auth/request-password-reset` e `/auth/reset-password` e a tela `/esqueci-senha` / `/redefinir-senha` existe; o template `passwordResetTemplate` está pronto, mas as rotas no backend ainda não foram criadas.
 
-Arquivo central:
+---
 
-- `api/src/bootstrap/bootstrap-admin.ts`
+## 10. Segurança
 
-Comportamento:
+### Implementado
 
-- a API le `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD`
-- se o email nao existir como `ADMIN`, cria um admin bootstrap
-- se ja existir admin com o mesmo email, nao altera nem duplica
-- se o email ja pertencer a outro papel, apenas registra aviso no log
+- Senhas com bcrypt (salt rounds via const).
+- JWT com `JWT_SECRET` e expiração curta + refresh token rotacionado.
+- Refresh token armazenado como hash sha256 em `UserSession`.
+- 2FA TOTP com segredo criptografado (`TWO_FACTOR_ENCRYPTION_KEY`).
+- Rate limit por IP e por e-mail no login (Redis).
+- Validação rígida de inputs com `zod`.
+- Upload com whitelist de MIME e checagem de magic bytes.
+- CORS por allowlist (`CORS_ORIGIN`).
+- `TRUST_PROXY` configurável para produção atrás de proxy reverso.
+- Sessões revogáveis individualmente; mudança de senha revoga todas.
+- Cookies do Auth.js gerenciados pela própria lib (nada manual).
 
-Essa rotina e propositalmente temporaria e voltada a provisionamento inicial em ambiente real.
+### Lacunas conhecidas / pendências
 
-## Estado desta arquitetura nesta fase
+- Sem CSRF dedicado para chamadas via proxy `/api/backend` (depende da política do navegador e do `SameSite` dos cookies do Auth.js).
+- Sem auditoria de eventos (login, exclusão de sessão, mudanças de papel) em tabela dedicada.
+- Sem WAF/IDS — depende do Nginx Proxy Manager + Cloudflare se aplicável.
+- Sem rotação automática de `JWT_SECRET` ou `TWO_FACTOR_ENCRYPTION_KEY`.
+- Bootstrap admin é proposital e deve ser removido após o primeiro provisionamento (reler `BOOTSTRAP_ADMIN_*`).
+- `.env` não deve ser versionado (já está no `.gitignore`).
 
-Resolvido:
+---
 
-- vazamento do fluxo de doacao para perfis operacionais
-- criacao publica de `ADMIN`
-- latitude/longitude manual no perfil operacional
-- busca apenas visual no mapa
-- superficie mockada de `/pontos`
-- quebra do retorno do mapa para o wizard de doacao
-- recentralizacao inconsistente do Leaflet apos geolocalizacao
-- scroll vertical excessivo e cortes visuais no layout do mapa
-- corrida entre `signIn`, cookie de sessao e navegacao manual no login
-- expiracao silenciosa do access token do backend enquanto a sessao web ainda parecia valida
-- duplicidade de escolha de perfil no cadastro
-- possibilidade de ONG ser tratada como destino doador
-- falta de estado explicito para ponto sem ONG ativa
-- ausencia de fluxo minimo de parceria ponto -> ONG
-- endereco sem numero separado
-- ausencia de sugestoes/autocomplete de endereco
-- notificacoes mock sem persistencia
-- falha de preenchimento do logradouro ao selecionar sugestoes
-- corrida entre mutation/refetch que fazia notificacoes voltarem para nao lidas
-- ausencia de um modelo minimo de retirada entre ONG e ponto parceiro
-- falta de estrutura para horario de funcionamento e acessibilidade
-- sobrescrita imediata de perfis publicos aprovados sem revisao administrativa
+## 11. Estado atual da integração frontend ↔ backend
 
-Preparado para a proxima fase:
+| Área | Frontend | Backend | Estado |
+| --- | --- | --- | --- |
+| Login / cadastro / refresh / logout | OK | OK | Implementado |
+| 2FA TOTP | OK | OK | Implementado |
+| Sessões ativas | OK | OK | Implementado |
+| Perfil operacional + revisão | OK | OK | Implementado |
+| Governança admin | OK | OK | Implementado |
+| Wizard de doação | OK | OK | Implementado |
+| Mapa / descoberta pública | OK | OK | Implementado |
+| Notificações in-app | OK | OK | Implementado |
+| Parceria ponto ↔ ONG | OK | OK | Implementado |
+| Pickup requests | OK | OK | Implementado |
+| Lotes operacionais | OK | OK | Implementado |
+| Uploads (avatar/capa/galeria) | OK | OK | Implementado |
+| QR de doação | OK (zxing + react-qr-code) | OK (códigos persistidos) | Implementado |
+| Verificação de e-mail | OK | OK | Implementado |
+| Encerramento de conta | OK | OK | Implementado |
+| Recuperação de senha | OK | **Faltando rotas** | Parcial |
+| E-mail transacional de eventos não-doação | — | Apenas templates | Pendente |
+| Push notifications / WebSocket | — | — | Planejado |
 
-- proximidade operacional ponto -> ONG
-- rastreio com semantica operacional especifica
-- refinamento de notificacoes operacionais quando existirem novos eventos reais no dominio
+---
+
+## 12. Débitos técnicos identificados
+
+- Implementar `POST /auth/request-password-reset` e `POST /auth/reset-password` (frontend já assume que existem).
+- Cobertura de testes inexistente (nenhum framework configurado em `package.json`).
+- `pontos/` mantido como redirecionamento; pode ser removido em fase futura.
+- Tipos do `next-auth` ainda em beta (v5 beta.30); upgrade pode exigir ajustes.
+- `gamification.ts` no frontend tem regras locais que não são autoritativas — ainda não há fonte única no backend para badges/pontos.
+- `prisma migrate deploy` roda no startup do container — em produção é correto, mas torna o restart mais lento; aceitar como decisão consciente.
+- Não há `.env.production.example` separado do `.env.example`.
+
+---
+
+## 13. Decisões arquiteturais observadas
+
+- **Monorepo simples** sem ferramentas tipo Turborepo ou pnpm workspaces — cada app gerencia o próprio `package.json`.
+- **Proxy frontend → backend** via `web/app/api/backend/[...path]/route.ts` para evitar configurar CORS no navegador e centralizar o tráfego.
+- **Auth.js no web + JWT puro no backend** — integração via callback `jwt` que sincroniza tokens.
+- **Migrations como fonte de verdade**, não `db push`.
+- **Endereço estruturado no `User`** em vez de uma tabela separada de `Address`.
+- **Notificações por refetch/polling** — simplicidade primeiro, WebSocket depois.
+- **Bootstrap admin ambient-driven**, removível.
+- **Storage S3-like local com MinIO**, evitando dependência de S3 real em dev.
+
+---
+
+## 14. Recomendações futuras (não implementadas)
+
+- Adicionar testes (Vitest / Jest no backend, Playwright no web).
+- Centralizar logs estruturados (ex.: Loki ou Datadog) — hoje só há logger Fastify.
+- Implementar fila de jobs (BullMQ via Redis) para envio de e-mails e geocoding assíncrono.
+- Considerar `pgbouncer` quando o volume crescer.
+- Avaliar substituir `@zxing/browser` por uma alternativa mantida ativamente.
+- Documentar política de backup de Postgres e MinIO (ver `docs/PRODUCTION.md`).
+- Separar staging e produção (compose, secrets, banco).
+- Adicionar tabela de auditoria para ações sensíveis.
+
+---
+
+## 15. Apêndice — pipeline CI/CD
+
+`.github/workflows/deploy.yml` define quatro jobs encadeados:
+
+1. `web-quality` — `npm ci`, `lint`, `type-check`, `build` em `web/`.
+2. `api-quality` — idem em `api/`.
+3. `publish-images` — login no GHCR, build/push de `vestgo-web` e `vestgo-api` com tags `:latest` e `:sha-<commit>`.
+4. `deploy-production` — dispara webhook do Portainer (segredo `PORTAINER_WEBHOOK_URL`).
+5. `post-deploy-healthcheck` — `curl` em `WEB_HEALTHCHECK_URL` e `API_HEALTHCHECK_URL` com retry curto.
+
+Os jobs de publicação e deploy não rodam em pull requests (`if: github.event_name != 'pull_request'`).
