@@ -350,10 +350,12 @@ export function PostDonationRewardCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-            Reconhecimento desta entrega
+            Pontuação prevista desta entrega
           </p>
-          <p className="mt-2 text-xl font-bold text-primary-deeper">+{reward.points} pontos previstos</p>
-          <p className="mt-2 text-sm leading-7 text-gray-500">{reward.note}</p>
+          <p className="mt-2 text-xl font-bold text-primary-deeper">
+            até +{reward.potentialPoints} pontos
+          </p>
+          <p className="mt-2 text-sm leading-7 text-gray-500">{reward.pendingPointsLabel}</p>
         </div>
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
           <Award size={18} />
@@ -362,18 +364,18 @@ export function PostDonationRewardCard({
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Proxima conquista</p>
-          <p className="mt-2 text-sm font-semibold text-primary-deeper">{reward.milestone.label}</p>
-          <p className="mt-1 text-sm text-gray-500">
-            {reward.milestone.current}/{reward.milestone.target} pontos neste marco
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">No ponto de coleta</p>
+          <p className="mt-2 text-sm font-semibold text-primary-deeper">
+            +{reward.confirmationPoints} pontos
           </p>
+          <p className="mt-1 text-sm text-gray-500">{reward.confirmationLabel}</p>
         </div>
         <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Meta do mes</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Após distribuição da ONG</p>
           <p className="mt-2 text-sm font-semibold text-primary-deeper">
-            {reward.monthlyGoal.current}/{reward.monthlyGoal.target} entregas
+            +{reward.distributionBonus} pontos
           </p>
-          <p className="mt-1 text-sm text-gray-500">Seu proximo registro fecha o ciclo do mes.</p>
+          <p className="mt-1 text-sm text-gray-500">{reward.distributionLabel}</p>
         </div>
       </div>
 

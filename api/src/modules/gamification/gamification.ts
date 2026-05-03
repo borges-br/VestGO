@@ -9,7 +9,7 @@ import { FastifyInstance } from 'fastify';
 import { AppError, ForbiddenError, NotFoundError, toErrorResponse } from '../../shared/errors';
 import {
   CONFIRMED_DONATION_STATUSES,
-  getDonationPointsValue,
+  calculateDonationPointsBreakdown,
   isConfirmedDonationStatus,
 } from '../../shared/donation-points';
 import { createNotifications } from '../../shared/notifications';
@@ -108,40 +108,44 @@ const ACHIEVEMENT_TIER_POINTS: Record<AchievementTier, number> = {
 const ACHIEVEMENT_SOURCE_PREFIX = 'achievement';
 const MAX_SYNC_ITERATIONS = 5;
 
-// Curva oficial de 30 niveis exposta pelo endpoint de gamificacao.
-// Mantem os niveis 1-10 definidos pelo produto e os niveis 11-30
-// alinhados com web/lib/gamification.ts ate existir um contrato compartilhado.
+// Curva oficial de 30 niveis. Niveis 20-30 confirmados pelo produto, baseados em
+// 10 pontos por item confirmado no ponto: nivel 20 = 4500 pts (450 itens) e
+// nivel 30 = 10000 pts (1000 itens), com saltos de 500 pts (50 itens) por nivel.
+//
+// Niveis 1-19 sao uma estimativa razoavel ate o produto confirmar a tabela
+// definitiva: a curva sobe de forma incremental e suave para evitar que o
+// usuario fique preso em um unico nivel apos as primeiras doacoes.
 const donorLevelBase = [
   { name: 'Primeiro Gesto', color: 'gray', minPoints: 0 },
-  { name: 'Doador Iniciante', color: 'primary', minPoints: 80 },
-  { name: 'Semeador Solidario', color: 'emerald', minPoints: 240 },
-  { name: 'Aliado do Bem', color: 'amber', minPoints: 500 },
-  { name: 'Guardiao Local', color: 'indigo', minPoints: 850 },
-  { name: 'Guardiao da Generosidade', color: 'violet', minPoints: 1250 },
-  { name: 'Ponte Solidaria', color: 'rose', minPoints: 2000 },
-  { name: 'Mobilizador da Rede', color: 'primary', minPoints: 2900 },
-  { name: 'Multiplicador Solidario', color: 'emerald', minPoints: 4000 },
-  { name: 'Referencia Comunitaria', color: 'amber', minPoints: 5000 },
-  { name: 'Cuidador Frequente', color: 'indigo', minPoints: 6500 },
-  { name: 'Parceiro da Esperanca', color: 'violet', minPoints: 8300 },
-  { name: 'Forca Coletiva', color: 'rose', minPoints: 10400 },
-  { name: 'Lider de Impacto', color: 'primary', minPoints: 12800 },
-  { name: 'Farol Solidario', color: 'emerald', minPoints: 15500 },
-  { name: 'Construtor de Pontes', color: 'amber', minPoints: 18500 },
-  { name: 'Guardiao da Rede', color: 'indigo', minPoints: 21800 },
-  { name: 'Mestre da Constancia', color: 'violet', minPoints: 25400 },
-  { name: 'Voz da Comunidade', color: 'rose', minPoints: 29300 },
-  { name: 'Embaixador do Impacto', color: 'primary', minPoints: 33500 },
-  { name: 'Benfeitor Regional', color: 'emerald', minPoints: 38100 },
-  { name: 'Elo Transformador', color: 'amber', minPoints: 43100 },
-  { name: 'Guardiao Supremo', color: 'indigo', minPoints: 48500 },
-  { name: 'Arquiteto do Bem', color: 'violet', minPoints: 54300 },
-  { name: 'Legado Solidario', color: 'rose', minPoints: 60500 },
-  { name: 'Referencia Nacional', color: 'primary', minPoints: 67200 },
-  { name: 'Inspirador da Rede', color: 'emerald', minPoints: 74400 },
-  { name: 'Grande Embaixador', color: 'amber', minPoints: 82100 },
-  { name: 'Lenda Solidaria', color: 'indigo', minPoints: 90300 },
-  { name: 'Heroi Solidario Supremo', color: 'violet', minPoints: 99000 },
+  { name: 'Doador Iniciante', color: 'primary', minPoints: 60 },
+  { name: 'Semeador Solidario', color: 'emerald', minPoints: 140 },
+  { name: 'Aliado do Bem', color: 'amber', minPoints: 240 },
+  { name: 'Guardiao Local', color: 'indigo', minPoints: 360 },
+  { name: 'Guardiao da Generosidade', color: 'violet', minPoints: 500 },
+  { name: 'Ponte Solidaria', color: 'rose', minPoints: 660 },
+  { name: 'Mobilizador da Rede', color: 'primary', minPoints: 840 },
+  { name: 'Multiplicador Solidario', color: 'emerald', minPoints: 1040 },
+  { name: 'Referencia Comunitaria', color: 'amber', minPoints: 1260 },
+  { name: 'Cuidador Frequente', color: 'indigo', minPoints: 1500 },
+  { name: 'Parceiro da Esperanca', color: 'violet', minPoints: 1760 },
+  { name: 'Forca Coletiva', color: 'rose', minPoints: 2040 },
+  { name: 'Lider de Impacto', color: 'primary', minPoints: 2340 },
+  { name: 'Farol Solidario', color: 'emerald', minPoints: 2660 },
+  { name: 'Construtor de Pontes', color: 'amber', minPoints: 3000 },
+  { name: 'Guardiao da Rede', color: 'indigo', minPoints: 3360 },
+  { name: 'Mestre da Constancia', color: 'violet', minPoints: 3740 },
+  { name: 'Voz da Comunidade', color: 'rose', minPoints: 4140 },
+  { name: 'Embaixador do Impacto', color: 'primary', minPoints: 4500 },
+  { name: 'Benfeitor Regional', color: 'emerald', minPoints: 5000 },
+  { name: 'Elo Transformador', color: 'amber', minPoints: 5500 },
+  { name: 'Guardiao Supremo', color: 'indigo', minPoints: 6000 },
+  { name: 'Arquiteto do Bem', color: 'violet', minPoints: 6500 },
+  { name: 'Legado Solidario', color: 'rose', minPoints: 7000 },
+  { name: 'Referencia Nacional', color: 'primary', minPoints: 7500 },
+  { name: 'Inspirador da Rede', color: 'emerald', minPoints: 8000 },
+  { name: 'Grande Embaixador', color: 'amber', minPoints: 8500 },
+  { name: 'Lenda Solidaria', color: 'indigo', minPoints: 9000 },
+  { name: 'Heroi Solidario Supremo', color: 'violet', minPoints: 10000 },
 ] satisfies Array<{ name: string; color: string; minPoints: number }>;
 
 const DONOR_LEVELS = donorLevelBase.map((level, index) => ({
@@ -161,6 +165,13 @@ const gamificationDonationSelect = {
     select: {
       category: true,
       quantity: true,
+      condition: true,
+    },
+  },
+  seasonalCampaign: {
+    select: {
+      multiplier: true,
+      active: true,
     },
   },
   timeline: {
@@ -448,6 +459,17 @@ function getConfirmationDate(donation: GamificationDonation) {
   return firstAtPoint?.createdAt ?? donation.updatedAt;
 }
 
+function getDonationBreakdown(donation: GamificationDonation) {
+  return calculateDonationPointsBreakdown({
+    items: donation.items.map((item) => ({
+      category: item.category,
+      quantity: item.quantity,
+      condition: item.condition,
+    })),
+    status: donation.status,
+  });
+}
+
 function getHighlightedMonthsCount(allConfirmedDonations: GamificationDonation[], donorId: string) {
   const monthDonorScores = new Map<
     string,
@@ -460,10 +482,11 @@ function getHighlightedMonthsCount(allConfirmedDonations: GamificationDonation[]
     const monthScores = monthDonorScores.get(monthKey) ?? new Map();
     const current = monthScores.get(donation.donorId);
     const quantity = donation.items.reduce((sum, item) => sum + item.quantity, 0);
+    const donationPoints = getDonationBreakdown(donation).pointsForCurrentStatus;
 
     monthScores.set(donation.donorId, {
       donorId: donation.donorId,
-      points: (current?.points ?? 0) + getDonationPointsValue(donation.status),
+      points: (current?.points ?? 0) + donationPoints,
       itemQuantity: (current?.itemQuantity ?? 0) + quantity,
       firstConfirmedAt:
         current && current.firstConfirmedAt.getTime() < confirmedAt.getTime()
@@ -535,11 +558,10 @@ function buildAchievements(params: {
   seasonalCampaignsCount: number;
   level: ReturnType<typeof getLevel>;
 }) {
-  const nonCancelledDonations = params.donations.filter(
-    (donation) => donation.status !== DonationStatus.CANCELLED,
-  );
-  const donationCount = nonCancelledDonations.length;
-  const consecutiveMonths = getConsecutiveActiveMonths(nonCancelledDonations);
+  // Conquistas de doacao so contam doacoes ja confirmadas no ponto de coleta -
+  // doacoes em PENDING ainda nao geram pontos nem progresso de conquista.
+  const confirmedDonationCount = params.confirmedDonations.length;
+  const consecutiveMonths = getConsecutiveActiveMonths(params.confirmedDonations);
   const distributedCount = getDistributedCount(params.confirmedDonations);
   const usedCollectionPointsCount = getUsedCollectionPointCount(params.confirmedDonations);
   const usedCategoriesCount = getUniqueCategoryCount(params.confirmedDonations);
@@ -550,11 +572,11 @@ function buildAchievements(params: {
     buildNumericAchievement({
       key: 'recurring-donation',
       title: 'Doacao Recorrente',
-      description: 'Valoriza a recorrencia de doacoes registradas na plataforma.',
-      howToEarn: 'Registre novas doacoes no VestGO.',
-      metricLabel: 'doacoes registradas',
-      progressValue: donationCount,
-      progressLabel: `${donationCount} ${donationCount === 1 ? 'doacao' : 'doacoes'}`,
+      description: 'Valoriza a recorrencia de doacoes confirmadas no ponto de coleta.',
+      howToEarn: 'Registre novas doacoes e confirme a entrega no ponto parceiro.',
+      metricLabel: 'doacoes confirmadas',
+      progressValue: confirmedDonationCount,
+      progressLabel: `${confirmedDonationCount} ${confirmedDonationCount === 1 ? 'doacao' : 'doacoes'}`,
       levels: [
         { tier: 'BRONZE', targetValue: 1, targetLabel: '1 doacao' },
         { tier: 'PRATA', targetValue: 3, targetLabel: '3 doacoes' },
@@ -745,9 +767,10 @@ function normalizeAchievementTier(tier: string | null): AchievementTier | null {
   return null;
 }
 
-function getDonationPointsTotal(donations: GamificationDonation[]) {
-  return donations.reduce((sum, donation) => sum + getDonationPointsValue(donation.status), 0);
-}
+const DONATION_LEDGER_SOURCE_TYPES: PointLedgerSourceType[] = [
+  PointLedgerSourceType.DONATION_CONFIRMATION,
+  PointLedgerSourceType.DONATION_DISTRIBUTION,
+];
 
 function buildProgressMetadata(achievement: AchievementResponse) {
   return {
@@ -806,34 +829,46 @@ async function buildDonorGamification(
     throw new NotFoundError('Perfil');
   }
 
-  const [donations, allConfirmedDonations, achievementLedger, persistedAchievements] =
-    await Promise.all([
-      prisma.donation.findMany({
-        where: { donorId: userId },
-        orderBy: { createdAt: 'desc' },
-        select: gamificationDonationSelect,
-      }),
-      prisma.donation.findMany({
-        where: { status: { in: CONFIRMED_DONATION_STATUSES } },
-        select: gamificationDonationSelect,
-      }),
-      prisma.pointLedger.aggregate({
-        where: {
-          userId,
-          sourceType: PointLedgerSourceType.ACHIEVEMENT_TIER,
-        },
-        _sum: { points: true },
-      }),
-      prisma.userAchievement.findMany({
-        where: { userId },
-        select: userAchievementSelect,
-      }),
-    ]);
+  const [
+    donations,
+    allConfirmedDonations,
+    donationLedger,
+    achievementLedger,
+    persistedAchievements,
+  ] = await Promise.all([
+    prisma.donation.findMany({
+      where: { donorId: userId },
+      orderBy: { createdAt: 'desc' },
+      select: gamificationDonationSelect,
+    }),
+    prisma.donation.findMany({
+      where: { status: { in: CONFIRMED_DONATION_STATUSES } },
+      select: gamificationDonationSelect,
+    }),
+    prisma.pointLedger.aggregate({
+      where: {
+        userId,
+        sourceType: { in: DONATION_LEDGER_SOURCE_TYPES },
+      },
+      _sum: { points: true },
+    }),
+    prisma.pointLedger.aggregate({
+      where: {
+        userId,
+        sourceType: PointLedgerSourceType.ACHIEVEMENT_TIER,
+      },
+      _sum: { points: true },
+    }),
+    prisma.userAchievement.findMany({
+      where: { userId },
+      select: userAchievementSelect,
+    }),
+  ]);
 
   const confirmedDonations = donations.filter((donation) =>
     isConfirmedDonationStatus(donation.status),
   );
-  const donationPoints = getDonationPointsTotal(donations);
+  const donationPoints = donationLedger._sum.points ?? 0;
   const achievementPoints = achievementLedger._sum.points ?? 0;
   const totalPoints = donationPoints + achievementPoints;
   const level = getLevel(totalPoints);

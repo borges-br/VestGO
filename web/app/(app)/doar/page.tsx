@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
+  Apple,
   BadgeCheck,
+  Box,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Footprints,
+  Gamepad2,
   Info,
   Layers,
   Loader2,
@@ -20,7 +22,9 @@ import {
   Package,
   Plus as PlusIcon,
   Shirt,
+  ShoppingBag,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { PostDonationRewardCard } from '@/components/gamification/impact-widgets';
 import {
@@ -29,173 +33,208 @@ import {
   getNearbyPoints,
   getUserDonations,
   type CollectionPoint,
+  type DonationItemCondition,
+  type DonationPackageSize,
+  type DonationPackageType,
   type DonationRecord,
+  type ItemCategory,
 } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
-import { buildPostDonationReward, type PostDonationReward } from '@/lib/gamification';
+import { calculateDonationPointsBreakdown } from '@/lib/donation-points';
+import {
+  buildPostDonationRewardFromBreakdown,
+  type PostDonationReward,
+} from '@/lib/gamification';
 import { cn } from '@/lib/utils';
 
-type CategoryId = 'adult' | 'child' | 'shoes' | 'blankets' | 'other';
-type ConditionId = 'otimo' | 'bom';
-
 const steps = [
-  { eyebrow: 'Etapa 1', short: 'Tipo', title: 'O que você vai doar?', description: 'Escolha as categorias principais para iniciar o registro.' },
-  { eyebrow: 'Etapa 2', short: 'Detalhes', title: 'Detalhes das peças', description: 'Informe só o necessário para dar contexto à entrega.' },
+  { eyebrow: 'Etapa 1', short: 'Itens', title: 'O que você vai doar?', description: 'Adicione os grupos de itens com categoria, quantidade e estado.' },
+  { eyebrow: 'Etapa 2', short: 'Embalagem', title: 'Como está embalado?', description: 'Informe quantas sacolas e caixas, com tamanhos, vão acompanhar a entrega.' },
   { eyebrow: 'Etapa 3', short: 'Ponto', title: 'Escolha o ponto de coleta', description: 'Selecione um parceiro real para receber a doação.' },
   { eyebrow: 'Etapa 4', short: 'Revisão', title: 'Revisão e confirmação', description: 'Confira os dados principais antes de concluir.' },
 ];
 
-const categories = [
-  { id: 'adult' as CategoryId, label: 'Roupas adultas', hint: 'camisetas, calças, casacos', icon: Shirt },
-  { id: 'child' as CategoryId, label: 'Roupas infantis', hint: 'peças para crianças', icon: Sparkles },
-  { id: 'shoes' as CategoryId, label: 'Calçados', hint: 'tênis, sapatos e chinelos', icon: Footprints },
-  { id: 'blankets' as CategoryId, label: 'Cobertores', hint: 'mantas e agasalhos pesados', icon: Layers },
-  { id: 'other' as CategoryId, label: 'Outros itens', hint: 'acessórios e peças diversas', icon: Package },
-];
-
-const conditions = [
-  { id: 'otimo' as ConditionId, label: 'Em ótimo estado', description: 'Prontas para uso imediato.' },
-  { id: 'bom' as ConditionId, label: 'Usadas, mas conservadas', description: 'Com bom potencial de reaproveitamento.' },
-];
-
-const volumeOptions = [
-  'Sacola pequena',
-  'Sacola média',
-  'Sacola grande',
-  'Caixa pequena',
-  'Caixa média',
-  'Caixa grande',
-];
-
-const volumeHints: Record<string, string> = {
-  'Sacola pequena': 'cerca de 3 a 5 peças',
-  'Sacola média': 'cerca de 6 a 10 peças',
-  'Sacola grande': 'cerca de 11 a 18 peças',
-  'Caixa pequena': 'cerca de 12 a 20 peças',
-  'Caixa média': 'cerca de 20 a 35 peças',
-  'Caixa grande': 'cerca de 35 a 60 peças',
+type CategoryOption = {
+  id: ItemCategory;
+  label: string;
+  hint: string;
+  icon: typeof Shirt;
 };
+
+const categoryOptions: CategoryOption[] = [
+  { id: 'CLOTHING', label: 'Roupas', hint: 'Camisetas, calças, casacos, peças adultas e infantis', icon: Shirt },
+  { id: 'SHOES', label: 'Calçados', hint: 'Tênis, sapatos, chinelos em pares', icon: Footprints },
+  { id: 'ACCESSORIES', label: 'Acessórios', hint: 'Cintos, lenços, gorros, cachecóis', icon: Sparkles },
+  { id: 'BAGS', label: 'Bolsas', hint: 'Mochilas, bolsas e necessaires', icon: ShoppingBag },
+  { id: 'TOYS', label: 'Brinquedos', hint: 'Brinquedos limpos e completos', icon: Gamepad2 },
+  { id: 'FOOD', label: 'Alimentos', hint: 'Alimentos não perecíveis dentro da validade', icon: Apple },
+  { id: 'OTHER', label: 'Outros', hint: 'Cobertores, mantas e itens diversos', icon: Layers },
+];
+
+const conditionOptions: { id: DonationItemCondition; label: string; description: string }[] = [
+  { id: 'EXCELLENT', label: 'Em ótimo estado', description: 'Prontas para uso imediato (rende +5 pts/item).' },
+  { id: 'GOOD', label: 'Usadas, mas conservadas', description: 'Com bom potencial de reaproveitamento.' },
+];
+
+const packageTypeOptions: { id: DonationPackageType; label: string }[] = [
+  { id: 'BAG', label: 'Sacola' },
+  { id: 'BOX', label: 'Caixa' },
+];
+
+const packageSizeOptions: { id: DonationPackageSize; label: string; hint: string }[] = [
+  { id: 'SMALL', label: 'Pequena', hint: 'cerca de 3 a 8 peças' },
+  { id: 'MEDIUM', label: 'Média', hint: 'cerca de 9 a 20 peças' },
+  { id: 'LARGE', label: 'Grande', hint: 'cerca de 20 a 40 peças' },
+];
 
 const categoryLabels: Record<string, string> = {
   CLOTHING: 'Roupas',
   SHOES: 'Calçados',
   ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas',
+  TOYS: 'Brinquedos',
+  FOOD: 'Alimentos',
   OTHER: 'Outros',
 };
 
-const categoryToDonationCategory: Record<CategoryId, string> = {
-  adult: 'CLOTHING',
-  child: 'CLOTHING',
-  shoes: 'SHOES',
-  blankets: 'CLOTHING',
-  other: 'OTHER',
+type DonationItemDraft = {
+  id: string;
+  category: ItemCategory;
+  quantity: number;
+  condition: DonationItemCondition;
 };
 
-const DONATION_DRAFT_STORAGE_KEY = 'vestgo:donation-draft';
-const DEFAULT_DISCOVERY_CENTER = { lat: -23.50153, lng: -47.45256 };
+type DonationPackageDraft = {
+  id: string;
+  type: DonationPackageType;
+  size: DonationPackageSize;
+  quantity: number;
+};
 
 type DonationDraft = {
   currentStep: number;
-  selectedCategories: CategoryId[];
-  quantity: string;
-  volume: string;
-  condition: ConditionId;
+  items: DonationItemDraft[];
+  packages: DonationPackageDraft[];
   notes: string;
   pointId: string;
   confirmed: boolean;
 };
 
-function isCategoryId(value: string): value is CategoryId {
-  return categories.some((item) => item.id === value);
+const DONATION_DRAFT_STORAGE_KEY = 'vestgo:donation-draft-v2';
+const DEFAULT_DISCOVERY_CENTER = { lat: -23.50153, lng: -47.45256 };
+
+function makeId() {
+  return Math.random().toString(36).slice(2, 10);
 }
 
-function isConditionId(value: string): value is ConditionId {
-  return conditions.some((item) => item.id === value);
+function defaultItems(): DonationItemDraft[] {
+  return [
+    { id: makeId(), category: 'CLOTHING', quantity: 5, condition: 'GOOD' },
+  ];
 }
 
-function mergeCollectionPoints(primary: CollectionPoint[], secondary: CollectionPoint[]) {
-  const map = new Map<string, CollectionPoint>();
+function defaultPackages(): DonationPackageDraft[] {
+  return [{ id: makeId(), type: 'BAG', size: 'MEDIUM', quantity: 1 }];
+}
 
-  [...primary, ...secondary].forEach((point) => {
-    map.set(point.id, point);
-  });
+function defaultDraft(): DonationDraft {
+  return {
+    currentStep: 0,
+    items: defaultItems(),
+    packages: defaultPackages(),
+    notes: '',
+    pointId: '',
+    confirmed: false,
+  };
+}
 
-  return Array.from(map.values());
+function isItemCategory(value: unknown): value is ItemCategory {
+  return categoryOptions.some((entry) => entry.id === value);
+}
+
+function isCondition(value: unknown): value is DonationItemCondition {
+  return value === 'EXCELLENT' || value === 'GOOD';
+}
+
+function isPackageType(value: unknown): value is DonationPackageType {
+  return value === 'BAG' || value === 'BOX';
+}
+
+function isPackageSize(value: unknown): value is DonationPackageSize {
+  return value === 'SMALL' || value === 'MEDIUM' || value === 'LARGE';
 }
 
 function readDonationDraft(): DonationDraft {
-  if (typeof window === 'undefined') {
-    return {
-      currentStep: 0,
-      selectedCategories: ['adult'],
-      quantity: '',
-      volume: 'Sacola média',
-      condition: 'otimo',
-      notes: '',
-      pointId: '',
-      confirmed: false,
-    };
-  }
-
-  const rawDraft = window.sessionStorage.getItem(DONATION_DRAFT_STORAGE_KEY);
-
-  if (!rawDraft) {
-    return {
-      currentStep: 0,
-      selectedCategories: ['adult'],
-      quantity: '',
-      volume: 'Sacola média',
-      condition: 'otimo',
-      notes: '',
-      pointId: '',
-      confirmed: false,
-    };
-  }
+  if (typeof window === 'undefined') return defaultDraft();
+  const raw = window.sessionStorage.getItem(DONATION_DRAFT_STORAGE_KEY);
+  if (!raw) return defaultDraft();
 
   try {
-    const parsed = JSON.parse(rawDraft) as Partial<DonationDraft>;
+    const parsed = JSON.parse(raw) as Partial<DonationDraft>;
+    const items = Array.isArray(parsed.items)
+      ? parsed.items
+          .filter(
+            (entry): entry is DonationItemDraft =>
+              !!entry &&
+              isItemCategory((entry as DonationItemDraft).category) &&
+              typeof (entry as DonationItemDraft).quantity === 'number' &&
+              (entry as DonationItemDraft).quantity > 0 &&
+              isCondition((entry as DonationItemDraft).condition),
+          )
+          .map((entry) => ({
+            id: typeof entry.id === 'string' && entry.id ? entry.id : makeId(),
+            category: entry.category,
+            quantity: Math.max(1, Math.min(200, Math.floor(entry.quantity))),
+            condition: entry.condition,
+          }))
+      : [];
+
+    const packages = Array.isArray(parsed.packages)
+      ? parsed.packages
+          .filter(
+            (entry): entry is DonationPackageDraft =>
+              !!entry &&
+              isPackageType((entry as DonationPackageDraft).type) &&
+              isPackageSize((entry as DonationPackageDraft).size) &&
+              typeof (entry as DonationPackageDraft).quantity === 'number' &&
+              (entry as DonationPackageDraft).quantity > 0,
+          )
+          .map((entry) => ({
+            id: typeof entry.id === 'string' && entry.id ? entry.id : makeId(),
+            type: entry.type,
+            size: entry.size,
+            quantity: Math.max(1, Math.min(50, Math.floor(entry.quantity))),
+          }))
+      : [];
 
     return {
       currentStep:
         typeof parsed.currentStep === 'number'
           ? Math.min(Math.max(parsed.currentStep, 0), steps.length - 1)
           : 0,
-      selectedCategories:
-        parsed.selectedCategories?.filter((value): value is CategoryId => isCategoryId(value)) ??
-        ['adult'],
-      quantity: typeof parsed.quantity === 'string' ? parsed.quantity : '',
-      volume:
-        typeof parsed.volume === 'string' && volumeOptions.includes(parsed.volume)
-          ? parsed.volume
-          : 'Sacola média',
-      condition:
-        typeof parsed.condition === 'string' && isConditionId(parsed.condition)
-          ? parsed.condition
-          : 'otimo',
+      items: items.length > 0 ? items : defaultItems(),
+      packages: packages.length > 0 ? packages : defaultPackages(),
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
       pointId: typeof parsed.pointId === 'string' ? parsed.pointId : '',
       confirmed: parsed.confirmed === true,
     };
   } catch {
-    return {
-      currentStep: 0,
-      selectedCategories: ['adult'],
-      quantity: '',
-      volume: 'Sacola média',
-      condition: 'otimo',
-      notes: '',
-      pointId: '',
-      confirmed: false,
-    };
+    return defaultDraft();
   }
+}
+
+function mergeCollectionPoints(primary: CollectionPoint[], secondary: CollectionPoint[]) {
+  const map = new Map<string, CollectionPoint>();
+  [...primary, ...secondary].forEach((point) => {
+    map.set(point.id, point);
+  });
+  return Array.from(map.values());
 }
 
 function getCurrentPosition() {
   if (typeof window === 'undefined' || !window.navigator.geolocation) {
     return Promise.resolve(DEFAULT_DISCOVERY_CENTER);
   }
-
   return new Promise<{ lat: number; lng: number }>((resolve) => {
     window.navigator.geolocation.getCurrentPosition(
       ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
@@ -203,28 +242,6 @@ function getCurrentPosition() {
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 },
     );
   });
-}
-
-function getEstimatedQuantity(value: string) {
-  const match = value.match(/\d+/);
-  if (!match) return 0;
-  return Number.parseInt(match[0], 10);
-}
-
-function splitQuantity(total: number, parts: number) {
-  if (parts <= 0) return [];
-  const base = Math.max(1, Math.floor(total / parts));
-  const quantities = Array.from({ length: parts }, () => base);
-  let remainder = Math.max(total - base * parts, 0);
-  let index = 0;
-
-  while (remainder > 0) {
-    quantities[index] += 1;
-    remainder -= 1;
-    index = (index + 1) % parts;
-  }
-
-  return quantities;
 }
 
 function isDonationEligiblePoint(point: CollectionPoint | null | undefined) {
@@ -235,41 +252,53 @@ function sortPointsForDonation(points: CollectionPoint[]) {
   return [...points].sort((left, right) => {
     const leftEligible = isDonationEligiblePoint(left) ? 1 : 0;
     const rightEligible = isDonationEligiblePoint(right) ? 1 : 0;
-
-    if (leftEligible !== rightEligible) {
-      return rightEligible - leftEligible;
-    }
-
+    if (leftEligible !== rightEligible) return rightEligible - leftEligible;
     return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
   });
 }
 
-function SummaryCard({
-  selectedCategories,
-  quantity,
-  volume,
-  condition,
-  notes,
-  selectedPoint,
-  compact = false,
-  reward,
-}: {
-  selectedCategories: CategoryId[];
-  quantity: string;
-  volume: string;
-  condition: ConditionId;
+function describePackage(pkg: DonationPackageDraft) {
+  const typeLabel = packageTypeOptions.find((option) => option.id === pkg.type)?.label ?? pkg.type;
+  const sizeLabel = packageSizeOptions.find((option) => option.id === pkg.size)?.label ?? pkg.size;
+  return `${pkg.quantity}x ${typeLabel.toLowerCase()} ${sizeLabel.toLowerCase()}`;
+}
+
+function describeItem(item: DonationItemDraft) {
+  const categoryLabel = categoryLabels[item.category] ?? item.category;
+  const conditionLabel = item.condition === 'EXCELLENT' ? 'ótimo estado' : 'bom estado';
+  return `${item.quantity} ${categoryLabel.toLowerCase()} (${conditionLabel})`;
+}
+
+type SummaryCardProps = {
+  items: DonationItemDraft[];
+  packages: DonationPackageDraft[];
   notes: string;
   selectedPoint: CollectionPoint | null;
-  compact?: boolean;
   reward: PostDonationReward;
-}) {
-  const labels = selectedCategories.length
-    ? categories.filter((item) => selectedCategories.includes(item.id)).map((item) => item.label)
-    : ['Nenhuma categoria'];
-  const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? 'Não informado';
+  totalItems: number;
+  uniqueCategories: number;
+  multiplierLabel: string;
+  compact?: boolean;
+};
 
+function SummaryCard({
+  items,
+  packages,
+  notes,
+  selectedPoint,
+  reward,
+  totalItems,
+  uniqueCategories,
+  multiplierLabel,
+  compact = false,
+}: SummaryCardProps) {
   return (
-    <div className={cn('rounded-[2rem] bg-white shadow-card dark:bg-surface-inkSoft dark:shadow-none', compact ? 'p-5' : 'p-6 lg:p-7')}>
+    <div
+      className={cn(
+        'rounded-[2rem] bg-white shadow-card dark:bg-surface-inkSoft dark:shadow-none',
+        compact ? 'p-5' : 'p-6 lg:p-7',
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doação</p>
@@ -280,41 +309,48 @@ function SummaryCard({
 
       <div className="mt-5 space-y-4">
         <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Categorias</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {labels.map((label) => (
-              <span key={label} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-inkSoft">
-                {label}
-              </span>
-            ))}
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Itens</p>
+          <ul className="mt-2 space-y-1">
+            {items.length === 0 ? (
+              <li className="text-sm text-gray-400">Nenhum item adicionado.</li>
+            ) : (
+              items.map((item) => (
+                <li key={item.id} className="text-sm font-medium text-on-surface dark:text-gray-100">
+                  · {describeItem(item)}
+                </li>
+              ))
+            )}
+          </ul>
+          <p className="mt-3 text-xs text-gray-400">
+            {totalItems} item(ns) · {uniqueCategories} categoria(s) · multiplicador {multiplierLabel}
+          </p>
         </div>
 
         <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Detalhes</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{quantity || 'Quantidade pendente'}</p>
-              <p className="mt-1 text-sm text-gray-400">{volume}</p>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{conditionLabel}</p>
-              <p className="mt-1 text-sm text-gray-400">{notes ? 'Com observações' : 'Sem observações'}</p>
-            </div>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Embalagem</p>
+          {packages.length === 0 ? (
+            <p className="mt-2 text-sm text-gray-400">Sem embalagens declaradas.</p>
+          ) : (
+            <ul className="mt-2 space-y-1">
+              {packages.map((pkg) => (
+                <li key={pkg.id} className="text-sm font-medium text-on-surface dark:text-gray-100">
+                  · {describePackage(pkg)}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Ponto de coleta</p>
           {selectedPoint ? (
             <div className="mt-3">
-              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{selectedPoint.organizationName ?? selectedPoint.name}</p>
-                <p className="mt-1 text-sm text-gray-400">
-                  {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
-                  {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
-                </p>
-              <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
-                {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
+              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
+                {selectedPoint.organizationName ?? selectedPoint.name}
+              </p>
+              <p className="mt-1 text-sm text-gray-400">
+                {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
+                {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
               </p>
               {selectedPoint.donationEligibility && (
                 <div
@@ -336,9 +372,20 @@ function SummaryCard({
         </div>
 
         <div className="rounded-3xl bg-primary-light/45 p-4 dark:bg-primary/10">
-          <p className="text-sm font-semibold text-primary-deeper dark:text-white">+{reward.points} pontos previstos</p>
-          <p className="mt-2 text-sm leading-7 text-gray-500">Esta entrega passa a contar no seu progresso real assim que for registrada.</p>
+          <p className="text-sm font-semibold text-primary-deeper dark:text-white">
+            Pontuação prevista: até +{reward.potentialPoints} pontos
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{reward.confirmationLabel}</p>
+          <p className="mt-1 text-xs text-gray-500">{reward.distributionLabel}</p>
+          <p className="mt-2 text-xs leading-5 text-gray-500">{reward.pendingPointsLabel}</p>
         </div>
+
+        {notes && (
+          <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Observações</p>
+            <p className="mt-2 text-sm leading-6 text-gray-500">{notes}</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -352,11 +399,10 @@ export default function DoarPage() {
   const userRole = session?.user?.role ?? 'DONOR';
   const isDonor = userRole === 'DONOR';
   const stepCardRef = useRef<HTMLDivElement>(null);
+
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedCategories, setSelectedCategories] = useState<CategoryId[]>(['adult']);
-  const [quantity, setQuantity] = useState('');
-  const [volume, setVolume] = useState('Sacola média');
-  const [condition, setCondition] = useState<ConditionId>('otimo');
+  const [items, setItems] = useState<DonationItemDraft[]>(() => defaultItems());
+  const [packages, setPackages] = useState<DonationPackageDraft[]>(() => defaultPackages());
   const [notes, setNotes] = useState('');
   const [pointId, setPointId] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -379,10 +425,8 @@ export default function DoarPage() {
   useEffect(() => {
     const draft = readDonationDraft();
     setCurrentStep(draft.currentStep);
-    setSelectedCategories(draft.selectedCategories.length > 0 ? draft.selectedCategories : ['adult']);
-    setQuantity(draft.quantity);
-    setVolume(draft.volume);
-    setCondition(draft.condition);
+    setItems(draft.items);
+    setPackages(draft.packages);
     setNotes(draft.notes);
     setPointId(draft.pointId);
     setConfirmed(draft.confirmed);
@@ -397,9 +441,7 @@ export default function DoarPage() {
     const source = searchParams.get('source');
     const stepParam = searchParams.get('step');
 
-    if (!selectedPointId && !selectionApplied && !stepParam && !source) {
-      return;
-    }
+    if (!selectedPointId && !selectionApplied && !stepParam && !source) return;
 
     const cameFromPointProfile = source === 'point-profile';
 
@@ -411,9 +453,7 @@ export default function DoarPage() {
 
     if (selectionApplied) {
       setSelectionFeedback(
-        cameFromPointProfile
-          ? null
-          : 'Ponto selecionado. Você poderá revisar antes de finalizar.',
+        cameFromPointProfile ? null : 'Ponto selecionado. Você poderá revisar antes de finalizar.',
       );
     }
 
@@ -434,35 +474,28 @@ export default function DoarPage() {
 
   useEffect(() => {
     if (!draftReady || !isDonor || typeof window === 'undefined') return;
-
     window.sessionStorage.setItem(
       DONATION_DRAFT_STORAGE_KEY,
       JSON.stringify({
         currentStep,
-        selectedCategories,
-        quantity,
-        volume,
-        condition,
+        items,
+        packages,
         notes,
         pointId,
         confirmed,
       } satisfies DonationDraft),
     );
-  }, [condition, confirmed, currentStep, draftReady, isDonor, notes, pointId, quantity, selectedCategories, volume]);
+  }, [confirmed, currentStep, draftReady, isDonor, items, notes, packages, pointId]);
 
   useEffect(() => {
-    if (!draftReady || !pointId || points.some((item) => item.id === pointId)) {
-      return;
-    }
+    if (!draftReady || !pointId || points.some((item) => item.id === pointId)) return;
 
     let cancelled = false;
 
     async function loadSelectedPoint() {
       try {
         const point = await getCollectionPoint(pointId, { forDonation: true });
-
         if (cancelled || point.role !== 'COLLECTION_POINT') return;
-
         setPoints((current) => mergeCollectionPoints([point], current));
 
         if (!isDonationEligiblePoint(point)) {
@@ -517,14 +550,8 @@ export default function DoarPage() {
         setPoints(collectionPointsOnly);
 
         const firstEligiblePoint = collectionPointsOnly.find((point) => isDonationEligiblePoint(point));
-
-        if (firstEligiblePoint) {
-          setPointId((current) => current || firstEligiblePoint.id);
-        }
-
-        if (donationsResponse) {
-          setExistingDonations(donationsResponse.data);
-        }
+        if (firstEligiblePoint) setPointId((current) => current || firstEligiblePoint.id);
+        if (donationsResponse) setExistingDonations(donationsResponse.data);
 
         if (collectionPointsOnly.length === 0) {
           setPointsError('Nenhum ponto parceiro disponível agora.');
@@ -544,24 +571,51 @@ export default function DoarPage() {
   }, [draftReady, isDonor, session?.user?.accessToken, status]);
 
   useEffect(() => {
-    if (!pointId) {
-      return;
-    }
-
+    if (!pointId) return;
     const currentPoint = points.find((item) => item.id === pointId);
-
-    if (!currentPoint || isDonationEligiblePoint(currentPoint)) {
-      return;
-    }
+    if (!currentPoint || isDonationEligiblePoint(currentPoint)) return;
 
     setPointId('');
     setConfirmed(false);
     setShowPreselectedPointNotice(false);
-    setPointsError(
-      currentPoint.donationEligibility?.message ??
-        'Este ponto ainda não pode finalizar doações.',
-    );
+    setPointsError(currentPoint.donationEligibility?.message ?? 'Este ponto ainda não pode finalizar doações.');
   }, [pointId, points]);
+
+  const breakdown = useMemo(
+    () =>
+      calculateDonationPointsBreakdown({
+        items: items.map((item) => ({
+          category: item.category,
+          quantity: item.quantity,
+          condition: item.condition,
+        })),
+        status: 'PENDING',
+      }),
+    [items],
+  );
+
+  const monthlyDonationCount = useMemo(() => {
+    const now = new Date();
+    const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    return existingDonations.filter((donation) => {
+      const date = new Date(donation.createdAt);
+      const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+      return key === monthKey;
+    }).length;
+  }, [existingDonations]);
+
+  const rewardPreview = useMemo(
+    () =>
+      buildPostDonationRewardFromBreakdown({
+        items: items.map((item) => ({
+          category: item.category,
+          quantity: item.quantity,
+          condition: item.condition,
+        })),
+        monthlyGoalCurrent: monthlyDonationCount,
+      }),
+    [items, monthlyDonationCount],
+  );
 
   if (status === 'loading' || !draftReady) {
     return (
@@ -609,8 +663,9 @@ export default function DoarPage() {
   const selectedPointLabel = selectedPoint?.organizationName ?? selectedPoint?.name ?? null;
   const step = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
-  const estimatedQuantity = getEstimatedQuantity(quantity);
-  const rewardPreview = buildPostDonationReward(existingDonations);
+  const totalItems = breakdown.totalItems;
+  const totalPackagesCount = packages.reduce((sum, pkg) => sum + pkg.quantity, 0);
+  const multiplierLabel = `${breakdown.categoryMultiplier.toFixed(1).replace('.', ',')}x`;
   const mapSelectionParams = new URLSearchParams({
     mode: 'select-point',
     returnTo: '/doar',
@@ -618,30 +673,48 @@ export default function DoarPage() {
     returnStep: '2',
   });
 
-  if (pointId) {
-    mapSelectionParams.set('selectedPointId', pointId);
-  }
-
+  if (pointId) mapSelectionParams.set('selectedPointId', pointId);
   const mapSelectionHref = `/mapa?${mapSelectionParams.toString()}`;
   const canContinue =
     currentStep === 0
-      ? selectedCategories.length > 0
+      ? totalItems > 0
       : currentStep === 1
-        ? estimatedQuantity > 0
+        ? totalPackagesCount > 0
         : currentStep === 2
           ? isDonationEligiblePoint(selectedPoint)
           : confirmed && isDonationEligiblePoint(selectedPoint);
 
-  function toggleCategory(categoryId: CategoryId) {
-    setSelectedCategories((current) =>
-      current.includes(categoryId)
-        ? current.filter((item) => item !== categoryId)
-        : [...current, categoryId],
-    );
+  function updateItem(id: string, patch: Partial<DonationItemDraft>) {
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function addItem() {
+    setItems((current) => [
+      ...current,
+      { id: makeId(), category: 'CLOTHING', quantity: 1, condition: 'GOOD' },
+    ]);
+  }
+
+  function removeItem(id: string) {
+    setItems((current) => (current.length === 1 ? current : current.filter((item) => item.id !== id)));
+  }
+
+  function updatePackage(id: string, patch: Partial<DonationPackageDraft>) {
+    setPackages((current) => current.map((pkg) => (pkg.id === id ? { ...pkg, ...patch } : pkg)));
+  }
+
+  function addPackage() {
+    setPackages((current) => [
+      ...current,
+      { id: makeId(), type: 'BAG', size: 'MEDIUM', quantity: 1 },
+    ]);
+  }
+
+  function removePackage(id: string) {
+    setPackages((current) => (current.length === 1 ? current : current.filter((pkg) => pkg.id !== id)));
   }
 
   function scrollToStepTop() {
-    // On mobile, scroll the step card into view; on desktop leave position intact
     if (window.innerWidth < 1024 && stepCardRef.current) {
       const topbarHeight = parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--topbar-height') || '64',
@@ -655,7 +728,6 @@ export default function DoarPage() {
   function handleNext() {
     if (!canContinue || currentStep === steps.length - 1) return;
     setCurrentStep((value) => value + 1);
-    // Defer scroll so the new step has rendered
     setTimeout(scrollToStepTop, 50);
   }
 
@@ -668,20 +740,23 @@ export default function DoarPage() {
   async function handleConfirm() {
     if (!confirmed || !session?.user?.accessToken || !selectedPoint) return;
 
-    const quantities = splitQuantity(Math.max(estimatedQuantity, selectedCategories.length), selectedCategories.length);
-    const conditionLabel = conditions.find((item) => item.id === condition)?.label ?? condition;
     const donationInput = {
       collectionPointId: selectedPoint.id,
-      notes: [`Volume aproximado: ${volume}`, `Condição declarada: ${conditionLabel}`, notes ? `Observações: ${notes}` : null].filter(Boolean).join(' | '),
-      items: selectedCategories.map((categoryId, index) => {
-        const category = categories.find((item) => item.id === categoryId)!;
+      notes: notes ? notes.trim() : undefined,
+      items: items.map((item) => {
+        const categoryLabel = categoryLabels[item.category] ?? item.category;
         return {
-          name: category.label,
-          category: categoryToDonationCategory[categoryId],
-          quantity: quantities[index] ?? 1,
-          description: category.hint,
+          name: categoryLabel,
+          category: item.category,
+          quantity: item.quantity,
+          condition: item.condition,
         };
       }),
+      packages: packages.map((pkg) => ({
+        type: pkg.type,
+        size: pkg.size,
+        quantity: pkg.quantity,
+      })),
     };
 
     setLoading(true);
@@ -692,7 +767,7 @@ export default function DoarPage() {
       if (typeof window !== 'undefined') {
         window.sessionStorage.removeItem(DONATION_DRAFT_STORAGE_KEY);
       }
-      router.push(`/rastreio/${donation.id}?celebrate=1`);
+      router.push(`/rastreio/${donation.id}?celebrate=registered`);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Não foi possível registrar a doação.');
       setLoading(false);
@@ -709,13 +784,12 @@ export default function DoarPage() {
               Registrar doação em etapas
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
-              Preencha cada passo para registrar sua doação com segurança.
+              Preencha cada passo para registrar sua doação com segurança. Os pontos só entram quando o ponto de coleta confirmar o recebimento.
             </p>
           </div>
         </div>
 
         <div ref={stepCardRef} className="rounded-[2rem] bg-white p-4 shadow-card dark:bg-surface-inkSoft dark:shadow-none sm:p-5 lg:p-6">
-          {/* Mobile: compact pill header — progress bar + current step label only */}
           <div className="flex items-center gap-3 lg:hidden">
             <div className="flex-1">
               <div className="h-2 overflow-hidden rounded-full bg-surface dark:bg-surface-ink">
@@ -727,7 +801,6 @@ export default function DoarPage() {
             </span>
           </div>
 
-          {/* Desktop: full step buttons */}
           <div className="hidden lg:block">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -747,7 +820,6 @@ export default function DoarPage() {
               {steps.map((item, index) => {
                 const isCurrent = index === currentStep;
                 const isPast = index < currentStep;
-
                 return (
                   <button
                     key={item.title}
@@ -807,32 +879,131 @@ export default function DoarPage() {
 
             {currentStep === 0 && (
               <div className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {categories.map((category) => {
-                    const Icon = category.icon;
-                    const isSelected = selectedCategories.includes(category.id);
-
+                <div className="space-y-3">
+                  {items.map((item, index) => {
+                    const Icon = categoryOptions.find((option) => option.id === item.category)?.icon ?? Package;
                     return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        onClick={() => toggleCategory(category.id)}
-                        className={cn(
-                          'rounded-[1.75rem] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-lg',
-                          isSelected
-                            ? 'border-primary bg-primary-light/40 shadow-card dark:bg-primary/20'
-                            : 'border-gray-100 bg-white dark:border-white/10 dark:bg-surface-ink',
-                        )}
+                      <div
+                        key={item.id}
+                        className="rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-surface-ink"
                       >
-                        <div className={cn('flex h-12 w-12 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500 dark:bg-surface-inkSoft')}>
-                          <Icon size={20} />
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-light text-primary dark:bg-primary/20">
+                              <Icon size={20} />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                                Grupo {index + 1}
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-primary-deeper dark:text-white">
+                                {categoryLabels[item.category] ?? item.category}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeItem(item.id)}
+                            disabled={items.length === 1}
+                            className={cn(
+                              'inline-flex h-9 w-9 items-center justify-center rounded-xl border text-gray-500 transition-colors',
+                              items.length === 1
+                                ? 'cursor-not-allowed border-gray-100 bg-surface opacity-60 dark:border-white/10 dark:bg-surface-inkSoft'
+                                : 'border-gray-200 hover:border-red-200 hover:text-red-500 dark:border-white/10',
+                            )}
+                            aria-label="Remover grupo"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
-                        <p className="mt-4 text-sm font-semibold text-on-surface dark:text-gray-100">{category.label}</p>
-                        <p className="mt-2 text-sm leading-7 text-gray-400">{category.hint}</p>
-                      </button>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <div className="sm:col-span-2">
+                            <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                              Categoria
+                            </label>
+                            <select
+                              value={item.category}
+                              onChange={(event) => updateItem(item.id, { category: event.target.value as ItemCategory })}
+                              className="mt-2 h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium text-on-surface dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
+                            >
+                              {categoryOptions.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label} — {option.hint}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                              Quantidade
+                            </label>
+                            <div className="mt-2 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })}
+                                className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
+                                aria-label="Diminuir"
+                              >
+                                <Minus size={16} />
+                              </button>
+                              <input
+                                type="number"
+                                min={1}
+                                max={200}
+                                value={item.quantity}
+                                onChange={(event) => {
+                                  const next = Math.max(1, Math.min(200, Number.parseInt(event.target.value, 10) || 1));
+                                  updateItem(item.id, { quantity: next });
+                                }}
+                                className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-center text-base font-bold text-primary-deeper dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateItem(item.id, { quantity: Math.min(200, item.quantity + 1) })}
+                                className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
+                                aria-label="Aumentar"
+                              >
+                                <PlusIcon size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Condição das peças</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            {conditionOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => updateItem(item.id, { condition: option.id })}
+                                className={cn(
+                                  'rounded-2xl border px-4 py-3 text-left text-sm transition-colors',
+                                  item.condition === option.id
+                                    ? 'border-primary bg-primary-light/40 text-primary-deeper dark:bg-primary/20 dark:text-white'
+                                    : 'border-gray-200 bg-white text-gray-500 hover:border-primary dark:border-white/10 dark:bg-surface-inkSoft',
+                                )}
+                              >
+                                <p className="font-semibold">{option.label}</p>
+                                <p className="mt-1 text-xs text-gray-500">{option.description}</p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary-light/30 px-4 py-3 text-sm font-semibold text-primary hover:border-primary dark:bg-primary/10"
+                >
+                  <PlusIcon size={16} />
+                  Adicionar outro grupo (categoria + quantidade)
+                </button>
 
                 <div className="rounded-[1.75rem] bg-primary-deeper p-5 text-white">
                   <div className="flex items-start gap-3">
@@ -840,9 +1011,9 @@ export default function DoarPage() {
                       <Info size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">Combine mais de uma categoria na mesma entrega.</p>
+                      <p className="text-sm font-semibold">Pontos só entram após confirmação no ponto de coleta.</p>
                       <p className="mt-2 text-sm leading-7 text-primary-muted">
-                        Você pode selecionar quantas quiser — elas serão organizadas no resumo antes de confirmar.
+                        Cada item vale 10 pontos quando o ponto confirmar o recebimento. Itens em ótimo estado adicionam +5 pontos cada. Mais categorias aumentam o multiplicador do reconhecimento.
                       </p>
                     </div>
                   </div>
@@ -851,147 +1022,131 @@ export default function DoarPage() {
             )}
 
             {currentStep === 1 && (
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
-                <div className="space-y-5">
-                  <div>
-                    <label
-                      htmlFor="quantidade"
-                      className="mb-2 block px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400"
+              <div className="space-y-5">
+                <div className="space-y-3">
+                  {packages.map((pkg, index) => (
+                    <div
+                      key={pkg.id}
+                      className="rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-surface-ink"
                     >
-                      Quantidade estimada
-                    </label>
-                    <div className="flex items-stretch gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const current = getEstimatedQuantity(quantity) || 0;
-                          const next = Math.max(0, current - 1);
-                          setQuantity(next === 0 ? '' : String(next));
-                        }}
-                        aria-label="Diminuir quantidade"
-                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-400"
-                        disabled={getEstimatedQuantity(quantity) <= 0}
-                      >
-                        <Minus size={18} />
-                      </button>
-                      <input
-                        id="quantidade"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        step={1}
-                        placeholder="0"
-                        value={quantity}
-                        onChange={(event) => {
-                          const raw = event.target.value;
-                          if (raw === '') {
-                            setQuantity('');
-                            return;
-                          }
-                          const digits = raw.replace(/[^0-9]/g, '');
-                          setQuantity(digits);
-                        }}
-                        className="h-14 flex-1 rounded-2xl border border-gray-200 bg-white px-4 text-center text-lg font-bold text-primary-deeper outline-none transition-colors placeholder:text-gray-300 focus:border-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100 dark:placeholder:text-gray-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const current = getEstimatedQuantity(quantity) || 0;
-                          setQuantity(String(current + 1));
-                        }}
-                        aria-label="Aumentar quantidade"
-                        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-400"
-                      >
-                        <PlusIcon size={18} />
-                      </button>
-                    </div>
-                    <p className="mt-2 px-1 text-xs text-gray-400">
-                      Informe quantas peças (ou pares) você planeja entregar.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="volume"
-                      className="mb-2 block px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400"
-                    >
-                      Volume (tipo de embalagem)
-                    </label>
-                    <div className="relative">
-                      <select
-                        id="volume"
-                        value={volume}
-                        onChange={(event) => setVolume(event.target.value)}
-                        className="h-14 w-full appearance-none rounded-2xl border border-gray-200 bg-white px-4 pr-12 text-sm font-semibold text-on-surface outline-none transition-colors focus:border-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
-                      >
-                        {volumeOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option} — {volumeHints[option]}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown
-                        size={18}
-                        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-                    </div>
-                    <p className="mt-2 px-1 text-xs text-gray-400">
-                      Escolha o recipiente que melhor representa o volume — isso ajuda o ponto
-                      de coleta a reservar espaço.
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">Observações</p>
-                    <textarea
-                      rows={4}
-                      placeholder="Opcional: tamanhos, peças mais sensíveis ou contexto útil."
-                      value={notes}
-                      onChange={(event) => setNotes(event.target.value)}
-                      className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:bg-surface-inkSoft"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Condição das peças</p>
-                    <div className="mt-3 space-y-3">
-                      {conditions.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setCondition(item.id)}
-                          className={cn(
-                            'flex w-full items-start gap-3 rounded-[1.5rem] px-4 py-4 text-left transition-all',
-                            condition === item.id
-                              ? 'bg-primary-deeper text-white'
-                              : 'bg-white text-gray-600 shadow-sm hover:shadow-card dark:bg-surface-inkSoft dark:text-gray-100',
-                          )}
-                        >
-                          <div className={cn('mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full', condition === item.id ? 'bg-white/15 text-white' : 'bg-primary-light text-primary dark:bg-primary/20')}>
-                            <Check size={15} />
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-light text-primary dark:bg-primary/20">
+                            {pkg.type === 'BOX' ? <Box size={20} /> : <ShoppingBag size={20} />}
                           </div>
                           <div>
-                            <p className="text-sm font-semibold">{item.label}</p>
-                            <p className={cn('mt-1 text-sm leading-7', condition === item.id ? 'text-white/75' : 'text-gray-400')}>
-                              {item.description}
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                              Volume {index + 1}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-primary-deeper dark:text-white">
+                              {describePackage(pkg)}
                             </p>
                           </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removePackage(pkg.id)}
+                          disabled={packages.length === 1}
+                          className={cn(
+                            'inline-flex h-9 w-9 items-center justify-center rounded-xl border text-gray-500 transition-colors',
+                            packages.length === 1
+                              ? 'cursor-not-allowed border-gray-100 bg-surface opacity-60 dark:border-white/10 dark:bg-surface-inkSoft'
+                              : 'border-gray-200 hover:border-red-200 hover:text-red-500 dark:border-white/10',
+                          )}
+                          aria-label="Remover volume"
+                        >
+                          <Trash2 size={16} />
                         </button>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
 
-                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
-                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">
-                      Dica rápida
-                    </p>
-                    <p className="mt-2 text-sm leading-7 text-gray-500">
-                      Quanto mais precisa a quantidade informada, mais fácil o ponto de coleta
-                      separa o espaço para sua entrega.
-                    </p>
-                  </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tipo</label>
+                          <select
+                            value={pkg.type}
+                            onChange={(event) =>
+                              updatePackage(pkg.id, { type: event.target.value as DonationPackageType })
+                            }
+                            className="mt-2 h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
+                          >
+                            {packageTypeOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tamanho</label>
+                          <select
+                            value={pkg.size}
+                            onChange={(event) =>
+                              updatePackage(pkg.id, { size: event.target.value as DonationPackageSize })
+                            }
+                            className="mt-2 h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
+                          >
+                            {packageSizeOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label} — {option.hint}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Quantos</label>
+                          <div className="mt-2 flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => updatePackage(pkg.id, { quantity: Math.max(1, pkg.quantity - 1) })}
+                              className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
+                              aria-label="Diminuir"
+                            >
+                              <Minus size={16} />
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              max={50}
+                              value={pkg.quantity}
+                              onChange={(event) => {
+                                const next = Math.max(1, Math.min(50, Number.parseInt(event.target.value, 10) || 1));
+                                updatePackage(pkg.id, { quantity: next });
+                              }}
+                              className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-center text-base font-bold text-primary-deeper dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updatePackage(pkg.id, { quantity: Math.min(50, pkg.quantity + 1) })}
+                              className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
+                              aria-label="Aumentar"
+                            >
+                              <PlusIcon size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addPackage}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary-light/30 px-4 py-3 text-sm font-semibold text-primary hover:border-primary dark:bg-primary/10"
+                >
+                  <PlusIcon size={16} />
+                  Adicionar outro volume
+                </button>
+
+                <div>
+                  <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">Observações</p>
+                  <textarea
+                    rows={4}
+                    placeholder="Opcional: tamanhos, peças mais sensíveis ou contexto útil para o ponto de coleta."
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none placeholder:text-gray-400 focus:border-primary focus:bg-white dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:bg-surface-inkSoft"
+                  />
                 </div>
               </div>
             )}
@@ -1033,16 +1188,12 @@ export default function DoarPage() {
                     {points.map((point) => {
                       const isSelected = point.id === pointId;
                       const canDonateHere = isDonationEligiblePoint(point);
-
                       return (
                         <button
                           key={point.id}
                           type="button"
                           onClick={() => {
-                            if (!canDonateHere) {
-                              return;
-                            }
-
+                            if (!canDonateHere) return;
                             setPointId(point.id);
                             setPointsError(null);
                             setShowPreselectedPointNotice(false);
@@ -1124,26 +1275,28 @@ export default function DoarPage() {
               <div className="space-y-5">
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tipo da doação</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {selectedCategories.map((categoryId) => {
-                        const label = categories.find((item) => item.id === categoryId)?.label ?? categoryId;
-                        return (
-                          <span key={categoryId} className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-inkSoft">
-                            {label}
-                          </span>
-                        );
-                      })}
-                    </div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Itens declarados</p>
+                    <ul className="mt-3 space-y-2">
+                      {items.map((item) => (
+                        <li key={item.id} className="text-sm text-on-surface dark:text-gray-100">
+                          · {describeItem(item)}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-3 text-xs text-gray-500">
+                      Total: {totalItems} item(ns) · {breakdown.uniqueCategories} categoria(s) · multiplicador {multiplierLabel}
+                    </p>
                   </div>
 
                   <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Detalhes</p>
-                    <p className="mt-3 text-sm font-semibold text-on-surface dark:text-gray-100">{quantity || 'Quantidade pendente'}</p>
-                    <p className="mt-1 text-sm text-gray-400">{volume}</p>
-                    <p className="mt-2 text-sm text-gray-500">
-                      Condição: {conditions.find((item) => item.id === condition)?.label}
-                    </p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Embalagem</p>
+                    <ul className="mt-3 space-y-2">
+                      {packages.map((pkg) => (
+                        <li key={pkg.id} className="text-sm text-on-surface dark:text-gray-100">
+                          · {describePackage(pkg)}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
                   <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink lg:col-span-2">
@@ -1152,9 +1305,9 @@ export default function DoarPage() {
                       <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{selectedPoint.organizationName ?? selectedPoint.name}</p>
-                            <p className="mt-1 text-sm text-gray-400">
-                              {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
-                            </p>
+                          <p className="mt-1 text-sm text-gray-400">
+                            {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
+                          </p>
                           {selectedPoint.donationEligibility && (
                             <p className="mt-2 text-sm text-gray-500">
                               {selectedPoint.donationEligibility.label}: {selectedPoint.donationEligibility.message}
@@ -1174,13 +1327,14 @@ export default function DoarPage() {
                       {[
                         'As peças estão limpas e prontas para reaproveitamento.',
                         'O ponto escolhido está ativo e receberá sua doação.',
-                        'Após concluir, você será redirecionado ao rastreio da doação criada.',
-                      ].map((item) => (
-                        <div key={item} className="flex items-start gap-3">
+                        'O cadastro inicial não credita pontos automaticamente — eles entram quando o ponto confirmar o recebimento.',
+                        'Após distribuição pela ONG você pode receber pontos adicionais.',
+                      ].map((entry) => (
+                        <div key={entry} className="flex items-start gap-3">
                           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-primary dark:bg-surface-inkSoft">
                             <Check size={15} />
                           </div>
-                          <p className="text-sm leading-7 text-gray-500">{item}</p>
+                          <p className="text-sm leading-7 text-gray-500">{entry}</p>
                         </div>
                       ))}
                     </div>
@@ -1213,14 +1367,15 @@ export default function DoarPage() {
             <div className="mt-8 border-t border-gray-100 pt-5 dark:border-white/10">
               <div className="xl:hidden">
                 <SummaryCard
-                  selectedCategories={selectedCategories}
-                  quantity={quantity}
-                  volume={volume}
-                  condition={condition}
+                  items={items}
+                  packages={packages}
                   notes={notes}
                   selectedPoint={selectedPoint}
-                  compact
                   reward={rewardPreview}
+                  totalItems={totalItems}
+                  uniqueCategories={breakdown.uniqueCategories}
+                  multiplierLabel={multiplierLabel}
+                  compact
                 />
               </div>
 
@@ -1292,13 +1447,14 @@ export default function DoarPage() {
           <aside className="hidden xl:block">
             <div className="sticky top-[calc(var(--topbar-height)+1rem)]">
               <SummaryCard
-                selectedCategories={selectedCategories}
-                quantity={quantity}
-                volume={volume}
-                condition={condition}
+                items={items}
+                packages={packages}
                 notes={notes}
                 selectedPoint={selectedPoint}
                 reward={rewardPreview}
+                totalItems={totalItems}
+                uniqueCategories={breakdown.uniqueCategories}
+                multiplierLabel={multiplierLabel}
               />
             </div>
           </aside>

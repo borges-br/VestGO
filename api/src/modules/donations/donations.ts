@@ -1,7 +1,11 @@
 import {
+  DonationItemCondition,
+  DonationPackageSize,
+  DonationPackageType,
   DonationStatus,
   ItemCategory,
   OperationalPartnershipStatus,
+  PointLedgerSourceType,
   Prisma,
   PublicProfileState,
   UserRole,
@@ -16,7 +20,12 @@ import {
   toErrorResponse,
 } from '../../shared/errors';
 import { createNotifications } from '../../shared/notifications';
-import { getDonationPointsValue } from '../../shared/donation-points';
+import {
+  buildConfirmationLedgerKey,
+  buildDistributionLedgerKey,
+  calculateDonationPointsBreakdown,
+  type DonationPointsBreakdown,
+} from '../../shared/donation-points';
 import {
   sendDonationRegisteredOperationalEmail,
   sendDonationStatusOperationalEmail,
@@ -37,11 +46,23 @@ const createDonationSchema = z.object({
         name: z.string().trim().min(2).max(120),
         category: z.nativeEnum(ItemCategory),
         quantity: z.coerce.number().int().min(1).max(200),
+        condition: z.nativeEnum(DonationItemCondition).default(DonationItemCondition.GOOD),
         description: z.string().trim().max(600).optional(),
       }),
     )
     .min(1)
     .max(20),
+  packages: z
+    .array(
+      z.object({
+        type: z.nativeEnum(DonationPackageType),
+        size: z.nativeEnum(DonationPackageSize),
+        quantity: z.coerce.number().int().min(1).max(50),
+      }),
+    )
+    .max(20)
+    .optional()
+    .default([]),
 });
 
 const listDonationsQuerySchema = z.object({
@@ -109,9 +130,19 @@ export const donationSelect = {
       name: true,
       category: true,
       quantity: true,
+      condition: true,
       description: true,
       imageUrl: true,
       weightKg: true,
+    },
+    orderBy: { id: 'asc' },
+  },
+  packages: {
+    select: {
+      id: true,
+      type: true,
+      size: true,
+      quantity: true,
     },
     orderBy: { id: 'asc' },
   },
@@ -346,9 +377,26 @@ function mapTimelineEvent(event: DonationRecord['timeline'][number]) {
   };
 }
 
+export function getDonationPointsBreakdown(donation: DonationRecord): DonationPointsBreakdown {
+  return calculateDonationPointsBreakdown({
+    items: donation.items.map((item) => ({
+      category: item.category,
+      quantity: item.quantity,
+      condition: item.condition,
+    })),
+    status: donation.status,
+  });
+}
+
 export function mapDonation(donation: DonationRecord, viewer?: Viewer) {
   const totalQuantity = donation.items.reduce((sum, item) => sum + item.quantity, 0);
   const latestEvent = donation.timeline[donation.timeline.length - 1] ?? null;
+  const breakdown = getDonationPointsBreakdown(donation);
+  const pointsAwarded = breakdown.pointsForCurrentStatus;
+  const pendingPointsLabel =
+    donation.status === DonationStatus.PENDING
+      ? `Você poderá receber até ${breakdown.totalPotentialPoints} pontos quando a doação for confirmada e distribuída.`
+      : null;
 
   return {
     id: donation.id,
@@ -358,7 +406,9 @@ export function mapDonation(donation: DonationRecord, viewer?: Viewer) {
     scheduledAt: donation.scheduledAt?.toISOString() ?? null,
     createdAt: donation.createdAt.toISOString(),
     updatedAt: donation.updatedAt.toISOString(),
-    pointsAwarded: getDonationPointsValue(donation.status),
+    pointsAwarded,
+    pointsBreakdown: breakdown,
+    pendingPointsLabel,
     itemCount: totalQuantity,
     itemLabel:
       donation.items.length === 1
@@ -384,9 +434,16 @@ export function mapDonation(donation: DonationRecord, viewer?: Viewer) {
       name: item.name,
       category: item.category,
       quantity: item.quantity,
+      condition: item.condition,
       description: item.description,
       imageUrl: item.imageUrl,
       weightKg: item.weightKg,
+    })),
+    packages: donation.packages.map((pkg) => ({
+      id: pkg.id,
+      type: pkg.type,
+      size: pkg.size,
+      quantity: pkg.quantity,
     })),
     latestEvent: latestEvent ? mapTimelineEvent(latestEvent) : null,
     timeline: donation.timeline.map(mapTimelineEvent),
@@ -594,6 +651,96 @@ async function syncDonorGamificationSafely(
   }
 }
 
+async function applyDonationPointLedger(
+  fastify: FastifyInstance,
+  params: {
+    donorId: string;
+    donationId: string;
+    donationCode: string;
+    status: DonationStatus;
+    breakdown: DonationPointsBreakdown;
+  },
+) {
+  const entries: Array<{
+    sourceType: PointLedgerSourceType;
+    sourceKey: string;
+    points: number;
+    reason: string;
+    metadata: Prisma.InputJsonValue;
+  }> = [];
+
+  const confirmationKey = buildConfirmationLedgerKey(params.donationId);
+  const distributionKey = buildDistributionLedgerKey(params.donationId);
+
+  if (
+    params.breakdown.confirmationPoints > 0 &&
+    (params.status === DonationStatus.AT_POINT ||
+      params.status === DonationStatus.IN_TRANSIT ||
+      params.status === DonationStatus.DELIVERED ||
+      params.status === DonationStatus.DISTRIBUTED)
+  ) {
+    entries.push({
+      sourceType: PointLedgerSourceType.DONATION_CONFIRMATION,
+      sourceKey: confirmationKey,
+      points: params.breakdown.confirmationPoints,
+      reason: `Confirmação no ponto (${params.donationCode})`,
+      metadata: {
+        donationId: params.donationId,
+        donationCode: params.donationCode,
+        stage: 'AT_POINT',
+        breakdown: params.breakdown as unknown as Prisma.InputJsonValue,
+      } as Prisma.InputJsonValue,
+    });
+  }
+
+  if (params.status === DonationStatus.DISTRIBUTED && params.breakdown.distributionBonus > 0) {
+    entries.push({
+      sourceType: PointLedgerSourceType.DONATION_DISTRIBUTION,
+      sourceKey: distributionKey,
+      points: params.breakdown.distributionBonus,
+      reason: `Distribuição pela ONG (${params.donationCode})`,
+      metadata: {
+        donationId: params.donationId,
+        donationCode: params.donationCode,
+        stage: 'DISTRIBUTED',
+        breakdown: params.breakdown as unknown as Prisma.InputJsonValue,
+      } as Prisma.InputJsonValue,
+    });
+  }
+
+  if (entries.length === 0) {
+    return 0;
+  }
+
+  const existing = await fastify.prisma.pointLedger.findMany({
+    where: {
+      userId: params.donorId,
+      sourceKey: { in: entries.map((entry) => entry.sourceKey) },
+    },
+    select: { sourceKey: true },
+  });
+  const existingKeys = new Set(existing.map((entry) => entry.sourceKey));
+  const fresh = entries.filter((entry) => !existingKeys.has(entry.sourceKey));
+
+  if (fresh.length === 0) {
+    return 0;
+  }
+
+  await fastify.prisma.pointLedger.createMany({
+    data: fresh.map((entry) => ({
+      userId: params.donorId,
+      sourceType: entry.sourceType,
+      sourceKey: entry.sourceKey,
+      points: entry.points,
+      reason: entry.reason,
+      metadata: entry.metadata,
+    })),
+    skipDuplicates: true,
+  });
+
+  return fresh.reduce((sum, entry) => sum + entry.points, 0);
+}
+
 export default async function donationRoutes(fastify: FastifyInstance) {
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
@@ -647,9 +794,19 @@ export default async function donationRoutes(fastify: FastifyInstance) {
               name: item.name,
               category: item.category,
               quantity: item.quantity,
+              condition: item.condition,
               description: item.description,
             })),
           },
+          packages: body.packages.length
+            ? {
+                create: body.packages.map((pkg) => ({
+                  type: pkg.type,
+                  size: pkg.size,
+                  quantity: pkg.quantity,
+                })),
+              }
+            : undefined,
           timeline: {
             create: {
               status: DonationStatus.PENDING,
@@ -662,8 +819,9 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         select: donationSelect,
       });
 
-      const creationPoints = getDonationPointsValue(createdDonation.status);
-
+      // Donation creation never credits real points: the donor only receives
+      // points after the collection point confirms reception (AT_POINT) and,
+      // later, after the NGO marks the donation as DISTRIBUTED.
       await createNotifications(fastify, [
         {
           userId: collectionPoint.id,
@@ -677,22 +835,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
             collectionPointId: collectionPoint.id,
           },
         },
-        {
-          userId: request.user.id,
-          type: 'DONATION_POINTS' as const,
-          title: 'Pontuação atualizada',
-          body: `Sua nova doação ${createdDonation.code} adicionou +${creationPoints} pontos ao seu impacto atual.`,
-          href: `/rastreio/${createdDonation.id}`,
-          payload: {
-            donationId: createdDonation.id,
-            donationCode: createdDonation.code,
-            points: creationPoints,
-            status: createdDonation.status,
-          },
-        },
       ]);
-
-      await syncDonorGamificationSafely(fastify, request.user.id, 'DONATION_CREATED');
 
       await sendDonationRegisteredOperationalEmail(fastify, {
         userId: request.user.id,
@@ -839,7 +982,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         donationId: donation.id,
         code: donation.code,
         status: donation.status,
-        pointsAwarded: getDonationPointsValue(donation.status),
+        pointsAwarded: getDonationPointsBreakdown(donation).pointsForCurrentStatus,
         data: donation.timeline.map(mapTimelineEvent),
       });
     } catch (err) {
@@ -889,9 +1032,15 @@ export default async function donationRoutes(fastify: FastifyInstance) {
         select: donationSelect,
       });
 
-      const previousPoints = getDonationPointsValue(donation.status);
-      const nextPoints = getDonationPointsValue(updatedDonation.status);
-      const pointsDelta = nextPoints - previousPoints;
+      const breakdown = getDonationPointsBreakdown(updatedDonation);
+      const pointsDelta = await applyDonationPointLedger(fastify, {
+        donorId: donation.donorId,
+        donationId: updatedDonation.id,
+        donationCode: updatedDonation.code,
+        status: updatedDonation.status,
+        breakdown,
+      });
+      const nextPoints = breakdown.pointsForCurrentStatus;
       const statusNotification = buildDonationStatusNotificationContent({
         status: updatedDonation.status,
         donationCode: updatedDonation.code,

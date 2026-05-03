@@ -89,7 +89,8 @@ export default async function RastreioDetalhePage({
   const StatusIcon = statusConfig.icon;
   const currentIdx = DONATION_STATUS_ORDER.indexOf(donation.status);
   const isCancelled = donation.status === 'CANCELLED';
-  const showCelebrate = searchParams?.celebrate === '1';
+  const showPointsCelebrate = searchParams?.celebrate === '1';
+  const showRegisteredCelebrate = searchParams?.celebrate === 'registered';
   const isOperationalRole = role !== 'DONOR';
   const hasOperationalAction = isOperationalRole && donation.allowedNextStatuses.length > 0;
   const hasBatchPrimaryAction =
@@ -129,7 +130,28 @@ export default async function RastreioDetalhePage({
           </p>
         </section>
 
-        {showCelebrate && (
+        {showRegisteredCelebrate && (
+          <section className="rounded-[2rem] bg-primary-light/45 p-6 shadow-card lg:p-7">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary shadow-sm">
+                <Sparkles size={14} />
+                Doação registrada
+              </span>
+            </div>
+
+            <div className="mt-4">
+              <h2 className="text-2xl font-bold text-primary-deeper">
+                Sua doação foi registrada com sucesso.
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">
+                Ela ainda não gerou pontos. A pontuação entra apenas quando o ponto de coleta
+                confirmar o recebimento e, depois, quando a ONG concluir a distribuição.
+              </p>
+            </div>
+          </section>
+        )}
+
+        {showPointsCelebrate && (
           <section className="rounded-[2rem] bg-primary-light/45 p-6 shadow-card lg:p-7">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary shadow-sm">
@@ -195,7 +217,7 @@ export default async function RastreioDetalhePage({
           </section>
         )}
 
-        {showCelebrate && role === 'DONOR' && (
+        {showPointsCelebrate && role === 'DONOR' && (
           <PostDonationRating donationId={donation.id} />
         )}
 
