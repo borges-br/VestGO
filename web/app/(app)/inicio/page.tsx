@@ -26,6 +26,7 @@ import { PickupRequestsPanel } from '@/components/operations/pickup-requests-pan
 import { auth } from '@/lib/auth';
 import {
   getAdminProfiles,
+  getMyGamification,
   getMyProfile,
   getOperationalDonations,
   getMyPartnerships,
@@ -37,6 +38,7 @@ import {
   type CollectionPoint,
   type DonationRecord,
   type DonationStatus,
+  type DonorGamificationResponse,
   type MyProfile,
   type NotificationRecord,
   type OperationalDonationListResponse,
@@ -1100,20 +1102,32 @@ export default async function InicioPage() {
 
   let donations: DonationRecord[] = [];
   let nearbyPoints: Awaited<ReturnType<typeof getNearbyPoints>>['data'] = [];
+  let gamification: DonorGamificationResponse | null = null;
 
   if (accessToken) {
-    try {
-        const [donationsResponse, pointsResponse] = await Promise.all([
-          getUserDonations(accessToken, { limit: 20 }),
-          getNearbyPoints({ lat: -23.50153, lng: -47.45256, radius: 15, limit: 2 }),
-        ]);
-      donations = donationsResponse.data;
-      nearbyPoints = pointsResponse.data;
-    } catch {
-      donations = [];
-      nearbyPoints = [];
+    const [donationsResult, pointsResult, gamificationResult] = await Promise.allSettled([
+      getUserDonations(accessToken, { limit: 20 }),
+      getNearbyPoints({ lat: -23.50153, lng: -47.45256, radius: 15, limit: 3 }),
+      getMyGamification(accessToken),
+    ]);
+
+    if (donationsResult.status === 'fulfilled') {
+      donations = donationsResult.value.data;
+    }
+    if (pointsResult.status === 'fulfilled') {
+      nearbyPoints = pointsResult.value.data;
+    }
+    if (gamificationResult.status === 'fulfilled') {
+      gamification = gamificationResult.value;
     }
   }
 
-  return <DonorHome firstName={firstName} donations={donations} nearbyPoints={nearbyPoints} />;
+  return (
+    <DonorHome
+      firstName={firstName}
+      donations={donations}
+      nearbyPoints={nearbyPoints}
+      gamification={gamification}
+    />
+  );
 }
