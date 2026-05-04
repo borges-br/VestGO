@@ -65,7 +65,53 @@ export type PostDonationReward = {
   };
 };
 
+export type ImpactLevel = {
+  idx: number;
+  name: string;
+  minPoints: number;
+};
+
+export type ImpactLevelProgress = {
+  pct: number;
+  pointsToNext: number;
+  current: ImpactLevel;
+  next: ImpactLevel | null;
+};
+
 const MONTHLY_GOAL_TARGET = 4;
+export const LEVELS: ImpactLevel[] = [
+  { idx: 1, name: 'Recem-Chegado', minPoints: 0 },
+  { idx: 2, name: 'Iniciante Solidario', minPoints: 60 },
+  { idx: 3, name: 'Aprendiz do Bem', minPoints: 140 },
+  { idx: 4, name: 'Doador em Acao', minPoints: 240 },
+  { idx: 5, name: 'Guardiao Local', minPoints: 360 },
+  { idx: 6, name: 'Aliado Solidario', minPoints: 500 },
+  { idx: 7, name: 'Protetor da Comunidade', minPoints: 660 },
+  { idx: 8, name: 'Semeador de Impacto', minPoints: 840 },
+  { idx: 9, name: 'Construtor do Bem', minPoints: 1040 },
+  { idx: 10, name: 'Mobilizador', minPoints: 1260 },
+  { idx: 11, name: 'Cuidador Frequente', minPoints: 1500 },
+  { idx: 12, name: 'Parceiro Social', minPoints: 1760 },
+  { idx: 13, name: 'Conector Solidario', minPoints: 2040 },
+  { idx: 14, name: 'Pilar da Comunidade', minPoints: 2340 },
+  { idx: 15, name: 'Multiplicador', minPoints: 2660 },
+  { idx: 16, name: 'Guardiao da Rede', minPoints: 3000 },
+  { idx: 17, name: 'Lider Local', minPoints: 3360 },
+  { idx: 18, name: 'Agente de Transformacao', minPoints: 3740 },
+  { idx: 19, name: 'Embaixador Local', minPoints: 4140 },
+  { idx: 20, name: 'Referencia de Impacto', minPoints: 4500 },
+  { idx: 21, name: 'Mentor Solidario', minPoints: 5000 },
+  { idx: 22, name: 'Inspirador da Rede', minPoints: 5500 },
+  { idx: 23, name: 'Guardiao Maior', minPoints: 6000 },
+  { idx: 24, name: 'Voz da Transformacao', minPoints: 6500 },
+  { idx: 25, name: 'Mestre Solidario', minPoints: 7000 },
+  { idx: 26, name: 'Simbolo de Impacto', minPoints: 7500 },
+  { idx: 27, name: 'Grande Mobilizador', minPoints: 8000 },
+  { idx: 28, name: 'Lenda da Comunidade', minPoints: 8500 },
+  { idx: 29, name: 'Heroi do Bem', minPoints: 9000 },
+  { idx: 30, name: 'Icone da Solidariedade', minPoints: 10000 },
+];
+
 const POINT_MILESTONES = [
   { label: 'Primeiro marco solidario', target: 120 },
   { label: 'Constancia em evolucao', target: 300 },
@@ -104,6 +150,41 @@ function getCurrentMonthKey() {
   return getMonthKey(new Date().toISOString());
 }
 
+export function getImpactLevel(points: number) {
+  return LEVELS.reduce(
+    (current, level) => (points >= level.minPoints ? level : current),
+    LEVELS[0],
+  );
+}
+
+export function getNextImpactLevel(points: number) {
+  return LEVELS.find((level) => level.minPoints > points) ?? null;
+}
+
+export function getImpactLevelProgress(points: number): ImpactLevelProgress {
+  const current = getImpactLevel(points);
+  const next = getNextImpactLevel(points);
+
+  if (!next) {
+    return {
+      pct: 1,
+      pointsToNext: 0,
+      current,
+      next: null,
+    };
+  }
+
+  const span = next.minPoints - current.minPoints;
+  const intoLevel = points - current.minPoints;
+
+  return {
+    pct: Math.max(0, Math.min(1, intoLevel / span)),
+    pointsToNext: next.minPoints - points,
+    current,
+    next,
+  };
+}
+
 function getMonthlyStreak(donations: DonationRecord[]) {
   if (donations.length === 0) {
     return 0;
@@ -124,23 +205,7 @@ function getMonthlyStreak(donations: DonationRecord[]) {
 }
 
 function getLevelTitle(points: number) {
-  if (points >= 1200) {
-    return 'Constancia que gera impacto';
-  }
-
-  if (points >= 800) {
-    return 'Impacto recorrente em consolidacao';
-  }
-
-  if (points >= 300) {
-    return 'Participacao com ritmo consistente';
-  }
-
-  if (points >= 120) {
-    return 'Primeiros marcos de impacto';
-  }
-
-  return 'Primeiros passos solidarios';
+  return getImpactLevel(points).name;
 }
 
 function getNextMilestone(points: number) {

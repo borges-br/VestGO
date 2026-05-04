@@ -9,6 +9,33 @@
     color-scheme: light;
     --topbar-height: 4.5rem;
     --mobile-nav-height: 5.25rem;
+    --primary: #006a62;
+    --primary-dark: #00544d;
+    --primary-deeper: #00333c;
+    --primary-light: #e6f4f3;
+    --primary-muted: #b2e8e3;
+    --surface: #f2f4f5;
+    --on-surface: #1a1a1a;
+    --cream: #f5f1ea;
+    --cream-soft: #fafaf7;
+    --amber: #e8a33d;
+    --amber-deep: #c9841f;
+    --amber-muted: #f5e3c4;
+    --olive: #6b8e5a;
+    --graphite: #2a2e33;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  :root[data-theme='dark'],
+  .dark {
+    color-scheme: dark;
+    --surface: #001e24;
+    --on-surface: #ffffff;
+    --cream: #001e24;
+    --cream-soft: #00252b;
+    --primary-light: rgba(178, 232, 227, 0.14);
+    --primary-muted: rgba(178, 232, 227, 0.7);
   }
 
   * {
@@ -24,6 +51,8 @@
 
   body {
     @apply bg-surface text-on-surface font-sans antialiased;
+    background: var(--surface);
+    color: var(--on-surface);
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
@@ -33,6 +62,12 @@
     :root {
       --topbar-height: 5rem;
       --mobile-nav-height: 0rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
     }
   }
 }
