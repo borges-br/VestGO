@@ -275,8 +275,6 @@ export default async function adminProfileRoutes(fastify: FastifyInstance) {
         throw new NotFoundError('Perfil operacional');
       }
 
-      ensureProfileCanBePublished(profile, status);
-
       const verifiedAt =
         status === PublicProfileState.VERIFIED
           ? new Date()
