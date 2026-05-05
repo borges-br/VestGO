@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { ChevronRight, LogOut, X } from 'lucide-react';
+import { ChevronRight, Globe, LogOut, X } from 'lucide-react';
 import {
   getUtilityNavItems,
   ROLE_LABELS,
@@ -21,7 +21,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const userName = session?.user?.name ?? 'Usuário';
   const userRole = session?.user?.role ?? 'DONOR';
+  const userId = session?.user?.id;
   const userEmail = session?.user?.email ?? '';
+  const isOperationalUser = userRole === 'COLLECTION_POINT' || userRole === 'NGO';
   const utilityNavItems = getUtilityNavItems(userRole);
   const firstName = userName.split(' ')[0];
   const initials = userName
@@ -135,6 +137,25 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             })}
           </div>
 
+          {isOperationalUser && userId && (
+            <div className="mt-3 rounded-3xl bg-surface p-2 dark:bg-surface-ink">
+              <Link
+                href={`/mapa/${userId}`}
+                onClick={onClose}
+                className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-gray-600 transition-all hover:bg-white/70 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                  <Globe size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">Perfil público</p>
+                  <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                    Visualize como seu perfil aparece no mapa
+                  </p>
+                </div>
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-gray-100 p-4 dark:border-white/10">
