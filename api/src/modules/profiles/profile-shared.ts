@@ -1,6 +1,7 @@
 import { ItemCategory, PublicProfileState, UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { validateBrazilianLocation } from '../../shared/brazil-locations';
+import { normalizeCnpj } from '../../shared/cnpj';
 import { normalizeCpf } from '../../shared/cpf';
 
 const WEEKDAY_IDS = [
@@ -55,6 +56,29 @@ const optionalCpf = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Informe um CPF valido.',
+      });
+      return z.NEVER;
+    }
+
+    return normalized;
+  });
+
+const optionalCnpj = z
+  .string()
+  .trim()
+  .optional()
+  .or(z.literal(''))
+  .transform((value, ctx) => {
+    if (!value) {
+      return undefined;
+    }
+
+    const normalized = normalizeCnpj(value);
+
+    if (!normalized) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Informe um CNPJ valido.',
       });
       return z.NEVER;
     }
@@ -168,6 +192,7 @@ const profileWriteBaseSchema = z.object({
   birthDate: optionalDate,
   phone: optionalText(30),
   cpf: optionalCpf,
+  cnpj: optionalCnpj,
   organizationName: optionalText(160),
   description: optionalText(1200),
   purpose: optionalText(1200),

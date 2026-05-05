@@ -12,6 +12,7 @@ import {
   MapPin,
   Save,
   ShieldCheck,
+  Sparkles,
   Store,
   Trash2,
   Users,
@@ -26,13 +27,109 @@ import {
 } from '@/lib/api';
 import { useAddressSuggestions } from '@/hooks/use-address-suggestions';
 import { SafeImage } from '@/components/ui/safe-image';
+import { ProfileImageCropper } from '@/components/profile/profile-image-cropper';
+import { formatBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/phone';
+import { formatCpfInput, normalizeCpfInput, isValidCpf } from '@/lib/cpf';
+import { formatCnpjInput, normalizeCnpjInput, isValidCnpj } from '@/lib/cnpj';
 
-type StepKey = 'identity' | 'location' | 'acceptance';
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+type StepKey = 'identity' | 'location' | 'acceptance' | 'review';
+
+const MAX_GALLERY_IMAGES = 6;
+
+const CATEGORY_OPTIONS = [
+  { value: 'CLOTHING', label: 'Roupas' },
+  { value: 'SHOES', label: 'Calçados' },
+  { value: 'ACCESSORIES', label: 'Acessórios' },
+  { value: 'BAGS', label: 'Bolsas' },
+  { value: 'TOYS', label: 'Brinquedos' },
+  { value: 'FOOD', label: 'Alimentos' },
+  { value: 'OTHER', label: 'Outros itens' },
+] as const;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  CLOTHING: 'Roupas',
+  SHOES: 'Calçados',
+  ACCESSORIES: 'Acessórios',
+  BAGS: 'Bolsas',
+  TOYS: 'Brinquedos',
+  FOOD: 'Alimentos',
+  OTHER: 'Outros itens',
+};
+
+const PROFILE_STATE_LABELS = {
+  DRAFT: 'Rascunho',
+  PENDING: 'Pendente',
+  ACTIVE: 'Ativo',
+  VERIFIED: 'Verificado',
+} as const;
+
+const WEEKDAY_OPTIONS: Array<{ day: OpeningScheduleDay; label: string }> = [
+  { day: 'MONDAY', label: 'Segunda' },
+  { day: 'TUESDAY', label: 'Terça' },
+  { day: 'WEDNESDAY', label: 'Quarta' },
+  { day: 'THURSDAY', label: 'Quinta' },
+  { day: 'FRIDAY', label: 'Sexta' },
+  { day: 'SATURDAY', label: 'Sábado' },
+  { day: 'SUNDAY', label: 'Domingo' },
+];
+
+const ACCESSIBILITY_OPTIONS = [
+  { value: 'RAMP_ACCESS', label: 'Acesso por rampa' },
+  { value: 'ACCESSIBLE_RESTROOM', label: 'Banheiro acessível' },
+  { value: 'ACCESSIBLE_PARKING', label: 'Estacionamento acessível' },
+  { value: 'PRIORITY_SERVICE', label: 'Atendimento preferencial' },
+  { value: 'GROUND_FLOOR', label: 'Acesso térreo' },
+  { value: 'SIGN_LANGUAGE_SUPPORT', label: 'Suporte em Libras' },
+] as const;
+
+const ACCESSIBILITY_LABELS: Record<string, string> = {
+  RAMP_ACCESS: 'Acesso por rampa',
+  ACCESSIBLE_RESTROOM: 'Banheiro acessível',
+  ACCESSIBLE_PARKING: 'Estacionamento acessível',
+  PRIORITY_SERVICE: 'Atendimento preferencial',
+  GROUND_FLOOR: 'Acesso térreo',
+  SIGN_LANGUAGE_SUPPORT: 'Suporte em Libras',
+};
+
+const SCHEDULE_PRESETS = [
+  { id: 'WEEKDAYS', label: 'Segunda a sexta' },
+  { id: 'WEEKDAYS_SATURDAY', label: 'Segunda a sábado' },
+  { id: 'ALL_DAYS', label: 'Todos os dias' },
+  { id: 'CLEAR', label: 'Limpar horários' },
+] as const;
+
+const SERVICE_REGION_OPTIONS = [
+  'Zona Norte',
+  'Zona Sul',
+  'Zona Leste',
+  'Zona Oeste',
+  'Centro',
+  'Região Metropolitana',
+] as const;
+
+type SchedulePresetId = (typeof SCHEDULE_PRESETS)[number]['id'];
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type CropTarget = 'avatar' | 'cover' | 'gallery';
+
+type CropRequest = {
+  file: File;
+  target: CropTarget;
+  aspectRatio: number;
+  outputWidth: number;
+  outputHeight: number;
+  label: string;
+};
 
 type FormState = {
   name: string;
   email: string;
   phone: string;
+  cpf: string;
+  cnpj: string;
   avatarUrl: string;
   coverImageUrl: string;
   galleryImageUrls: string[];
@@ -57,58 +154,13 @@ type FormState = {
   nonAcceptedItemsText: string;
   rulesText: string;
   serviceRegionsText: string;
+  termsAccepted: boolean;
 };
 
-const MAX_GALLERY_IMAGES = 6;
-
-const CATEGORY_OPTIONS = [
-  { value: 'CLOTHING', label: 'Roupas' },
-  { value: 'SHOES', label: 'Calcados' },
-  { value: 'ACCESSORIES', label: 'Acessorios' },
-  { value: 'BAGS', label: 'Bolsas' },
-  { value: 'OTHER', label: 'Outros itens' },
-];
-
-const PROFILE_STATE_LABELS = {
-  DRAFT: 'Rascunho',
-  PENDING: 'Pendente',
-  ACTIVE: 'Ativo',
-  VERIFIED: 'Verificado',
-} as const;
-
-const WEEKDAY_OPTIONS: Array<{ day: OpeningScheduleDay; label: string }> = [
-  { day: 'MONDAY', label: 'Segunda' },
-  { day: 'TUESDAY', label: 'Terca' },
-  { day: 'WEDNESDAY', label: 'Quarta' },
-  { day: 'THURSDAY', label: 'Quinta' },
-  { day: 'FRIDAY', label: 'Sexta' },
-  { day: 'SATURDAY', label: 'Sabado' },
-  { day: 'SUNDAY', label: 'Domingo' },
-];
-
-const ACCESSIBILITY_OPTIONS = [
-  { value: 'RAMP_ACCESS', label: 'Acesso por rampa' },
-  { value: 'ACCESSIBLE_RESTROOM', label: 'Banheiro acessivel' },
-  { value: 'ACCESSIBLE_PARKING', label: 'Estacionamento acessivel' },
-  { value: 'PRIORITY_SERVICE', label: 'Atendimento preferencial' },
-  { value: 'GROUND_FLOOR', label: 'Acesso terreo' },
-  { value: 'SIGN_LANGUAGE_SUPPORT', label: 'Suporte em Libras' },
-] as const;
-
-const SCHEDULE_PRESETS = [
-  { id: 'WEEKDAYS', label: 'Segunda a sexta' },
-  { id: 'WEEKDAYS_SATURDAY', label: 'Segunda a sabado' },
-  { id: 'ALL_DAYS', label: 'Todos os dias' },
-  { id: 'CLEAR', label: 'Limpar horarios' },
-] as const;
-
-type SchedulePresetId = (typeof SCHEDULE_PRESETS)[number]['id'];
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sanitizeCallbackUrl(value: string | null, fallback: string) {
-  if (!value || !value.startsWith('/')) {
-    return fallback;
-  }
-
+  if (!value || !value.startsWith('/')) return fallback;
   return value;
 }
 
@@ -131,11 +183,7 @@ function looksLikeAddressNumber(value?: string | null) {
 
 function looksLikeStreet(value?: string | null) {
   const normalized = normalizeAddressValue(value);
-
-  if (!normalized) {
-    return false;
-  }
-
+  if (!normalized) return false;
   return /^(rua|r\.|avenida|av\.|av |travessa|tv\.|alameda|rodovia|estrada|praca|praça|largo|via|viela|servid[aã]o|passagem|acesso)/i.test(
     normalized,
   );
@@ -158,20 +206,14 @@ function resolveSuggestionAddress(
   currentAddress: string,
 ) {
   const directAddress = normalizeAddressValue(suggestion.address);
-
-  if (directAddress) {
-    return directAddress;
-  }
+  if (directAddress) return directAddress;
 
   for (const source of [suggestion.label, suggestion.displayName]) {
     const segments = extractAddressSegments(source);
     const streetIndex = segments.findIndex((segment) => looksLikeStreet(segment));
     const baseIndex = streetIndex >= 0 ? streetIndex : 0;
     const candidate = normalizeAddressValue(segments[baseIndex]);
-
-    if (candidate && !looksLikeAddressNumber(candidate)) {
-      return candidate;
-    }
+    if (candidate && !looksLikeAddressNumber(candidate)) return candidate;
   }
 
   const fallbackSegments = extractAddressSegments(suggestion.displayName ?? suggestion.label);
@@ -195,7 +237,9 @@ function buildInitialState(profile: MyProfile): FormState {
   return {
     name: profile.name ?? '',
     email: profile.email ?? '',
-    phone: profile.phone ?? '',
+    phone: profile.phone ? formatBrazilPhoneInput(profile.phone) : '',
+    cpf: profile.cpf ? formatCpfInput(profile.cpf) : '',
+    cnpj: profile.cnpj ? formatCnpjInput(profile.cnpj) : '',
     avatarUrl: profile.avatarUrl ?? '',
     coverImageUrl: profile.coverImageUrl ?? '',
     galleryImageUrls: profile.galleryImageUrls ?? [],
@@ -220,31 +264,47 @@ function buildInitialState(profile: MyProfile): FormState {
     nonAcceptedItemsText: (profile.nonAcceptedItems ?? []).join('\n'),
     rulesText: (profile.rules ?? []).join('\n'),
     serviceRegionsText: (profile.serviceRegions ?? []).join('\n'),
+    termsAccepted: false,
   };
 }
 
-function getStepOrder() {
-  return ['identity', 'location', 'acceptance'] as StepKey[];
-}
-
-function getStepLabel(step: StepKey, role: string) {
-  if (step === 'identity') {
-    return role === 'NGO' ? 'Institucional' : 'Identidade';
-  }
-
-  if (step === 'location') {
-    return role === 'NGO' ? 'Base e cobertura' : 'Local e horario';
-  }
-
-  return 'Itens e regras';
-}
-
-function getRoleLabel(role: string) {
-  return role === 'NGO' ? 'ONG Parceira' : 'Ponto de Coleta';
-}
-
-function getRoleIcon(role: string) {
-  return role === 'NGO' ? Users : Store;
+function buildPayload(role: string, form: FormState) {
+  return {
+    name: form.name,
+    email: form.email,
+    phone: form.phone ? normalizeBrazilPhone(form.phone) ?? form.phone : undefined,
+    cpf: form.cpf ? normalizeCpfInput(form.cpf) : undefined,
+    cnpj: form.cnpj ? normalizeCnpjInput(form.cnpj) : undefined,
+    avatarUrl: form.avatarUrl || undefined,
+    coverImageUrl: form.coverImageUrl || undefined,
+    galleryImageUrls: form.galleryImageUrls,
+    organizationName: form.organizationName || undefined,
+    description: form.description || undefined,
+    purpose: role === 'NGO' ? form.purpose || undefined : undefined,
+    address: form.address || undefined,
+    addressNumber: form.addressNumber || undefined,
+    addressComplement: form.addressComplement || undefined,
+    neighborhood: form.neighborhood || undefined,
+    zipCode: form.zipCode || undefined,
+    city: form.city || undefined,
+    state: form.state || undefined,
+    openingSchedule: form.openingSchedule.map((entry) => ({
+      day: entry.day,
+      isOpen: entry.isOpen,
+      ...(entry.open ? { open: entry.open } : {}),
+      ...(entry.close ? { close: entry.close } : {}),
+    })),
+    openingHoursExceptions: form.openingHoursExceptions || undefined,
+    publicNotes: form.publicNotes || undefined,
+    operationalNotes: role === 'NGO' ? form.operationalNotes || undefined : undefined,
+    accessibilityDetails: form.accessibilityDetails || undefined,
+    accessibilityFeatures: form.accessibilityFeatures,
+    estimatedCapacity: role === 'COLLECTION_POINT' ? form.estimatedCapacity || undefined : undefined,
+    acceptedCategories: form.acceptedCategories,
+    nonAcceptedItems: serializeMultiline(form.nonAcceptedItemsText),
+    rules: serializeMultiline(form.rulesText),
+    serviceRegions: role === 'NGO' ? serializeMultiline(form.serviceRegionsText) : [],
+  };
 }
 
 function getPublishedImages(profile: MyProfile) {
@@ -259,10 +319,7 @@ function getPublishedImages(profile: MyProfile) {
 
 function getPendingImages(profile: MyProfile) {
   const payload = profile.pendingPublicRevision?.payload;
-
-  if (!payload || profile.pendingPublicRevision?.status !== 'PENDING') {
-    return null;
-  }
+  if (!payload || profile.pendingPublicRevision?.status !== 'PENDING') return null;
 
   return {
     avatarUrl:
@@ -286,10 +343,7 @@ function sameGallery(left: string[], right: string[]) {
 function hasPendingImageChanges(profile: MyProfile) {
   const published = getPublishedImages(profile);
   const pending = getPendingImages(profile);
-
-  if (!pending) {
-    return false;
-  }
+  if (!pending) return false;
 
   return (
     (pending.avatarUrl !== undefined && pending.avatarUrl !== published.avatarUrl) ||
@@ -298,6 +352,33 @@ function hasPendingImageChanges(profile: MyProfile) {
       !sameGallery(pending.galleryImageUrls, published.galleryImageUrls ?? []))
   );
 }
+
+function getRoleLabel(role: string) {
+  return role === 'NGO' ? 'ONG Parceira' : 'Ponto de Coleta';
+}
+
+function getRoleIcon(role: string) {
+  return role === 'NGO' ? Users : Store;
+}
+
+function formatScheduleSummary(schedule: OpeningScheduleEntry[]) {
+  const open = schedule.filter((e) => e.isOpen && e.open && e.close);
+  if (open.length === 0) return 'Nenhum horário cadastrado';
+
+  const SHORT_DAYS: Record<string, string> = {
+    MONDAY: 'Seg',
+    TUESDAY: 'Ter',
+    WEDNESDAY: 'Qua',
+    THURSDAY: 'Qui',
+    FRIDAY: 'Sex',
+    SATURDAY: 'Sáb',
+    SUNDAY: 'Dom',
+  };
+
+  return open.map((e) => `${SHORT_DAYS[e.day]} ${e.open}–${e.close}`).join(' | ');
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function MediaThumb({
   src,
@@ -312,12 +393,7 @@ function MediaThumb({
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-      <SafeImage
-        src={src}
-        alt={alt}
-        className={className}
-        fallbackLabel="Sem imagem"
-      />
+      <SafeImage src={src} alt={alt} className={className} fallbackLabel="Sem imagem" />
       <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400">
         {label}
       </p>
@@ -356,11 +432,7 @@ function ProfileMediaReview({ profile }: { profile: MyProfile }) {
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)]">
             <MediaThumb src={published.avatarUrl} alt={`Avatar publicado de ${title}`} label="Avatar" />
-            <MediaThumb
-              src={published.coverImageUrl}
-              alt={`Capa publicada de ${title}`}
-              label="Capa"
-            />
+            <MediaThumb src={published.coverImageUrl} alt={`Capa publicada de ${title}`} label="Capa" />
           </div>
           {published.galleryImageUrls.length > 0 ? (
             <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
@@ -422,43 +494,7 @@ function ProfileMediaReview({ profile }: { profile: MyProfile }) {
   );
 }
 
-function buildPayload(role: string, form: FormState) {
-  return {
-    name: form.name,
-    email: form.email,
-    phone: form.phone || undefined,
-    avatarUrl: form.avatarUrl || undefined,
-    coverImageUrl: form.coverImageUrl || undefined,
-    galleryImageUrls: form.galleryImageUrls,
-    organizationName: form.organizationName || undefined,
-    description: form.description || undefined,
-    purpose: role === 'NGO' ? form.purpose || undefined : undefined,
-    address: form.address || undefined,
-    addressNumber: form.addressNumber || undefined,
-    addressComplement: form.addressComplement || undefined,
-    neighborhood: form.neighborhood || undefined,
-    zipCode: form.zipCode || undefined,
-    city: form.city || undefined,
-    state: form.state || undefined,
-    openingSchedule: form.openingSchedule.map((entry) => ({
-      day: entry.day,
-      isOpen: entry.isOpen,
-      ...(entry.open ? { open: entry.open } : {}),
-      ...(entry.close ? { close: entry.close } : {}),
-    })),
-    openingHoursExceptions: form.openingHoursExceptions || undefined,
-    publicNotes: form.publicNotes || undefined,
-    operationalNotes: role === 'NGO' ? form.operationalNotes || undefined : undefined,
-    accessibilityDetails: form.accessibilityDetails || undefined,
-    accessibilityFeatures: form.accessibilityFeatures,
-    estimatedCapacity:
-      role === 'COLLECTION_POINT' ? form.estimatedCapacity || undefined : undefined,
-    acceptedCategories: form.acceptedCategories,
-    nonAcceptedItems: serializeMultiline(form.nonAcceptedItemsText),
-    rules: serializeMultiline(form.rulesText),
-    serviceRegions: role === 'NGO' ? serializeMultiline(form.serviceRegionsText) : [],
-  };
-}
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function OperationalProfileForm() {
   const router = useRouter();
@@ -480,7 +516,8 @@ export function OperationalProfileForm() {
   } | null>(null);
   const [presetOpenTime, setPresetOpenTime] = useState('09:00');
   const [presetCloseTime, setPresetCloseTime] = useState('18:00');
-  const [uploadingTarget, setUploadingTarget] = useState<'avatar' | 'cover' | 'gallery' | null>(null);
+  const [uploadingTarget, setUploadingTarget] = useState<CropTarget | null>(null);
+  const [cropRequest, setCropRequest] = useState<CropRequest | null>(null);
 
   const addressBlurTimeoutRef = useRef<number | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -491,8 +528,9 @@ export function OperationalProfileForm() {
   const role = session?.user?.role ?? '';
   const defaultCallback = role === 'DONOR' ? '/inicio' : '/operacoes';
   const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl'), defaultCallback);
-  const steps = getStepOrder();
+  const steps: StepKey[] = ['identity', 'location', 'acceptance', 'review'];
   const currentStepIndex = steps.indexOf(step);
+
   const addressBias = useMemo(
     () =>
       addressPreview ??
@@ -536,9 +574,9 @@ export function OperationalProfileForm() {
             : null,
         );
         setAddressAssistMessage(null);
-        setStep(getStepOrder()[0]);
+        setStep('identity');
       } catch {
-        setError('Nao foi possivel carregar seu perfil operacional agora.');
+        setError('Não foi possível carregar seu perfil operacional agora.');
       } finally {
         setLoading(false);
       }
@@ -564,51 +602,32 @@ export function OperationalProfileForm() {
     [],
   );
 
-  function updateField(field: keyof FormState, value: string | string[]) {
-    setForm((current) => {
-      if (!current) {
-        return current;
-      }
+  // ── Field updaters ──────────────────────────────────────────────────────────
 
-      return {
-        ...current,
-        [field]: value,
-      };
+  function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
+    setForm((current) => {
+      if (!current) return current;
+      return { ...current, [field]: value };
     });
   }
 
   function updateAddressField(field: keyof FormState, value: string) {
-    updateField(field, value);
+    updateField(field as keyof FormState, value as FormState[typeof field]);
     setAddressAssistMessage(null);
 
-    if (
-      field === 'address' ||
-      field === 'addressNumber' ||
-      field === 'addressComplement' ||
-      field === 'neighborhood' ||
-      field === 'zipCode' ||
-      field === 'city' ||
-      field === 'state'
-    ) {
+    if (['address', 'addressNumber', 'addressComplement', 'neighborhood', 'zipCode', 'city', 'state'].includes(field)) {
       setAddressPreview(null);
     }
   }
 
   function updateScheduleEntry(day: OpeningScheduleDay, patch: Partial<OpeningScheduleEntry>) {
     setForm((current) => {
-      if (!current) {
-        return current;
-      }
-
+      if (!current) return current;
       return {
         ...current,
         openingSchedule: current.openingSchedule.map((entry) =>
           entry.day === day
-            ? {
-                ...entry,
-                ...patch,
-                ...(patch.isOpen === false ? { open: '', close: '' } : {}),
-              }
+            ? { ...entry, ...patch, ...(patch.isOpen === false ? { open: '', close: '' } : {}) }
             : entry,
         ),
       };
@@ -617,9 +636,7 @@ export function OperationalProfileForm() {
 
   function applySchedulePreset(presetId: SchedulePresetId) {
     setForm((current) => {
-      if (!current) {
-        return current;
-      }
+      if (!current) return current;
 
       const activeDays =
         presetId === 'WEEKDAYS'
@@ -634,29 +651,14 @@ export function OperationalProfileForm() {
         ...current,
         openingSchedule: current.openingSchedule.map((entry) => {
           if (presetId === 'CLEAR') {
-            return {
-              ...entry,
-              isOpen: false,
-              open: '',
-              close: '',
-            };
+            return { ...entry, isOpen: false, open: '', close: '' };
           }
 
           if (activeDays.includes(entry.day)) {
-            return {
-              ...entry,
-              isOpen: true,
-              open: presetOpenTime,
-              close: presetCloseTime,
-            };
+            return { ...entry, isOpen: true, open: presetOpenTime, close: presetCloseTime };
           }
 
-          return {
-            ...entry,
-            isOpen: false,
-            open: '',
-            close: '',
-          };
+          return { ...entry, isOpen: false, open: '', close: '' };
         }),
       };
     });
@@ -664,12 +666,8 @@ export function OperationalProfileForm() {
 
   function toggleAccessibilityFeature(value: string) {
     setForm((current) => {
-      if (!current) {
-        return current;
-      }
-
+      if (!current) return current;
       const exists = current.accessibilityFeatures.includes(value);
-
       return {
         ...current,
         accessibilityFeatures: exists
@@ -679,26 +677,60 @@ export function OperationalProfileForm() {
     });
   }
 
-  async function handleUploadAsset(
-    target: 'avatar' | 'cover' | 'gallery',
-    file: File | null | undefined,
-  ) {
-    if (!file || !session?.user?.accessToken) {
-      return false;
-    }
+  function toggleCategory(category: string) {
+    setForm((current) => {
+      if (!current) return current;
+      const exists = current.acceptedCategories.includes(category);
+      return {
+        ...current,
+        acceptedCategories: exists
+          ? current.acceptedCategories.filter((item) => item !== category)
+          : [...current.acceptedCategories, category],
+      };
+    });
+  }
+
+  // Toggle service region in/out of the free text
+  function toggleServiceRegion(region: string) {
+    setForm((current) => {
+      if (!current) return current;
+      const lines = current.serviceRegionsText
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const already = lines.includes(region);
+      const updated = already ? lines.filter((l) => l !== region) : [...lines, region];
+      return { ...current, serviceRegionsText: updated.join('\n') };
+    });
+  }
+
+  // ── Image upload with crop ──────────────────────────────────────────────────
+
+  function requestCrop(target: CropTarget, file: File) {
+    const configs: Record<CropTarget, { aspectRatio: number; outputWidth: number; outputHeight: number; label: string }> = {
+      avatar: { aspectRatio: 1, outputWidth: 480, outputHeight: 480, label: 'Ajustar avatar' },
+      cover: { aspectRatio: 16 / 9, outputWidth: 1200, outputHeight: 675, label: 'Ajustar capa' },
+      gallery: { aspectRatio: 4 / 3, outputWidth: 800, outputHeight: 600, label: 'Ajustar foto da galeria' },
+    };
+    setCropRequest({ file, target, ...configs[target] });
+  }
+
+  async function handleCropConfirm(croppedFile: File) {
+    const target = cropRequest?.target;
+    setCropRequest(null);
+    if (!target) return;
+    await handleUploadAsset(target, croppedFile);
+  }
+
+  async function handleUploadAsset(target: CropTarget, file: File | null | undefined) {
+    if (!file || !session?.user?.accessToken) return false;
 
     setUploadingTarget(target);
     setError(null);
     setSuccess(null);
 
     try {
-      const uploaded = await uploadProfileAsset(
-        {
-          file,
-          target,
-        },
-        session.user.accessToken,
-      );
+      const uploaded = await uploadProfileAsset({ file, target }, session.user.accessToken);
 
       if (target === 'avatar') {
         updateField('avatarUrl', uploaded.url);
@@ -706,37 +738,26 @@ export function OperationalProfileForm() {
         updateField('coverImageUrl', uploaded.url);
       } else {
         setForm((current) => {
-          if (!current) {
-            return current;
-          }
-
-          if (current.galleryImageUrls.includes(uploaded.url)) {
-            return current;
-          }
-
+          if (!current) return current;
+          if (current.galleryImageUrls.includes(uploaded.url)) return current;
           return {
             ...current,
-            galleryImageUrls: [...current.galleryImageUrls, uploaded.url].slice(
-              0,
-              MAX_GALLERY_IMAGES,
-            ),
+            galleryImageUrls: [...current.galleryImageUrls, uploaded.url].slice(0, MAX_GALLERY_IMAGES),
           };
         });
       }
 
       setSuccess(
         target === 'avatar'
-          ? 'Imagem de avatar enviada com sucesso.'
+          ? 'Avatar enviado com sucesso.'
           : target === 'cover'
-            ? 'Imagem de capa enviada com sucesso.'
-            : 'Foto adicional enviada com sucesso.',
+            ? 'Capa enviada com sucesso.'
+            : 'Foto adicionada com sucesso.',
       );
       return true;
     } catch (uploadError) {
       setError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : 'Nao foi possivel enviar a imagem agora.',
+        uploadError instanceof Error ? uploadError.message : 'Não foi possível enviar a imagem agora.',
       );
       return false;
     } finally {
@@ -745,65 +766,39 @@ export function OperationalProfileForm() {
   }
 
   async function handleUploadGallery(files: FileList | null) {
-    if (!files || files.length === 0 || !form) {
-      return;
-    }
+    if (!files || files.length === 0 || !form) return;
 
     const remainingSlots = MAX_GALLERY_IMAGES - form.galleryImageUrls.length;
-
     if (remainingSlots <= 0) {
-      setError(`A galeria aceita no maximo ${MAX_GALLERY_IMAGES} fotos.`);
+      setError(`A galeria aceita no máximo ${MAX_GALLERY_IMAGES} fotos.`);
       return;
     }
 
+    // For gallery, crop the first file then queue the rest
     const uploadQueue = Array.from(files).slice(0, remainingSlots);
+    if (uploadQueue[0]) {
+      requestCrop('gallery', uploadQueue[0]);
+    }
 
-    setUploadingTarget('gallery');
-    setError(null);
-    setSuccess(null);
-
-    try {
-      for (const file of uploadQueue) {
-        const uploaded = await handleUploadAsset('gallery', file);
-
-        if (!uploaded) {
-          return;
-        }
-      }
-
-      setSuccess(
-        uploadQueue.length === 1
-          ? 'Foto adicional enviada com sucesso.'
-          : `${uploadQueue.length} fotos adicionais enviadas com sucesso.`,
-      );
-    } finally {
-      setUploadingTarget(null);
-
-      if (galleryInputRef.current) {
-        galleryInputRef.current.value = '';
-      }
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = '';
     }
   }
 
   function removeGalleryImage(imageUrl: string) {
     setForm((current) => {
-      if (!current) {
-        return current;
-      }
-
-      return {
-        ...current,
-        galleryImageUrls: current.galleryImageUrls.filter((item) => item !== imageUrl),
-      };
+      if (!current) return current;
+      return { ...current, galleryImageUrls: current.galleryImageUrls.filter((item) => item !== imageUrl) };
     });
   }
+
+  // ── Address ─────────────────────────────────────────────────────────────────
 
   function handleAddressFocus() {
     if (addressBlurTimeoutRef.current) {
       window.clearTimeout(addressBlurTimeoutRef.current);
       addressBlurTimeoutRef.current = null;
     }
-
     setAddressFocused(true);
   }
 
@@ -827,12 +822,8 @@ export function OperationalProfileForm() {
     displayName?: string | null;
   }) {
     setForm((current) => {
-      if (!current) {
-        return current;
-      }
-
+      if (!current) return current;
       const resolvedAddress = resolveSuggestionAddress(suggestion, current.address);
-
       return {
         ...current,
         address: resolvedAddress,
@@ -844,39 +835,27 @@ export function OperationalProfileForm() {
         zipCode: suggestion.zipCode ?? current.zipCode,
       };
     });
-
-    setAddressPreview({
-      latitude: suggestion.latitude,
-      longitude: suggestion.longitude,
-    });
-    setAddressAssistMessage(
-      'Sugestao aplicada. Revise numero e complemento antes de salvar, se necessario.',
-    );
+    setAddressPreview({ latitude: suggestion.latitude, longitude: suggestion.longitude });
+    setAddressAssistMessage('Sugestão aplicada. Revise número e complemento antes de salvar.');
     setAddressFocused(false);
     clearSuggestions();
   }
 
-  function toggleCategory(category: string) {
-    setForm((current) => {
-      if (!current) {
-        return current;
-      }
-
-      const exists = current.acceptedCategories.includes(category);
-
-      return {
-        ...current,
-        acceptedCategories: exists
-          ? current.acceptedCategories.filter((item) => item !== category)
-          : [...current.acceptedCategories, category],
-      };
-    });
-  }
+  // ── Submit ──────────────────────────────────────────────────────────────────
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!session?.user?.accessToken || !form || !profile) return;
 
-    if (!session?.user?.accessToken || !form || !profile) {
+    // Validate CPF if filled
+    if (form.cpf && !isValidCpf(form.cpf)) {
+      setError('O CPF informado não é válido. Verifique e tente novamente.');
+      return;
+    }
+
+    // Validate CNPJ if filled
+    if (form.cnpj && !isValidCnpj(form.cnpj)) {
+      setError('O CNPJ informado não é válido. Verifique e tente novamente.');
       return;
     }
 
@@ -885,10 +864,7 @@ export function OperationalProfileForm() {
     setSuccess(null);
 
     try {
-      const updated = await updateMyProfile(
-        buildPayload(profile.role, form),
-        session.user.accessToken,
-      );
+      const updated = await updateMyProfile(buildPayload(profile.role, form), session.user.accessToken);
 
       await updateSession({
         user: {
@@ -905,12 +881,12 @@ export function OperationalProfileForm() {
           ? { latitude: updated.latitude, longitude: updated.longitude }
           : null,
       );
-      setAddressAssistMessage('Endereco salvo e coordenadas atualizadas automaticamente.');
+      setAddressAssistMessage('Endereço salvo e coordenadas atualizadas automaticamente.');
       setSuccess(
         updated.pendingPublicRevision?.status === 'PENDING'
-          ? 'Alteracoes publicas enviadas para revisao administrativa. O perfil publicado segue estavel ate a aprovacao.'
+          ? 'Alterações públicas enviadas para revisão administrativa. O perfil publicado segue estável até a aprovação.'
           : setupMode
-            ? 'Perfil salvo. Redirecionando para o proximo passo da sua operacao...'
+            ? 'Perfil salvo. Redirecionando...'
             : 'Perfil operacional atualizado com sucesso.',
       );
 
@@ -919,14 +895,23 @@ export function OperationalProfileForm() {
       }
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : 'Nao foi possivel salvar o perfil agora.',
+        submitError instanceof Error ? submitError.message : 'Não foi possível salvar o perfil agora.',
       );
     } finally {
       setSaving(false);
     }
   }
+
+  // ── Step labels ─────────────────────────────────────────────────────────────
+
+  function getStepLabel(s: StepKey) {
+    if (s === 'identity') return role === 'NGO' ? 'Institucional' : 'Identidade';
+    if (s === 'location') return role === 'NGO' ? 'Base e cobertura' : 'Local e horário';
+    if (s === 'acceptance') return 'Itens e regras';
+    return 'Revisão';
+  }
+
+  // ── Loading / guard ─────────────────────────────────────────────────────────
 
   if (loading || status === 'loading') {
     return (
@@ -944,889 +929,1092 @@ export function OperationalProfileForm() {
   }
 
   const RoleIcon = getRoleIcon(profile.role);
+  const orgTitle = profile.organizationName ?? profile.name;
+
+  // active service regions (for toggle buttons)
+  const activeRegions = form.serviceRegionsText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
 
   return (
-    <div className="px-4 pb-8 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <Link
-              href="/perfil"
-              className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-gray-500 shadow-card transition-colors hover:text-primary"
-            >
-              <ArrowLeft size={18} />
-            </Link>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                {setupMode ? 'Configuracao inicial' : 'Perfil operacional'}
-              </p>
-              <h1 className="mt-2 text-3xl font-bold text-primary-deeper">
-                {profile.role === 'NGO' ? 'Perfil publico da ONG' : 'Perfil publico do ponto'}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">
-                {setupMode
-                  ? 'Preencha as informacoes que doadores precisam ver para confiar no local, encontrar voce no mapa e entender como doar.'
-                  : 'Edite as informacoes publicas e operacionais que aparecem para doadores e ajudam a equipe a operar melhor.'}
-              </p>
+    <>
+      {cropRequest && (
+        <ProfileImageCropper
+          file={cropRequest.file}
+          aspectRatio={cropRequest.aspectRatio}
+          outputWidth={cropRequest.outputWidth}
+          outputHeight={cropRequest.outputHeight}
+          label={cropRequest.label}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropRequest(null)}
+        />
+      )}
+
+      <div className="px-4 pb-8 pt-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1500px]">
+          {/* ── Header ─────────────────────────────────────────────────────── */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Link
+                href="/perfil"
+                className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-gray-500 shadow-card transition-colors hover:text-primary"
+              >
+                <ArrowLeft size={18} />
+              </Link>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                  {setupMode ? 'Configuração inicial' : 'Perfil operacional'}
+                </p>
+                <h1 className="mt-2 text-3xl font-bold text-primary-deeper">
+                  {profile.role === 'NGO' ? 'Perfil público da ONG' : 'Perfil público do ponto'}
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">
+                  {setupMode
+                    ? 'Preencha as informações que doadores precisam ver para confiar no local, encontrar você no mapa e entender como doar.'
+                    : 'Edite as informações públicas e operacionais que aparecem para doadores e ajudam a equipe a operar melhor.'}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-primary shadow-card">
-            <ShieldCheck size={15} />
-            {PROFILE_STATE_LABELS[profile.publicProfileState]}
-          </div>
-        </div>
-
-        <ProfileMediaReview profile={profile} />
-
-        {profile.pendingPublicRevision && (
-          <div
-            className={`mb-5 rounded-[1.75rem] border px-5 py-4 text-sm ${
-              profile.pendingPublicRevision.status === 'PENDING'
-                ? 'border-amber-200 bg-amber-50 text-amber-800'
-                : 'border-rose-200 bg-rose-50 text-rose-800'
-            }`}
-          >
-            <p className="font-semibold">
-              {profile.pendingPublicRevision.status === 'PENDING'
-                ? 'Alteracoes publicas em revisao'
-                : 'Ultima revisao de alteracoes foi rejeitada'}
-            </p>
-            <p className="mt-2 leading-7">
-              {profile.pendingPublicRevision.status === 'PENDING'
-                ? 'Endereco, telefone, imagens, horario, acessibilidade, regras e observacoes publicas passam primeiro por revisao administrativa antes de atualizar o perfil publicado.'
-                : 'Voce pode ajustar os dados abaixo e reenviar para nova revisao quando estiver pronto.'}
-            </p>
-            {profile.pendingPublicRevision.reviewNotes && (
-              <p className="mt-2 text-xs font-medium">
-                Revisao admin: {profile.pendingPublicRevision.reviewNotes}
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5 rounded-[2rem] bg-white p-5 shadow-card lg:p-6"
-          >
-            <div className="flex flex-wrap gap-2">
-              {steps.map((item, index) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setStep(item)}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                    step === item
-                      ? 'bg-primary-deeper text-white'
-                      : 'bg-surface text-gray-500 hover:text-primary'
-                  }`}
+            <div className="flex items-center gap-2">
+              {profile.publicProfileState !== 'DRAFT' && profile.id && (
+                <Link
+                  href={`/mapa/${profile.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-primary shadow-card transition-colors hover:bg-primary-light"
                 >
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-xs">
-                    {index + 1}
-                  </span>
-                  {getStepLabel(item, profile.role)}
-                </button>
-              ))}
+                  <Sparkles size={13} />
+                  Ver perfil público
+                </Link>
+              )}
+              <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-primary shadow-card">
+                <ShieldCheck size={15} />
+                {PROFILE_STATE_LABELS[profile.publicProfileState]}
+              </div>
             </div>
+          </div>
 
-            {step === 'identity' && (
-              <section className="space-y-4">
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-primary">
-                      <RoleIcon size={20} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-primary-deeper">
-                        {getRoleLabel(profile.role)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Identidade publica e pessoa responsavel pelo atendimento.
-                      </p>
+          {/* ── Media review ───────────────────────────────────────────────── */}
+          <ProfileMediaReview profile={profile} />
+
+          {/* ── Governance notice ──────────────────────────────────────────── */}
+          {profile.pendingPublicRevision && (
+            <div
+              className={`mb-5 rounded-[1.75rem] border px-5 py-4 text-sm ${
+                profile.pendingPublicRevision.status === 'PENDING'
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : 'border-rose-200 bg-rose-50 text-rose-800'
+              }`}
+            >
+              <p className="font-semibold">
+                {profile.pendingPublicRevision.status === 'PENDING'
+                  ? 'Alterações públicas em revisão'
+                  : 'Última revisão de alterações foi rejeitada'}
+              </p>
+              <p className="mt-2 leading-7">
+                {profile.pendingPublicRevision.status === 'PENDING'
+                  ? 'Endereço, telefone, imagens, horário, acessibilidade, regras e observações públicas passam por revisão administrativa antes de atualizar o perfil publicado.'
+                  : 'Você pode ajustar os dados abaixo e reenviar para nova revisão quando estiver pronto.'}
+              </p>
+              {profile.pendingPublicRevision.reviewNotes && (
+                <p className="mt-2 text-xs font-medium">
+                  Revisão admin: {profile.pendingPublicRevision.reviewNotes}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
+            {/* ── Form ───────────────────────────────────────────────────── */}
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-5 rounded-[2rem] bg-white p-5 shadow-card lg:p-6"
+            >
+              {/* Stepper */}
+              <div className="flex flex-wrap gap-2">
+                {steps.map((item, index) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setStep(item)}
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                      step === item
+                        ? 'bg-primary-deeper text-white'
+                        : 'bg-surface text-gray-500 hover:text-primary'
+                    }`}
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-xs">
+                      {index + 1}
+                    </span>
+                    {getStepLabel(item)}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Step: Identity ──────────────────────────────────────── */}
+              {step === 'identity' && (
+                <section className="space-y-4">
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-primary">
+                        <RoleIcon size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-primary-deeper">
+                          {getRoleLabel(profile.role)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Identidade pública e pessoa responsável pelo atendimento.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Responsavel</span>
-                    <input
-                      value={form.name}
-                      onChange={(event) => updateField('name', event.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">E-mail</span>
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(event) => updateField('email', event.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                </div>
+                  {/* Responsible info */}
+                  <div className="rounded-[1.5rem] border border-gray-100 bg-surface p-4">
+                    <p className="mb-3 text-sm font-semibold text-on-surface">Responsável</p>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="space-y-2 text-sm text-gray-500">
+                        <span className="font-semibold text-on-surface">Nome completo</span>
+                        <input
+                          value={form.name}
+                          onChange={(event) => updateField('name', event.target.value)}
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm text-gray-500">
+                        <span className="font-semibold text-on-surface">E-mail</span>
+                        <input
+                          type="email"
+                          value={form.email}
+                          onChange={(event) => updateField('email', event.target.value)}
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                        />
+                      </label>
+                    </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Telefone</span>
-                    <input
-                      value={form.phone}
-                      onChange={(event) => updateField('phone', event.target.value)}
-                      placeholder="(11) 99999-9999"
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">
-                      {profile.role === 'NGO' ? 'Nome da ONG' : 'Nome do ponto'}
-                    </span>
-                    <input
-                      value={form.organizationName}
-                      onChange={(event) => updateField('organizationName', event.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="space-y-2 text-sm text-gray-500">
+                        <span className="font-semibold text-on-surface">Telefone público</span>
+                        <input
+                          value={form.phone}
+                          onChange={(event) =>
+                            updateField('phone', formatBrazilPhoneInput(event.target.value))
+                          }
+                          placeholder="(11) 99999-9999"
+                          inputMode="tel"
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                        />
+                      </label>
 
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">Descricao publica</span>
-                  <textarea
-                    rows={4}
-                    value={form.description}
-                    onChange={(event) => updateField('description', event.target.value)}
-                    placeholder="Explique rapidamente o que este parceiro faz, como recebe doacoes e qual contexto atende."
-                    className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
+                      <label className="space-y-2 text-sm text-gray-500">
+                        <span className="font-semibold text-on-surface">CPF do responsável</span>
+                        <input
+                          value={form.cpf}
+                          onChange={(event) =>
+                            updateField('cpf', formatCpfInput(normalizeCpfInput(event.target.value)))
+                          }
+                          placeholder="000.000.000-00"
+                          maxLength={14}
+                          inputMode="numeric"
+                          className={`w-full rounded-2xl border bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary ${
+                            form.cpf && !isValidCpf(form.cpf)
+                              ? 'border-rose-300'
+                              : 'border-gray-200'
+                          }`}
+                        />
+                        <p className="text-[11px] text-gray-400">
+                          Apenas para verificação interna. Não aparece no perfil público.
+                        </p>
+                      </label>
+                    </div>
+                  </div>
 
-                {profile.role === 'NGO' && (
+                  {/* Organization info */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">
+                        {profile.role === 'NGO' ? 'Nome da ONG' : 'Nome do ponto'}
+                      </span>
+                      <input
+                        value={form.organizationName}
+                        onChange={(event) => updateField('organizationName', event.target.value)}
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">
+                        CNPJ
+                        <span className="ml-1 font-normal text-gray-400">(opcional)</span>
+                      </span>
+                      <input
+                        value={form.cnpj}
+                        onChange={(event) =>
+                          updateField('cnpj', formatCnpjInput(normalizeCnpjInput(event.target.value)))
+                        }
+                        placeholder="00.000.000/0000-00"
+                        maxLength={18}
+                        inputMode="numeric"
+                        className={`w-full rounded-2xl border bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary ${
+                          form.cnpj && !isValidCnpj(form.cnpj) ? 'border-rose-300' : 'border-gray-200'
+                        }`}
+                      />
+                    </label>
+                  </div>
+
                   <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Proposito</span>
+                    <span className="font-semibold text-on-surface">Descrição pública</span>
                     <textarea
                       rows={4}
-                      value={form.purpose}
-                      onChange={(event) => updateField('purpose', event.target.value)}
-                      placeholder="Como a ONG transforma as doacoes em impacto real."
+                      value={form.description}
+                      onChange={(event) => updateField('description', event.target.value)}
+                      placeholder="Explique rapidamente o que este parceiro faz, como recebe doações e qual contexto atende."
                       className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                     />
                   </label>
-                )}
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-3 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
-                    <div className="flex items-center justify-between gap-3">
+                  {profile.role === 'NGO' && (
+                    <label className="space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">Propósito</span>
+                      <textarea
+                        rows={4}
+                        value={form.purpose}
+                        onChange={(event) => updateField('purpose', event.target.value)}
+                        placeholder="Como a ONG transforma as doações em impacto real."
+                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </label>
+                  )}
+
+                  {/* Images */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Avatar */}
+                    <div className="space-y-3 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-on-surface">Foto / avatar</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Upload principal do perfil. JPG, PNG ou WEBP até 5MB.
+                          </p>
+                        </div>
+                        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white text-sm font-bold text-primary shadow-sm">
+                          {form.avatarUrl ? (
+                            <SafeImage
+                              src={form.avatarUrl}
+                              alt={orgTitle}
+                              className="h-full w-full"
+                              fallbackLabel="Avatar indisponível"
+                            />
+                          ) : (
+                            orgTitle
+                              .split(' ')
+                              .map((segment) => segment[0])
+                              .slice(0, 2)
+                              .join('')
+                          )}
+                        </div>
+                      </div>
+
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        aria-label="Selecionar avatar"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) requestCrop('avatar', file);
+                          event.target.value = '';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={uploadingTarget === 'avatar'}
+                        className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {uploadingTarget === 'avatar' ? 'Enviando...' : 'Enviar avatar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateField('avatarUrl', '')}
+                        disabled={!form.avatarUrl}
+                        className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
+                      >
+                        Remover avatar
+                      </button>
+                    </div>
+
+                    {/* Cover */}
+                    <div className="space-y-3 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
                       <div>
-                        <p className="text-sm font-semibold text-on-surface">Foto / avatar</p>
+                        <p className="text-sm font-semibold text-on-surface">Capa pública</p>
                         <p className="mt-1 text-xs text-gray-500">
-                          Upload principal do perfil. JPG, PNG ou WEBP ate 5MB.
+                          Usada no detalhe público do parceiro. Proporção 16:9.
                         </p>
                       </div>
-                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white text-sm font-bold text-primary shadow-sm">
-                        {form.avatarUrl ? (
+
+                      <div className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white">
+                        {form.coverImageUrl ? (
                           <SafeImage
-                            src={form.avatarUrl}
-                            alt={profile.organizationName ?? profile.name}
-                            className="h-full w-full"
-                            fallbackLabel="Avatar indisponível"
+                            src={form.coverImageUrl}
+                            alt={`Capa de ${orgTitle}`}
+                            className="h-32 w-full"
+                            fallbackLabel="Capa indisponível"
                           />
                         ) : (
-                          (profile.organizationName ?? profile.name)
-                            .split(' ')
-                            .map((segment) => segment[0])
-                            .slice(0, 2)
-                            .join('')
+                          <div className="flex h-32 w-full items-center justify-center bg-primary-light text-sm font-semibold text-primary">
+                            Nenhuma capa enviada
+                          </div>
                         )}
+                      </div>
+
+                      <input
+                        ref={coverInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        aria-label="Selecionar capa"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) requestCrop('cover', file);
+                          event.target.value = '';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => coverInputRef.current?.click()}
+                        disabled={uploadingTarget === 'cover'}
+                        className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {uploadingTarget === 'cover' ? 'Enviando...' : 'Enviar capa'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateField('coverImageUrl', '')}
+                        disabled={!form.coverImageUrl}
+                        className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
+                      >
+                        Remover capa
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Gallery */}
+                  <div className="space-y-4 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-on-surface">Galeria pública</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Fotos adicionais do espaço. Até {MAX_GALLERY_IMAGES} imagens, proporção 4:3.
+                        </p>
+                      </div>
+                      <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary-deeper shadow-sm">
+                        {form.galleryImageUrls.length}/{MAX_GALLERY_IMAGES}
                       </div>
                     </div>
 
                     <input
-                      ref={avatarInputRef}
+                      ref={galleryInputRef}
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
+                      multiple
                       className="hidden"
-                      onChange={(event) =>
-                        void handleUploadAsset('avatar', event.target.files?.[0] ?? null)
-                      }
+                      aria-label="Adicionar fotos à galeria"
+                      onChange={(event) => void handleUploadGallery(event.target.files)}
                     />
-
-                    <button
-                      type="button"
-                      onClick={() => avatarInputRef.current?.click()}
-                      disabled={uploadingTarget === 'avatar'}
-                      className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {uploadingTarget === 'avatar' ? 'Enviando imagem...' : 'Enviar avatar'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateField('avatarUrl', '')}
-                      disabled={!form.avatarUrl}
-                      className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
-                    >
-                      Remover avatar
-                    </button>
-                  </div>
-
-                  <div className="space-y-3 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
-                    <div>
-                      <p className="text-sm font-semibold text-on-surface">Capa publica</p>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Usada no detalhe publico do parceiro e no contexto institucional.
-                      </p>
-                    </div>
-
-                    <div className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white">
-                      {form.coverImageUrl ? (
-                        <SafeImage
-                          src={form.coverImageUrl}
-                          alt={`Capa de ${profile.organizationName ?? profile.name}`}
-                          className="h-32 w-full"
-                          fallbackLabel="Capa indisponível"
-                        />
-                      ) : (
-                        <div className="flex h-32 w-full items-center justify-center bg-primary-light text-sm font-semibold text-primary">
-                          Nenhuma capa enviada
-                        </div>
-                      )}
-                    </div>
-
-                    <input
-                      ref={coverInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={(event) =>
-                        void handleUploadAsset('cover', event.target.files?.[0] ?? null)
-                      }
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => coverInputRef.current?.click()}
-                      disabled={uploadingTarget === 'cover'}
-                      className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {uploadingTarget === 'cover' ? 'Enviando imagem...' : 'Enviar capa'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateField('coverImageUrl', '')}
-                      disabled={!form.coverImageUrl}
-                      className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300"
-                    >
-                      Remover capa
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4 rounded-[1.5rem] border border-gray-200 bg-surface p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-on-surface">Galeria publica</p>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Fotos adicionais do espaco, fachada ou operacao. Ate {MAX_GALLERY_IMAGES}{' '}
-                        imagens em JPG, PNG ou WEBP.
-                      </p>
-                    </div>
-
-                    <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary-deeper shadow-sm">
-                      {form.galleryImageUrls.length}/{MAX_GALLERY_IMAGES}
-                    </div>
-                  </div>
-
-                  <input
-                    ref={galleryInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    multiple
-                    className="hidden"
-                    onChange={(event) => void handleUploadGallery(event.target.files)}
-                  />
-
-                  <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
                       onClick={() => galleryInputRef.current?.click()}
-                      disabled={
-                        uploadingTarget === 'gallery' ||
-                        form.galleryImageUrls.length >= MAX_GALLERY_IMAGES
-                      }
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={uploadingTarget === 'gallery' || form.galleryImageUrls.length >= MAX_GALLERY_IMAGES}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <ImagePlus size={16} />
                       {uploadingTarget === 'gallery' ? 'Enviando fotos...' : 'Adicionar fotos'}
                     </button>
-                    <p className="text-xs leading-6 text-gray-500">
-                      A galeria publicada de perfis ativos/verificados entra em revisao antes de ir
-                      ao ar.
-                    </p>
-                  </div>
 
-                  {form.galleryImageUrls.length === 0 ? (
-                    <div className="rounded-[1.25rem] border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
-                      Nenhuma foto adicional enviada ainda.
-                    </div>
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {form.galleryImageUrls.map((imageUrl, index) => (
-                        <div
-                          key={imageUrl}
-                          className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white"
-                        >
-                          <SafeImage
-                            src={imageUrl}
-                            alt={`Foto adicional ${index + 1} de ${profile.organizationName ?? profile.name}`}
-                            className="h-40 w-full"
-                            fallbackLabel="Foto indisponível"
-                          />
-                          <div className="flex items-center justify-between gap-3 px-3 py-3">
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
-                              Foto {index + 1}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => removeGalleryImage(imageUrl)}
-                              className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
-                            >
-                              <Trash2 size={14} />
-                              Remover
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {step === 'location' && (
-              <section className="space-y-4">
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-primary">
-                      <MapPin size={20} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-primary-deeper">
-                        {profile.role === 'NGO' ? 'Base e area de atendimento' : 'Endereco e horario'}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Estes dados alimentam o mapa, o detalhe publico e a confianca do doador.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">
-                    {profile.role === 'NGO' ? 'Logradouro ou base operacional' : 'Logradouro'}
-                  </span>
-                  <div className="relative">
-                    <input
-                      value={form.address}
-                      onChange={(event) => updateAddressField('address', event.target.value)}
-                      onFocus={handleAddressFocus}
-                      onBlur={handleAddressBlur}
-                      placeholder="Ex.: Rua Augusta"
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-
-                    {addressFocused && (hasAddressSuggestionQuery || addressSuggestionsLoading) && (
-                      <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg">
-                        {addressSuggestionsLoading && (
-                          <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
-                            <Loader2 size={15} className="animate-spin text-primary" />
-                            Buscando sugestoes de endereco...
-                          </div>
-                        )}
-
-                        {!addressSuggestionsLoading && addressSuggestionsError && (
-                          <div className="px-4 py-3 text-sm text-amber-700">
-                            {addressSuggestionsError}
-                          </div>
-                        )}
-
-                        {!addressSuggestionsLoading && !addressSuggestionsError && addressSuggestions.length > 0 && (
-                          <div className="max-h-72 overflow-y-auto py-2">
-                            {addressSuggestions.map((suggestion) => (
+                    {form.galleryImageUrls.length === 0 ? (
+                      <div className="rounded-[1.25rem] border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+                        Nenhuma foto adicional enviada ainda.
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {form.galleryImageUrls.map((imageUrl, index) => (
+                          <div
+                            key={imageUrl}
+                            className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white"
+                          >
+                            <SafeImage
+                              src={imageUrl}
+                              alt={`Foto adicional ${index + 1} de ${orgTitle}`}
+                              className="h-40 w-full"
+                              fallbackLabel="Foto indisponível"
+                            />
+                            <div className="flex items-center justify-between gap-3 px-3 py-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
+                                Foto {index + 1}
+                              </p>
                               <button
-                                key={suggestion.id}
                                 type="button"
-                                onMouseDown={(event) => event.preventDefault()}
-                                onClick={() => applyAddressSuggestion(suggestion)}
-                                className="w-full px-4 py-3 text-left transition-colors hover:bg-surface"
+                                onClick={() => removeGalleryImage(imageUrl)}
+                                className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
                               >
-                                <p className="text-sm font-semibold text-on-surface">
-                                  {suggestion.label}
-                                </p>
-                                <p className="mt-1 text-xs leading-6 text-gray-400">
-                                  {suggestion.displayName}
-                                </p>
+                                <Trash2 size={14} />
+                                Remover
                               </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {!addressSuggestionsLoading &&
-                          !addressSuggestionsError &&
-                          hasAddressSuggestionQuery &&
-                          addressSuggestions.length === 0 && (
-                            <div className="px-4 py-3 text-sm text-gray-500">
-                              Nenhuma sugestao apareceu para esse trecho. Continue digitando ou refine cidade/estado.
                             </div>
-                          )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400">
-                    Digite parte do endereco e escolha uma sugestao para preencher bairro, cidade, estado, CEP e coordenadas automaticamente.
-                  </p>
-                </div>
+                </section>
+              )}
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Numero</span>
-                    <input
-                      value={form.addressNumber}
-                      onChange={(event) => updateAddressField('addressNumber', event.target.value)}
-                      placeholder="Ex.: 1200"
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Complemento</span>
-                    <input
-                      value={form.addressComplement}
-                      onChange={(event) =>
-                        updateAddressField('addressComplement', event.target.value)
-                      }
-                      placeholder="Ex.: Sala 2, bloco B"
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Bairro</span>
-                    <input
-                      value={form.neighborhood}
-                      onChange={(event) => updateAddressField('neighborhood', event.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">CEP</span>
-                    <input
-                      value={form.zipCode}
-                      onChange={(event) => updateAddressField('zipCode', event.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Cidade</span>
-                    <input
-                      value={form.city}
-                      onChange={(event) => updateAddressField('city', event.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Estado</span>
-                    <input
-                      value={form.state}
-                      onChange={(event) => updateAddressField('state', event.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                </div>
-
-                <div className="space-y-4 rounded-[1.75rem] border border-gray-100 bg-surface p-5">
-                  <div>
-                    <p className="text-sm font-semibold text-primary-deeper">Horario de funcionamento</p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Estruture dias e faixas de horario para publicar o local com mais clareza.
-                    </p>
-                  </div>
-
-                  <div className="rounded-[1.25rem] bg-white px-4 py-4">
-                    <p className="text-sm font-semibold text-primary-deeper">Aplicacao rapida</p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Defina um horario base e aplique em lote. Depois voce pode ajustar dia a dia se precisar.
-                    </p>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                      <label className="space-y-2 text-sm text-gray-500">
-                        <span className="font-semibold text-on-surface">Horario base de abertura</span>
-                        <input
-                          type="time"
-                          value={presetOpenTime}
-                          onChange={(event) => setPresetOpenTime(event.target.value)}
-                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                        />
-                      </label>
-
-                      <label className="space-y-2 text-sm text-gray-500">
-                        <span className="font-semibold text-on-surface">Horario base de fechamento</span>
-                        <input
-                          type="time"
-                          value={presetCloseTime}
-                          onChange={(event) => setPresetCloseTime(event.target.value)}
-                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                        />
-                      </label>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {SCHEDULE_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => applySchedulePreset(preset.id)}
-                          className="rounded-full border border-gray-200 bg-surface px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary-deeper transition-colors hover:border-primary hover:bg-primary-light"
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
+              {/* ── Step: Location ──────────────────────────────────────── */}
+              {step === 'location' && (
+                <section className="space-y-4">
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-primary">
+                        <MapPin size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-primary-deeper">
+                          {profile.role === 'NGO' ? 'Base e área de atendimento' : 'Endereço e horário'}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Estes dados alimentam o mapa, o detalhe público e a confiança do doador.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {WEEKDAY_OPTIONS.map(({ day, label }) => {
-                      const entry = form.openingSchedule.find((item) => item.day === day);
+                  {/* Address */}
+                  <div className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">
+                      {profile.role === 'NGO' ? 'Logradouro ou base operacional' : 'Logradouro'}
+                    </span>
+                    <div className="relative">
+                      <input
+                        value={form.address}
+                        onChange={(event) => updateAddressField('address', event.target.value)}
+                        onFocus={handleAddressFocus}
+                        onBlur={handleAddressBlur}
+                        placeholder="Ex.: Rua Augusta"
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
 
-                      return (
-                        <div
-                          key={day}
-                          className="grid gap-3 rounded-[1.25rem] bg-white px-4 py-4 md:grid-cols-[11rem_minmax(0,1fr)] md:items-center"
-                        >
-                          <label className="inline-flex items-center gap-3 text-sm font-semibold text-on-surface">
-                            <input
-                              type="checkbox"
-                              checked={entry?.isOpen === true}
-                              onChange={(event) =>
-                                updateScheduleEntry(day, { isOpen: event.target.checked })
-                              }
-                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                            {label}
-                          </label>
-
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <input
-                              type="time"
-                              value={entry?.open ?? ''}
-                              disabled={!entry?.isOpen}
-                              onChange={(event) =>
-                                updateScheduleEntry(day, { open: event.target.value })
-                              }
-                              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:bg-surface disabled:text-gray-300"
-                            />
-                            <input
-                              type="time"
-                              value={entry?.close ?? ''}
-                              disabled={!entry?.isOpen}
-                              onChange={(event) =>
-                                updateScheduleEntry(day, { close: event.target.value })
-                              }
-                              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:bg-surface disabled:text-gray-300"
-                            />
-                          </div>
+                      {addressFocused && (hasAddressSuggestionQuery || addressSuggestionsLoading) && (
+                        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-card-lg">
+                          {addressSuggestionsLoading && (
+                            <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
+                              <Loader2 size={15} className="animate-spin text-primary" />
+                              Buscando sugestões...
+                            </div>
+                          )}
+                          {!addressSuggestionsLoading && addressSuggestionsError && (
+                            <div className="px-4 py-3 text-sm text-amber-700">{addressSuggestionsError}</div>
+                          )}
+                          {!addressSuggestionsLoading && !addressSuggestionsError && addressSuggestions.length > 0 && (
+                            <div className="max-h-72 overflow-y-auto py-2">
+                              {addressSuggestions.map((suggestion) => (
+                                <button
+                                  key={suggestion.id}
+                                  type="button"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => applyAddressSuggestion(suggestion)}
+                                  className="w-full px-4 py-3 text-left transition-colors hover:bg-surface"
+                                >
+                                  <p className="text-sm font-semibold text-on-surface">{suggestion.label}</p>
+                                  <p className="mt-1 text-xs leading-6 text-gray-400">{suggestion.displayName}</p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {!addressSuggestionsLoading && !addressSuggestionsError && hasAddressSuggestionQuery && addressSuggestions.length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500">
+                              Nenhuma sugestão. Continue digitando ou refine cidade/estado.
+                            </div>
+                          )}
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      Digite parte do endereço e escolha uma sugestão para preencher bairro, cidade, CEP e coordenadas automaticamente.
+                    </p>
+                    {addressAssistMessage && (
+                      <p className="rounded-2xl bg-primary-light px-3 py-2 text-xs font-medium text-primary-deeper">
+                        {addressAssistMessage}
+                      </p>
+                    )}
                   </div>
 
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Excecoes simples</span>
-                    <textarea
-                      rows={2}
-                      value={form.openingHoursExceptions}
-                      onChange={(event) => updateField('openingHoursExceptions', event.target.value)}
-                      placeholder="Ex.: Fecha em feriados municipais ou atende aos sabados mediante campanha."
-                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {[
+                      { field: 'addressNumber' as const, label: 'Número', placeholder: 'Ex.: 1200' },
+                      { field: 'addressComplement' as const, label: 'Complemento', placeholder: 'Ex.: Sala 2' },
+                      { field: 'neighborhood' as const, label: 'Bairro', placeholder: '' },
+                      { field: 'zipCode' as const, label: 'CEP', placeholder: '' },
+                      { field: 'city' as const, label: 'Cidade', placeholder: '' },
+                      { field: 'state' as const, label: 'Estado', placeholder: '' },
+                    ].map(({ field, label, placeholder }) => (
+                      <label key={field} className="space-y-2 text-sm text-gray-500">
+                        <span className="font-semibold text-on-surface">{label}</span>
+                        <input
+                          value={form[field]}
+                          onChange={(event) => updateAddressField(field, event.target.value)}
+                          placeholder={placeholder}
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                        />
+                      </label>
+                    ))}
+                  </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                  {/* Coordinates info */}
+                  <div className="rounded-[1.5rem] border border-dashed border-primary/25 bg-primary-light/30 p-4 text-sm text-gray-500">
+                    <p className="font-semibold text-primary-deeper">Localização gerada automaticamente</p>
+                    <p className="mt-2 text-xs text-gray-400">
+                      {addressPreview != null
+                        ? `Coordenadas sugeridas: ${addressPreview.latitude.toFixed(5)}, ${addressPreview.longitude.toFixed(5)}`
+                        : profile.latitude != null && profile.longitude != null
+                          ? `Coordenadas atuais: ${profile.latitude.toFixed(5)}, ${profile.longitude.toFixed(5)}`
+                          : 'Use rua com número, cidade e CEP para melhorar a precisão.'}
+                    </p>
+                  </div>
+
+                  {/* Opening hours */}
+                  <div className="space-y-4 rounded-[1.75rem] border border-gray-100 bg-surface p-5">
+                    <div>
+                      <p className="text-sm font-semibold text-primary-deeper">Horário de funcionamento</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Estruture dias e faixas de horário para publicar o local com mais clareza.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[1.25rem] bg-white px-4 py-4">
+                      <p className="text-sm font-semibold text-primary-deeper">Aplicação rápida</p>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <label className="space-y-2 text-sm text-gray-500">
+                          <span className="font-semibold text-on-surface">Horário base de abertura</span>
+                          <input
+                            type="time"
+                            value={presetOpenTime}
+                            onChange={(event) => setPresetOpenTime(event.target.value)}
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-gray-500">
+                          <span className="font-semibold text-on-surface">Horário base de fechamento</span>
+                          <input
+                            type="time"
+                            value={presetCloseTime}
+                            onChange={(event) => setPresetCloseTime(event.target.value)}
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                          />
+                        </label>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {SCHEDULE_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applySchedulePreset(preset.id)}
+                            className="rounded-full border border-gray-200 bg-surface px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary-deeper transition-colors hover:border-primary hover:bg-primary-light"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {WEEKDAY_OPTIONS.map(({ day, label }) => {
+                        const entry = form.openingSchedule.find((item) => item.day === day);
+                        return (
+                          <div
+                            key={day}
+                            className="grid gap-3 rounded-[1.25rem] bg-white px-4 py-4 md:grid-cols-[11rem_minmax(0,1fr)] md:items-center"
+                          >
+                            <label className="inline-flex items-center gap-3 text-sm font-semibold text-on-surface">
+                              <input
+                                type="checkbox"
+                                checked={entry?.isOpen === true}
+                                onChange={(event) => updateScheduleEntry(day, { isOpen: event.target.checked })}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                              />
+                              {label}
+                            </label>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <input
+                                type="time"
+                                value={entry?.open ?? ''}
+                                disabled={!entry?.isOpen}
+                                onChange={(event) => updateScheduleEntry(day, { open: event.target.value })}
+                                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:bg-surface disabled:text-gray-300"
+                              />
+                              <input
+                                type="time"
+                                value={entry?.close ?? ''}
+                                disabled={!entry?.isOpen}
+                                onChange={(event) => updateScheduleEntry(day, { close: event.target.value })}
+                                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:bg-surface disabled:text-gray-300"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <label className="space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">Exceções simples</span>
+                      <textarea
+                        rows={2}
+                        value={form.openingHoursExceptions}
+                        onChange={(event) => updateField('openingHoursExceptions', event.target.value)}
+                        placeholder="Ex.: Fecha em feriados municipais."
+                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Regions (NGO) */}
+                  {profile.role === 'NGO' && (
+                    <div className="space-y-3 rounded-[1.5rem] border border-gray-100 bg-surface p-4">
+                      <p className="text-sm font-semibold text-on-surface">Regiões atendidas</p>
+                      <p className="text-xs text-gray-400">
+                        Selecione as regiões ou adicione manualmente abaixo.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {SERVICE_REGION_OPTIONS.map((region) => (
+                          <button
+                            key={region}
+                            type="button"
+                            onClick={() => toggleServiceRegion(region)}
+                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                              activeRegions.includes(region)
+                                ? 'border-primary bg-primary-light text-primary-deeper'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-primary hover:text-primary'
+                            }`}
+                          >
+                            {region}
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        rows={3}
+                        value={form.serviceRegionsText}
+                        onChange={(event) => updateField('serviceRegionsText', event.target.value)}
+                        placeholder={'Uma região por linha\nEx.: Zona Leste'}
+                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </div>
+                  )}
+
+                  {/* Capacity (Collection Point) */}
                   {profile.role === 'COLLECTION_POINT' && (
                     <label className="space-y-2 text-sm text-gray-500">
                       <span className="font-semibold text-on-surface">Capacidade estimada</span>
                       <input
                         value={form.estimatedCapacity}
                         onChange={(event) => updateField('estimatedCapacity', event.target.value)}
-                        placeholder="Ex.: Ate 100 sacolas por semana"
+                        placeholder="Ex.: Até 100 sacolas por semana"
                         className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                       />
                     </label>
                   )}
 
+                  {/* Accessibility */}
+                  <div className="space-y-4 rounded-[1.75rem] border border-gray-100 bg-surface p-5">
+                    <div>
+                      <p className="text-sm font-semibold text-primary-deeper">Acessibilidade</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Marque os recursos disponíveis.
+                      </p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {ACCESSIBILITY_OPTIONS.map((option) => {
+                        const checked = form.accessibilityFeatures.includes(option.value);
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => toggleAccessibilityFeature(option.value)}
+                            aria-pressed={checked}
+                            className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+                              checked
+                                ? 'border-primary bg-primary-light text-primary-deeper'
+                                : 'border-gray-200 bg-white text-gray-500'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold">{option.label}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <label className="space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">Detalhe adicional</span>
+                      <input
+                        value={form.accessibilityDetails}
+                        onChange={(event) => updateField('accessibilityDetails', event.target.value)}
+                        placeholder="Ex.: Apoio no desembarque, campainha acessível."
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Operational notes (NGO) */}
                   {profile.role === 'NGO' && (
-                    <label className="space-y-2 text-sm text-gray-500 md:col-span-2">
-                      <span className="font-semibold text-on-surface">Regioes atendidas</span>
+                    <label className="space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">Observações operacionais</span>
                       <textarea
                         rows={4}
-                        value={form.serviceRegionsText}
-                        onChange={(event) => updateField('serviceRegionsText', event.target.value)}
-                        placeholder={'Uma regiao por linha\nEx.: Zona Leste'}
+                        value={form.operationalNotes}
+                        onChange={(event) => updateField('operationalNotes', event.target.value)}
+                        placeholder="Contexto de triagem, campanhas atendidas e particularidades da operação."
                         className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                       />
                     </label>
                   )}
-                </div>
+                </section>
+              )}
 
-                <div className="space-y-4 rounded-[1.75rem] border border-gray-100 bg-surface p-5">
-                  <div>
-                    <p className="text-sm font-semibold text-primary-deeper">Acessibilidade</p>
+              {/* ── Step: Acceptance ────────────────────────────────────── */}
+              {step === 'acceptance' && (
+                <section className="space-y-4">
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <p className="text-sm font-semibold text-primary-deeper">Itens aceitos e regras</p>
                     <p className="mt-1 text-sm text-gray-500">
-                      Marque os recursos disponiveis e complemente com observacoes, se precisar.
+                      Esta parte reduz atrito para o doador e deixa claro o que pode ou não ser entregue.
                     </p>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {ACCESSIBILITY_OPTIONS.map((option) => {
-                      const checked = form.accessibilityFeatures.includes(option.value);
-
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => toggleAccessibilityFeature(option.value)}
-                          className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
-                            checked
-                              ? 'border-primary bg-primary-light text-primary-deeper'
-                              : 'border-gray-200 bg-white text-gray-500'
-                          }`}
-                        >
-                          <p className="text-sm font-semibold">{option.label}</p>
-                        </button>
-                      );
-                    })}
+                  <div>
+                    <p className="mb-3 text-sm font-semibold text-on-surface">Categorias aceitas</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {CATEGORY_OPTIONS.map((category) => {
+                        const checked = form.acceptedCategories.includes(category.value);
+                        return (
+                          <button
+                            key={category.value}
+                            type="button"
+                            onClick={() => toggleCategory(category.value)}
+                            aria-pressed={checked}
+                            className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+                              checked
+                                ? 'border-primary bg-primary-light text-primary-deeper'
+                                : 'border-gray-200 bg-white text-gray-500'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold">{category.label}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Detalhe adicional</span>
-                    <input
-                      value={form.accessibilityDetails}
-                      onChange={(event) => updateField('accessibilityDetails', event.target.value)}
-                      placeholder="Ex.: Apoio no desembarque, campainha acessivel, elevador proximo."
-                      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-                </div>
-
-                {profile.role === 'NGO' && (
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Observacoes operacionais</span>
+                    <span className="font-semibold text-on-surface">Itens não aceitos</span>
                     <textarea
                       rows={4}
-                      value={form.operationalNotes}
-                      onChange={(event) => updateField('operationalNotes', event.target.value)}
-                      placeholder="Contexto de triagem, campanhas atendidas e particularidades da operacao."
+                      value={form.nonAcceptedItemsText}
+                      onChange={(event) => updateField('nonAcceptedItemsText', event.target.value)}
+                      placeholder={'Um item por linha\nEx.: Peças com mofo'}
                       className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                     />
                   </label>
-                )}
 
-                <div className="rounded-[1.5rem] border border-dashed border-primary/25 bg-primary-light/30 p-4 text-sm text-gray-500">
-                  <p className="font-semibold text-primary-deeper">Localizacao estimada automaticamente</p>
-                  <p className="mt-2 leading-7">
-                    O VestGO agora gera as coordenadas a partir do endereco salvo. Nao e mais necessario informar latitude e longitude manualmente.
-                  </p>
-                  {addressAssistMessage && (
-                    <p className="mt-2 rounded-2xl bg-white/80 px-3 py-2 text-xs font-medium text-primary-deeper">
-                      {addressAssistMessage}
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-gray-400">
-                    {addressPreview != null
-                      ? `Coordenadas sugeridas: ${addressPreview.latitude.toFixed(5)}, ${addressPreview.longitude.toFixed(5)}`
-                      : profile.latitude != null && profile.longitude != null
-                        ? `Coordenadas atuais: ${profile.latitude.toFixed(5)}, ${profile.longitude.toFixed(5)}`
-                      : 'Use rua com numero e, de preferencia, cidade/estado e CEP para melhorar a precisao da geolocalizacao automatica.'}
-                  </p>
-                </div>
-              </section>
-            )}
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Regras do local</span>
+                    <textarea
+                      rows={4}
+                      value={form.rulesText}
+                      onChange={(event) => updateField('rulesText', event.target.value)}
+                      placeholder={'Uma regra por linha\nEx.: Doe apenas itens limpos'}
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
 
-            {step === 'acceptance' && (
-              <section className="space-y-4">
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">Itens aceitos e regras</p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Esta parte reduz atrito para o doador e deixa mais claro o que pode ou nao ser entregue.
-                  </p>
-                </div>
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Observações públicas</span>
+                    <textarea
+                      rows={4}
+                      value={form.publicNotes}
+                      onChange={(event) => updateField('publicNotes', event.target.value)}
+                      placeholder="Informações adicionais que ajudam o doador a planejar a entrega."
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+                </section>
+              )}
 
-                <div>
-                  <p className="mb-3 text-sm font-semibold text-on-surface">Categorias aceitas</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {CATEGORY_OPTIONS.map((category) => {
-                      const checked = form.acceptedCategories.includes(category.value);
-
-                      return (
-                        <button
-                          key={category.value}
-                          type="button"
-                          onClick={() => toggleCategory(category.value)}
-                          className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
-                            checked
-                              ? 'border-primary bg-primary-light text-primary-deeper'
-                              : 'border-gray-200 bg-white text-gray-500'
-                          }`}
-                        >
-                          <p className="text-sm font-semibold">{category.label}</p>
-                        </button>
-                      );
-                    })}
+              {/* ── Step: Review ────────────────────────────────────────── */}
+              {step === 'review' && (
+                <section className="space-y-4">
+                  <div className="rounded-[1.75rem] bg-surface p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-primary-deeper">Revisão e confirmação</p>
+                        <p className="text-sm text-gray-500">
+                          Confira o resumo antes de salvar. Após confirmar, alterações públicas aguardam aprovação se o perfil já estiver ativo.
+                        </p>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Preview card */}
+                  <div className="overflow-hidden rounded-[1.75rem] border border-gray-100 bg-white shadow-sm">
+                    {/* Cover preview */}
+                    <div className="relative h-40 bg-primary-deeper">
+                      {form.coverImageUrl ? (
+                        <SafeImage
+                          src={form.coverImageUrl}
+                          alt="Capa"
+                          className="absolute inset-0 h-full w-full"
+                          imageClassName="h-full w-full object-cover"
+                          fallbackLabel="Capa"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-primary-muted/50 text-sm font-semibold">
+                          Sem capa
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#00272e]/60 via-transparent to-transparent" />
+                      <div className="absolute bottom-4 left-4 flex items-end gap-3">
+                        <div className="h-14 w-14 overflow-hidden rounded-2xl border-2 border-white/30 bg-white/10 shadow-lg">
+                          {form.avatarUrl ? (
+                            <SafeImage
+                              src={form.avatarUrl}
+                              alt="Avatar"
+                              className="h-full w-full"
+                              fallbackLabel=""
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-primary text-white font-bold">
+                              {orgTitle.split(' ').map((s) => s[0]).slice(0, 2).join('')}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-base font-bold text-white">
+                            {form.organizationName || orgTitle}
+                          </p>
+                          <p className="text-xs text-white/70">{getRoleLabel(profile.role)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Summary rows */}
+                    <div className="divide-y divide-gray-100 px-5 py-2">
+                      <ReviewRow label="Responsável" value={form.name || '—'} />
+                      <ReviewRow label="Telefone" value={form.phone || '—'} />
+                      {form.cnpj && <ReviewRow label="CNPJ" value={form.cnpj} />}
+                      <ReviewRow
+                        label="Endereço"
+                        value={
+                          [form.address, form.addressNumber, form.neighborhood, form.city, form.state]
+                            .filter(Boolean)
+                            .join(', ') || '—'
+                        }
+                      />
+                      <ReviewRow
+                        label="Horário"
+                        value={formatScheduleSummary(form.openingSchedule)}
+                      />
+                      <ReviewRow
+                        label="Categorias aceitas"
+                        value={
+                          form.acceptedCategories.length > 0
+                            ? form.acceptedCategories.map((c) => CATEGORY_LABELS[c] ?? c).join(', ')
+                            : '—'
+                        }
+                      />
+                      {form.accessibilityFeatures.length > 0 && (
+                        <ReviewRow
+                          label="Acessibilidade"
+                          value={form.accessibilityFeatures
+                            .map((f) => ACCESSIBILITY_LABELS[f] ?? f)
+                            .join(', ')}
+                        />
+                      )}
+                      {profile.role === 'NGO' && form.serviceRegionsText && (
+                        <ReviewRow
+                          label="Regiões atendidas"
+                          value={serializeMultiline(form.serviceRegionsText).join(', ')}
+                        />
+                      )}
+                      {form.publicNotes && <ReviewRow label="Observações" value={form.publicNotes} />}
+                    </div>
+                  </div>
+
+                  {/* Gallery preview */}
+                  {form.galleryImageUrls.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-on-surface">Galeria</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {form.galleryImageUrls.slice(0, 6).map((url, i) => (
+                          <SafeImage
+                            key={url}
+                            src={url}
+                            alt={`Foto ${i + 1}`}
+                            className="aspect-[4/3] overflow-hidden rounded-2xl border border-gray-100"
+                            fallbackLabel="Foto"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Terms acceptance */}
+                  <div className="rounded-[1.75rem] border border-gray-200 bg-surface p-5">
+                    <p className="text-sm font-semibold text-on-surface">Termos e Política de Privacidade</p>
+                    <p className="mt-2 text-sm leading-7 text-gray-500">
+                      Ao publicar este perfil, você confirma que as informações são verdadeiras e concorda com os{' '}
+                      {/* TODO: substituir pelos links reais quando disponíveis */}
+                      <span className="font-semibold text-primary">Termos de Uso</span> e a{' '}
+                      <span className="font-semibold text-primary">Política de Privacidade</span> do VestGO.
+                    </p>
+                    <label className="mt-4 flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={form.termsAccepted}
+                        onChange={(event) => updateField('termsAccepted', event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm font-semibold text-on-surface">
+                        Li e aceito os termos antes de publicar
+                      </span>
+                    </label>
+                  </div>
+                </section>
+              )}
+
+              {/* ── Feedback messages ────────────────────────────────────── */}
+              {error && (
+                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {error}
                 </div>
+              )}
+              {success && (
+                <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {success}
+                </div>
+              )}
 
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">Itens nao aceitos</span>
-                  <textarea
-                    rows={4}
-                    value={form.nonAcceptedItemsText}
-                    onChange={(event) => updateField('nonAcceptedItemsText', event.target.value)}
-                    placeholder={'Um item por linha\nEx.: Pecas com mofo'}
-                    className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
-
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">Regras do local</span>
-                  <textarea
-                    rows={4}
-                    value={form.rulesText}
-                    onChange={(event) => updateField('rulesText', event.target.value)}
-                    placeholder={'Uma regra por linha\nEx.: Doe apenas itens limpos'}
-                    className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
-
-                <label className="space-y-2 text-sm text-gray-500">
-                  <span className="font-semibold text-on-surface">Observacoes publicas</span>
-                  <textarea
-                    rows={4}
-                    value={form.publicNotes}
-                    onChange={(event) => updateField('publicNotes', event.target.value)}
-                    placeholder="Informacoes adicionais que ajudam o doador a planejar a entrega."
-                    className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                  />
-                </label>
-              </section>
-            )}
-
-            {error && (
-              <div className="rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {success}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  disabled={currentStepIndex <= 0}
-                  onClick={() => setStep(steps[currentStepIndex - 1])}
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
-                >
-                  Voltar
-                </button>
-                {currentStepIndex < steps.length - 1 && (
+              {/* ── Navigation buttons ───────────────────────────────────── */}
+              <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setStep(steps[currentStepIndex + 1])}
-                    className="rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+                    disabled={currentStepIndex <= 0}
+                    onClick={() => setStep(steps[currentStepIndex - 1])}
+                    className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
                   >
-                    Proxima etapa
+                    Voltar
                   </button>
-                )}
+                  {currentStepIndex < steps.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setStep(steps[currentStepIndex + 1])}
+                      className="rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+                    >
+                      Próxima etapa
+                    </button>
+                  )}
+                </div>
+
+                {/* Show save on last step (review) or always (for quick save from any step) */}
+                <button
+                  type="submit"
+                  disabled={saving || (step === 'review' && !form.termsAccepted)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-60"
+                  title={step === 'review' && !form.termsAccepted ? 'Aceite os termos para continuar' : undefined}
+                >
+                  {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                  {setupMode ? 'Salvar e continuar' : 'Salvar perfil'}
+                </button>
+              </div>
+            </form>
+
+            {/* ── Sidebar ───────────────────────────────────────────────── */}
+            <aside className="space-y-4">
+              <div className="rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
+                  Status do perfil
+                </p>
+                <h2 className="mt-3 text-2xl font-bold">
+                  {PROFILE_STATE_LABELS[profile.publicProfileState]}
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-primary-muted">
+                  {profile.profileCompletion.totalItems > 0
+                    ? `${profile.profileCompletion.completedItems} de ${profile.profileCompletion.totalItems} itens essenciais preenchidos.`
+                    : 'Este perfil ainda não possui checklist operacional.'}
+                </p>
               </div>
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                {setupMode ? 'Salvar e continuar' : 'Salvar perfil'}
-              </button>
-            </div>
-          </form>
+              <div className="rounded-[2rem] bg-white p-6 shadow-card">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                  O que já alimenta o produto
+                </p>
+                <ul className="mt-4 space-y-3 text-sm leading-7 text-gray-500">
+                  <li>Mapa e listagem pública de pontos</li>
+                  <li>Detalhe público do ponto ou ONG</li>
+                  <li>Contexto operacional do seu perfil</li>
+                </ul>
+              </div>
 
-          <aside className="space-y-4">
-            <div className="rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
-                Status do perfil
-              </p>
-              <h2 className="mt-3 text-2xl font-bold">
-                {PROFILE_STATE_LABELS[profile.publicProfileState]}
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-primary-muted">
-                {profile.profileCompletion.totalItems > 0
-                  ? `${profile.profileCompletion.completedItems} de ${profile.profileCompletion.totalItems} itens essenciais preenchidos.`
-                  : 'Este perfil ainda nao possui checklist operacional.'}
-              </p>
-            </div>
+              {profile.profileCompletion.missingFields.length > 0 && (
+                <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 text-amber-800 shadow-sm">
+                  <p className="text-sm font-semibold">Ainda faltam campos essenciais</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {profile.profileCompletion.missingFields.map((field) => (
+                      <div key={field} className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="mt-1 text-amber-500" />
+                        <span>{field}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            <div className="rounded-[2rem] bg-white p-6 shadow-card">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                O que ja alimenta o produto
-              </p>
-              <ul className="mt-4 space-y-3 text-sm leading-7 text-gray-500">
-                <li>Mapa e listagem publica de pontos</li>
-                <li>Detalhe publico do ponto ou ONG</li>
-                <li>Contexto operacional do seu perfil</li>
-              </ul>
-            </div>
-
-            {profile.profileCompletion.missingFields.length > 0 && (
-              <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 text-amber-800 shadow-sm">
-                <p className="text-sm font-semibold">Ainda faltam campos essenciais</p>
-                <div className="mt-3 space-y-2 text-sm">
-                  {profile.profileCompletion.missingFields.map((field) => (
-                    <div key={field} className="flex items-start gap-2">
-                      <CheckCircle2 size={14} className="mt-1 text-amber-500" />
-                      <span>{field}</span>
-                    </div>
-                  ))}
+              <div className="rounded-[2rem] bg-white p-6 shadow-card">
+                <p className="text-sm font-semibold text-primary-deeper">Solidariedade operacional</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <div className="rounded-[1.5rem] bg-surface px-4 py-4">
+                    <p className="text-2xl font-bold text-primary-deeper">
+                      {profile.stats.handledDonations}
+                    </p>
+                    <p className="text-sm text-gray-500">Doações ligadas ao seu perfil</p>
+                  </div>
+                  <div className="rounded-[1.5rem] bg-surface px-4 py-4">
+                    <p className="text-2xl font-bold text-primary-deeper">
+                      {profile.stats.activePartnerships}
+                    </p>
+                    <p className="text-sm text-gray-500">Parcerias operacionais ativas</p>
+                  </div>
                 </div>
               </div>
-            )}
-
-            <div className="rounded-[2rem] bg-white p-6 shadow-card">
-              <p className="text-sm font-semibold text-primary-deeper">Solidariedade operacional</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="rounded-[1.5rem] bg-surface px-4 py-4">
-                  <p className="text-2xl font-bold text-primary-deeper">
-                    {profile.stats.handledDonations}
-                  </p>
-                  <p className="text-sm text-gray-500">Doacoes ligadas ao seu perfil</p>
-                </div>
-                <div className="rounded-[1.5rem] bg-surface px-4 py-4">
-                  <p className="text-2xl font-bold text-primary-deeper">
-                    {profile.stats.activePartnerships}
-                  </p>
-                  <p className="text-sm text-gray-500">Parcerias operacionais ativas</p>
-                </div>
-              </div>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </div>
       </div>
+    </>
+  );
+}
+
+// ── Helper component ──────────────────────────────────────────────────────────
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3">
+      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">{label}</span>
+      <span className="max-w-[60%] text-right text-sm text-on-surface">{value}</span>
     </div>
   );
 }

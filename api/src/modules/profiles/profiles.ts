@@ -45,6 +45,7 @@ const editableProfileSelect = {
   birthDate: true,
   phone: true,
   cpf: true,
+  cnpj: true,
   avatarUrl: true,
   coverImageUrl: true,
   galleryImageUrls: true,
@@ -150,6 +151,7 @@ type EditableProfileView = {
   birthDate: Date | null;
   phone: string | null;
   cpf: string | null;
+  cnpj: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
   galleryImageUrls: string[];
@@ -522,6 +524,7 @@ function mapEditableProfile(user: EditableProfileRecord) {
     birthDate: view.birthDate?.toISOString().slice(0, 10) ?? null,
     phone: view.phone,
     cpf: view.cpf,
+    cnpj: view.cnpj,
     avatarUrl: view.avatarUrl,
     coverImageUrl: view.coverImageUrl,
     galleryImageUrls: view.galleryImageUrls,
@@ -1104,6 +1107,17 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         }
       }
 
+      if (body.cnpj) {
+        const duplicateCnpj = await fastify.prisma.user.findUnique({
+          where: { cnpj: body.cnpj },
+          select: { id: true },
+        });
+
+        if (duplicateCnpj && duplicateCnpj.id !== existingUser.id) {
+          throw new ConflictError('Este CNPJ já está vinculado a outra conta.');
+        }
+      }
+
       const nextOpeningHours =
         buildOpeningHoursSummary(body.openingSchedule, body.openingHoursExceptions) ??
         body.openingHours;
@@ -1183,6 +1197,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         email: body.email,
         birthDate: parseBirthDate(body.birthDate),
         cpf: body.cpf,
+        cnpj: body.cnpj,
         organizationName: body.organizationName,
         description: body.description,
         purpose: body.purpose,

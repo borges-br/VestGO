@@ -548,6 +548,7 @@ export type MyProfile = {
   birthDate: string | null;
   phone: string | null;
   cpf: string | null;
+  cnpj: string | null;
   avatarUrl: string | null;
   coverImageUrl: string | null;
   galleryImageUrls: string[];
@@ -611,6 +612,7 @@ export type UpdateMyProfileInput = {
   birthDate?: string;
   phone?: string;
   cpf?: string;
+  cnpj?: string;
   avatarUrl?: string;
   coverImageUrl?: string;
   galleryImageUrls?: string[];

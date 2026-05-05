@@ -8,6 +8,7 @@ import {
   ExternalLink,
   HeartHandshake,
   MapPin,
+  Pencil,
   Phone,
   ShieldCheck,
   Sparkles,
@@ -22,6 +23,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   SHOES: 'Calçados',
   ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas e mochilas',
+  TOYS: 'Brinquedos e jogos',
+  FOOD: 'Alimentos',
   OTHER: 'Outros itens',
 };
 
@@ -169,6 +172,7 @@ function PartnerCard({ partner }: { partner: ActiveNgo | null }) {
 export default async function CollectionPointDetailPage({ params }: Props) {
   const session = await auth();
   const currentRole = session?.user?.role ?? null;
+  const isProfileOwner = session?.user?.id === params.id;
   const viewerAccessToken =
     currentRole === 'COLLECTION_POINT' || currentRole === 'NGO' || currentRole === 'ADMIN'
       ? session?.user?.accessToken
@@ -206,13 +210,24 @@ export default async function CollectionPointDetailPage({ params }: Props) {
   return (
     <div className="vg-dark-fix min-h-screen bg-surface font-sans dark:bg-surface-ink">
       <div className="mx-auto max-w-[1500px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
-        <Link
-          href="/mapa"
-          className="mb-4 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-gray-500 shadow-sm transition-colors hover:text-primary"
-        >
-          <ArrowLeft size={16} />
-          Voltar ao mapa
-        </Link>
+        <div className="mb-4 flex items-center gap-3">
+          <Link
+            href="/mapa"
+            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-gray-500 shadow-sm transition-colors hover:text-primary"
+          >
+            <ArrowLeft size={16} />
+            Voltar ao mapa
+          </Link>
+          {isProfileOwner && (
+            <Link
+              href="/perfil"
+              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-dark"
+            >
+              <Pencil size={14} />
+              Editar perfil
+            </Link>
+          )}
+        </div>
 
         <section className="relative min-h-[420px] overflow-hidden rounded-[2rem] bg-primary-deeper text-white shadow-card-lg">
           <SafeImage
