@@ -81,7 +81,7 @@ export function ProfileImageCropper({
 
     img.src = url;
     return () => URL.revokeObjectURL(url);
-  }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [file]); // intentionally only re-runs when the file changes
 
   // Redraw canvas whenever state changes
   useEffect(() => {
