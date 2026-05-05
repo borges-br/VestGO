@@ -145,15 +145,11 @@ type FormState = {
   state: string;
   openingSchedule: OpeningScheduleEntry[];
   openingHoursExceptions: string;
-  publicNotes: string;
-  operationalNotes: string;
-  accessibilityDetails: string;
   accessibilityFeatures: string[];
   estimatedCapacity: string;
   acceptedCategories: string[];
   nonAcceptedItemsText: string;
-  rulesText: string;
-  serviceRegionsText: string;
+  serviceRegions: string[];
   termsAccepted: boolean;
 };
 
@@ -255,15 +251,11 @@ function buildInitialState(profile: MyProfile): FormState {
     state: profile.state ?? '',
     openingSchedule: normalizeScheduleEntries(profile.openingSchedule),
     openingHoursExceptions: profile.openingHoursExceptions ?? '',
-    publicNotes: profile.publicNotes ?? '',
-    operationalNotes: profile.operationalNotes ?? '',
-    accessibilityDetails: profile.accessibilityDetails ?? '',
     accessibilityFeatures: profile.accessibilityFeatures ?? [],
     estimatedCapacity: profile.estimatedCapacity ?? '',
     acceptedCategories: profile.acceptedCategories ?? [],
     nonAcceptedItemsText: (profile.nonAcceptedItems ?? []).join('\n'),
-    rulesText: (profile.rules ?? []).join('\n'),
-    serviceRegionsText: (profile.serviceRegions ?? []).join('\n'),
+    serviceRegions: profile.serviceRegions ?? [],
     termsAccepted: false,
   };
 }
@@ -295,15 +287,11 @@ function buildPayload(role: string, form: FormState) {
       ...(entry.close ? { close: entry.close } : {}),
     })),
     openingHoursExceptions: form.openingHoursExceptions || undefined,
-    publicNotes: form.publicNotes || undefined,
-    operationalNotes: role === 'NGO' ? form.operationalNotes || undefined : undefined,
-    accessibilityDetails: form.accessibilityDetails || undefined,
     accessibilityFeatures: form.accessibilityFeatures,
     estimatedCapacity: role === 'COLLECTION_POINT' ? form.estimatedCapacity || undefined : undefined,
     acceptedCategories: form.acceptedCategories,
     nonAcceptedItems: serializeMultiline(form.nonAcceptedItemsText),
-    rules: serializeMultiline(form.rulesText),
-    serviceRegions: role === 'NGO' ? serializeMultiline(form.serviceRegionsText) : [],
+    serviceRegions: role === 'NGO' ? form.serviceRegions : [],
   };
 }
 
@@ -690,17 +678,16 @@ export function OperationalProfileForm() {
     });
   }
 
-  // Toggle service region in/out of the free text
   function toggleServiceRegion(region: string) {
     setForm((current) => {
       if (!current) return current;
-      const lines = current.serviceRegionsText
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const already = lines.includes(region);
-      const updated = already ? lines.filter((l) => l !== region) : [...lines, region];
-      return { ...current, serviceRegionsText: updated.join('\n') };
+      const exists = current.serviceRegions.includes(region);
+      return {
+        ...current,
+        serviceRegions: exists
+          ? current.serviceRegions.filter((r) => r !== region)
+          : [...current.serviceRegions, region],
+      };
     });
   }
 
@@ -931,12 +918,6 @@ export function OperationalProfileForm() {
   const RoleIcon = getRoleIcon(profile.role);
   const orgTitle = profile.organizationName ?? profile.name;
 
-  // active service regions (for toggle buttons)
-  const activeRegions = form.serviceRegionsText
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
-
   return (
     <>
       {cropRequest && (
@@ -1015,7 +996,7 @@ export function OperationalProfileForm() {
               </p>
               <p className="mt-2 leading-7">
                 {profile.pendingPublicRevision.status === 'PENDING'
-                  ? 'Endereço, telefone, imagens, horário, acessibilidade, regras e observações públicas passam por revisão administrativa antes de atualizar o perfil publicado.'
+                  ? 'Endereço, telefone, imagens, horário e acessibilidade passam por revisão administrativa antes de atualizar o perfil publicado.'
                   : 'Você pode ajustar os dados abaixo e reenviar para nova revisão quando estiver pronto.'}
               </p>
               {profile.pendingPublicRevision.reviewNotes && (
@@ -1585,17 +1566,15 @@ export function OperationalProfileForm() {
                   {profile.role === 'NGO' && (
                     <div className="space-y-3 rounded-[1.5rem] border border-gray-100 bg-surface p-4">
                       <p className="text-sm font-semibold text-on-surface">Regiões atendidas</p>
-                      <p className="text-xs text-gray-400">
-                        Selecione as regiões ou adicione manualmente abaixo.
-                      </p>
                       <div className="flex flex-wrap gap-2">
                         {SERVICE_REGION_OPTIONS.map((region) => (
                           <button
                             key={region}
                             type="button"
                             onClick={() => toggleServiceRegion(region)}
+                            aria-pressed={form.serviceRegions.includes(region)}
                             className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                              activeRegions.includes(region)
+                              form.serviceRegions.includes(region)
                                 ? 'border-primary bg-primary-light text-primary-deeper'
                                 : 'border-gray-200 bg-white text-gray-500 hover:border-primary hover:text-primary'
                             }`}
@@ -1604,13 +1583,6 @@ export function OperationalProfileForm() {
                           </button>
                         ))}
                       </div>
-                      <textarea
-                        rows={3}
-                        value={form.serviceRegionsText}
-                        onChange={(event) => updateField('serviceRegionsText', event.target.value)}
-                        placeholder={'Uma região por linha\nEx.: Zona Leste'}
-                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                      />
                     </div>
                   )}
 
@@ -1655,30 +1627,7 @@ export function OperationalProfileForm() {
                         );
                       })}
                     </div>
-                    <label className="space-y-2 text-sm text-gray-500">
-                      <span className="font-semibold text-on-surface">Detalhe adicional</span>
-                      <input
-                        value={form.accessibilityDetails}
-                        onChange={(event) => updateField('accessibilityDetails', event.target.value)}
-                        placeholder="Ex.: Apoio no desembarque, campainha acessível."
-                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                      />
-                    </label>
                   </div>
-
-                  {/* Operational notes (NGO) */}
-                  {profile.role === 'NGO' && (
-                    <label className="space-y-2 text-sm text-gray-500">
-                      <span className="font-semibold text-on-surface">Observações operacionais</span>
-                      <textarea
-                        rows={4}
-                        value={form.operationalNotes}
-                        onChange={(event) => updateField('operationalNotes', event.target.value)}
-                        placeholder="Contexto de triagem, campanhas atendidas e particularidades da operação."
-                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                      />
-                    </label>
-                  )}
                 </section>
               )}
 
@@ -1727,27 +1676,6 @@ export function OperationalProfileForm() {
                     />
                   </label>
 
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Regras do local</span>
-                    <textarea
-                      rows={4}
-                      value={form.rulesText}
-                      onChange={(event) => updateField('rulesText', event.target.value)}
-                      placeholder={'Uma regra por linha\nEx.: Doe apenas itens limpos'}
-                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm text-gray-500">
-                    <span className="font-semibold text-on-surface">Observações públicas</span>
-                    <textarea
-                      rows={4}
-                      value={form.publicNotes}
-                      onChange={(event) => updateField('publicNotes', event.target.value)}
-                      placeholder="Informações adicionais que ajudam o doador a planejar a entrega."
-                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                    />
-                  </label>
                 </section>
               )}
 
@@ -1843,13 +1771,12 @@ export function OperationalProfileForm() {
                             .join(', ')}
                         />
                       )}
-                      {profile.role === 'NGO' && form.serviceRegionsText && (
+                      {profile.role === 'NGO' && form.serviceRegions.length > 0 && (
                         <ReviewRow
                           label="Regiões atendidas"
-                          value={serializeMultiline(form.serviceRegionsText).join(', ')}
+                          value={form.serviceRegions.join(', ')}
                         />
                       )}
-                      {form.publicNotes && <ReviewRow label="Observações" value={form.publicNotes} />}
                     </div>
                   </div>
 
