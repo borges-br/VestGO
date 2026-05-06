@@ -138,7 +138,7 @@ export default function PerfilPage() {
                 setGamificationSync(sync);
               }
             } catch {
-              setImpactError('Perfil carregado, mas nao foi possivel sincronizar conquistas agora.');
+              setImpactError('Perfil carregado, mas não foi possível atualizar suas conquistas agora.');
             }
           }
         } catch {
@@ -168,9 +168,9 @@ export default function PerfilPage() {
 
   if (status === 'loading') {
     return (
-      <div className="px-5 py-8">
-        <div className="mx-auto max-w-shell rounded-3xl bg-white p-6 shadow-card">
-          <p className="text-sm text-gray-500">Carregando perfil...</p>
+      <div className="vg-page-bg px-5 py-8">
+        <div className="vg-card mx-auto max-w-shell rounded-3xl p-6 shadow-card">
+          <p className="vg-text-secondary text-sm">Carregando perfil...</p>
         </div>
       </div>
     );
@@ -190,8 +190,8 @@ export default function PerfilPage() {
 
   const userName = profile?.name ?? session?.user?.name ?? 'Usuário';
   const userEmail = profile?.email ?? session?.user?.email ?? '';
-  const userAvatar = session?.user?.image ?? profile?.avatarUrl ?? null;
-  const emailVerifiedAt = profile?.emailVerifiedAt ?? session?.user?.emailVerifiedAt ?? null;
+  const userAvatar = profile ? profile.avatarUrl : session?.user?.image ?? null;
+  const emailVerifiedAt = profile ? profile.emailVerifiedAt : session?.user?.emailVerifiedAt ?? null;
   const isOwner = Boolean(session?.user?.accessToken && session.user.role === 'DONOR');
 
   async function handleDonorAvatarUpload(file: File | null | undefined) {
@@ -261,7 +261,7 @@ export default function PerfilPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="vg-page-bg vg-dark-fix min-h-screen">
       <PublicProfileHero
         name={userName}
         email={userEmail}
@@ -269,7 +269,7 @@ export default function PerfilPage() {
         avatarUrl={userAvatar}
         initials={getInitials(userName)}
         level={gamification?.level ?? null}
-        levelName={gamification?.level.name ?? 'Semente Solidaria'}
+        levelName={gamification?.level.name ?? 'Semente Solidária'}
         streakMonths={gamification?.summary.consecutiveActiveMonths ?? 0}
         points={gamification?.points ?? 0}
         pointsBreakdown={gamification?.pointsBreakdown ?? null}
@@ -311,7 +311,7 @@ export default function PerfilPage() {
               </p>
               <h2
                 id="history-heading"
-                className="text-3xl font-extrabold tracking-tight text-primary-deeper sm:text-4xl"
+              className="vg-text-primary text-3xl font-extrabold tracking-tight sm:text-4xl"
               >
                 Sua linha do tempo
               </h2>
@@ -326,19 +326,19 @@ export default function PerfilPage() {
           </div>
 
           {loadingImpact && donations.length === 0 ? (
-            <p className="text-sm text-primary-deeper/55">Carregando histórico...</p>
+            <p className="vg-text-secondary text-sm">Carregando histórico...</p>
           ) : recentDonations.length > 0 ? (
             <ol className="list-none p-0">
               {recentDonations.map((donation, index) => (
                 <li
                   key={donation.id}
-                  className="grid gap-4 border-b border-primary-deeper/5 py-6 last:border-b-0 sm:grid-cols-[76px_28px_minmax(0,1fr)_auto] sm:gap-6"
+                  className="grid gap-4 border-b border-[var(--vg-border)] py-6 last:border-b-0 sm:grid-cols-[76px_28px_minmax(0,1fr)_auto] sm:gap-6"
                 >
                   <div className="flex items-baseline gap-2 sm:block">
-                    <span className="block text-3xl font-extrabold leading-none tracking-tight text-primary-deeper tabular-nums">
+                    <span className="vg-text-primary block text-3xl font-extrabold leading-none tracking-tight tabular-nums">
                       {formatDayLabel(donation.createdAt)}
                     </span>
-                    <span className="block text-[11px] tracking-wide text-primary-deeper/50">
+                    <span className="vg-text-muted block text-[11px] tracking-wide">
                       {formatMonthLabel(donation.createdAt)}
                     </span>
                   </div>
@@ -353,13 +353,13 @@ export default function PerfilPage() {
                   <div className="min-w-0">
                     <Link
                       href={`/rastreio/${donation.id}`}
-                      className="text-base font-bold tracking-tight text-primary-deeper transition-colors hover:text-primary"
+                      className="vg-text-primary text-base font-bold tracking-tight transition-colors hover:text-primary"
                     >
                       {donation.itemLabel}
                     </Link>
-                    <p className="mt-1 text-sm leading-6 text-primary-deeper/60">
+                    <p className="vg-text-secondary mt-1 text-sm leading-6">
                       Ponto parceiro:{' '}
-                      <span className="font-semibold text-primary-deeper/75">
+                      <span className="vg-text-primary font-semibold">
                         {donation.dropOffPoint?.organizationName ??
                           donation.dropOffPoint?.name ??
                           'destino em definição'}
@@ -375,30 +375,30 @@ export default function PerfilPage() {
                     <span className="block text-lg font-extrabold text-primary tabular-nums">
                       +{donation.pointsAwarded}
                     </span>
-                    <span className="text-[11px] text-primary-deeper/45">pontos</span>
+                    <span className="vg-text-muted text-[11px]">pontos</span>
                   </div>
                 </li>
               ))}
             </ol>
           ) : (
-            <p className="rounded-2xl bg-surface p-5 text-sm leading-7 text-primary-deeper/60">
+            <p className="vg-card-soft rounded-2xl p-5 text-sm leading-7">
               Assim que você registrar uma doação, ela aparece aqui com os dados reais do rastreio.
             </p>
           )}
         </div>
       </section>
 
-      <footer className="border-t border-primary-deeper/5 bg-[#fafaf7] px-5 py-12 sm:px-8 lg:px-12">
+      <footer className="vg-card-soft border-x-0 border-b-0 px-5 py-12 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-[1080px]">
-          <p className="mb-5 text-[11px] font-bold uppercase tracking-[0.2em] text-primary-deeper/50">
+          <p className="vg-text-muted mb-5 text-[11px] font-bold uppercase tracking-[0.2em]">
             Conta
           </p>
-          <div className="flex flex-wrap gap-x-7 gap-y-4 border-b border-primary-deeper/10 pb-7">
+          <div className="flex flex-wrap gap-x-7 gap-y-4 border-b border-[var(--vg-border)] pb-7">
             {footerLinks.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-primary-deeper/70 transition-colors hover:text-primary"
+                className="vg-text-secondary inline-flex items-center gap-2 text-sm font-semibold transition-colors hover:text-primary"
               >
                 <Icon size={15} />
                 {label}
@@ -406,7 +406,7 @@ export default function PerfilPage() {
             ))}
           </div>
           <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
-            <p className="text-xs text-primary-deeper/45">
+            <p className="vg-text-muted text-xs">
               VestGO · {isOwner ? userEmail : 'perfil público'}
             </p>
             <button

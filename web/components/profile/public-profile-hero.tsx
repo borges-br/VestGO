@@ -57,7 +57,7 @@ export function PublicProfileHero({
     <header className="relative overflow-hidden px-5 pb-16 pt-12 sm:px-8 lg:px-12">
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 top-0 -z-10 h-[410px] bg-[linear-gradient(180deg,#faf7f1_0%,#faf7f1_64%,#ffffff_100%)]"
+        className="absolute inset-x-0 top-0 -z-10 h-[410px] bg-[linear-gradient(180deg,var(--vg-bg-soft)_0%,var(--vg-bg-soft)_64%,var(--vg-bg)_100%)]"
       />
       <svg
         aria-hidden="true"
@@ -90,7 +90,7 @@ export function PublicProfileHero({
               </div>
               <label
                 className={cn(
-                  'absolute -bottom-2 -right-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white text-primary-deeper shadow-md transition-transform hover:scale-105',
+                  'absolute -bottom-2 -right-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[var(--vg-bg-elevated)] text-[var(--vg-text-primary)] shadow-md transition-transform hover:scale-105',
                   avatarUploading && 'pointer-events-none opacity-60',
                 )}
                 aria-label="Atualizar avatar"
@@ -115,7 +115,7 @@ export function PublicProfileHero({
                   <Link
                     href="/configuracoes"
                     aria-label="Abrir configurações"
-                    className="mt-1 flex h-10 w-10 items-center justify-center rounded-full border border-primary-deeper/10 bg-white/80 text-primary-deeper shadow-sm transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
+                    className="vg-card mt-1 flex h-10 w-10 items-center justify-center rounded-full text-primary-deeper shadow-sm transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <Settings size={18} />
                   </Link>
@@ -123,7 +123,7 @@ export function PublicProfileHero({
               </div>
 
               {showPrivateEmail && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-primary-deeper/60">
+                <div className="vg-text-secondary mt-3 flex flex-wrap items-center gap-2 text-sm">
                   <span className="break-all">{email}</span>
                   {emailVerifiedAt ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
@@ -140,7 +140,7 @@ export function PublicProfileHero({
                         type="button"
                         onClick={onResendEmailVerification}
                         disabled={emailVerificationSending}
-                        className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-white px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:border-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="vg-card inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:border-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {emailVerificationSending ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -163,7 +163,7 @@ export function PublicProfileHero({
             </div>
           </div>
 
-          <p className="mt-7 max-w-xl text-lg leading-8 text-primary-deeper/70">
+          <p className="vg-text-secondary mt-7 max-w-xl text-lg leading-8">
             <strong className="font-extrabold text-primary-deeper">{levelName}</strong>
             {' — '}
             <span>
@@ -172,7 +172,7 @@ export function PublicProfileHero({
             </span>
           </p>
 
-          <div className="mt-8 flex flex-col border-t border-primary-deeper/10 sm:flex-row">
+          <div className="mt-8 flex flex-col border-t border-[var(--vg-border)] sm:flex-row">
             <HeroStat value={donationsCount} label="doações" />
             <HeroStat value={completedCount} label="concluídas" divided />
             <HeroStat value={itemsCount} label="itens entregues" divided />
@@ -183,11 +183,33 @@ export function PublicProfileHero({
           <LevelRing
             points={points}
             level={level}
+            levelName={levelName}
           />
+          <div className="mx-auto mt-4 max-w-[260px] text-center">
+            <p className="vg-text-muted text-[11px] font-bold uppercase tracking-[0.2em]">
+              Nível {level?.currentLevel ?? 1} de {level?.totalLevels ?? 30}
+            </p>
+            <p className="vg-text-primary mt-1 text-lg font-extrabold">
+              {level?.name ?? levelName}
+            </p>
+            <p className="vg-text-secondary mt-1 text-xs leading-5">
+              {points.toLocaleString('pt-BR')} pontos acumulados
+            </p>
+            {level?.lockedUntilFirstDonation && (
+              <p className="mt-3 rounded-2xl bg-primary-light px-3 py-2 text-xs font-semibold leading-5 text-primary">
+                {level.unlockMessage ?? 'Faça a primeira doação para subir de nível!'}
+              </p>
+            )}
+            {!level?.lockedUntilFirstDonation && level && level.pointsToNextLevel > 0 && (
+              <p className="vg-text-muted mt-2 text-xs leading-5">
+                +{level.pointsToNextLevel.toLocaleString('pt-BR')} para o próximo nível
+              </p>
+            )}
+          </div>
           {pointsBreakdown && (
-            <p className="mx-auto mt-3 max-w-[250px] text-center text-xs leading-5 text-primary-deeper/55">
+            <p className="vg-text-secondary mx-auto mt-3 max-w-[250px] text-center text-xs leading-5">
               {pointsBreakdown.totalPoints.toLocaleString('pt-BR')} pontos -{' '}
-              {pointsBreakdown.donationPoints.toLocaleString('pt-BR')} de doacoes +{' '}
+              {pointsBreakdown.donationPoints.toLocaleString('pt-BR')} de doações +{' '}
               {pointsBreakdown.achievementPoints.toLocaleString('pt-BR')} de conquistas
             </p>
           )}
@@ -202,13 +224,13 @@ function HeroStat({ value, label, divided = false }: { value: number; label: str
     <div
       className={cn(
         'min-w-0 flex-1 py-5 sm:pr-8',
-        divided && 'border-t border-primary-deeper/10 sm:border-l sm:border-t-0 sm:pl-8',
+        divided && 'border-t border-[var(--vg-border)] sm:border-l sm:border-t-0 sm:pl-8',
       )}
     >
-      <span className="block text-4xl font-extrabold leading-none tracking-tight text-primary-deeper tabular-nums">
+      <span className="vg-text-primary block text-4xl font-extrabold leading-none tracking-tight tabular-nums">
         {value.toLocaleString('pt-BR')}
       </span>
-      <span className="mt-2 block text-xs text-primary-deeper/55">{label}</span>
+      <span className="vg-text-secondary mt-2 block text-xs">{label}</span>
     </div>
   );
 }

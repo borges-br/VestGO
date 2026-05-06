@@ -14,7 +14,7 @@ export function SectionHeader({ kicker, title, action }: SectionHeaderProps) {
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
           {kicker}
         </p>
-        <h2 className="mt-1.5 text-xl font-extrabold tracking-tight text-primary-deeper sm:text-2xl">
+        <h2 className="vg-text-primary mt-1.5 text-xl font-extrabold tracking-tight sm:text-2xl">
           {title}
         </h2>
       </div>

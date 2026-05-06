@@ -50,7 +50,7 @@ export function QuickActions() {
           <Link
             key={action.href}
             href={action.href}
-            className="flex flex-col gap-2.5 rounded-2xl border border-primary-deeper/[0.06] bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_14px_30px_-18px_rgba(0,51,60,0.2)] motion-reduce:hover:transform-none"
+            className="vg-card flex flex-col gap-2.5 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_14px_30px_-18px_rgba(0,51,60,0.2)] motion-reduce:hover:transform-none"
           >
             <span
               aria-hidden
@@ -59,8 +59,8 @@ export function QuickActions() {
               <Icon size={20} strokeWidth={1.6} />
             </span>
             <div>
-              <p className="text-sm font-bold text-primary-deeper">{action.label}</p>
-              <p className="mt-1 text-xs leading-relaxed text-primary-deeper/55">
+              <p className="vg-text-primary text-sm font-bold">{action.label}</p>
+              <p className="vg-text-secondary mt-1 text-xs leading-relaxed">
                 {action.description}
               </p>
             </div>

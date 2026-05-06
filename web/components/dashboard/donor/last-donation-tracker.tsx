@@ -24,7 +24,7 @@ export function LastDonationTracker({ donation }: LastDonationTrackerProps) {
     'Em definição';
 
   return (
-    <article className="flex flex-col gap-5 rounded-3xl border border-primary-deeper/[0.06] bg-white p-7 shadow-[0_12px_32px_-16px_rgba(0,51,60,0.18)]">
+    <article className="vg-card flex flex-col gap-5 rounded-3xl p-7 shadow-[0_12px_32px_-16px_rgba(0,51,60,0.18)]">
       <header className="flex items-baseline justify-between gap-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
           Última doação
@@ -39,12 +39,12 @@ export function LastDonationTracker({ donation }: LastDonationTrackerProps) {
       </header>
 
       <div>
-        <h3 className="text-xl font-extrabold leading-tight tracking-tight text-primary-deeper">
+        <h3 className="vg-text-primary text-xl font-extrabold leading-tight tracking-tight">
           {donation.itemLabel}
         </h3>
-        <p className="mt-1 text-[13px] text-primary-deeper/55">
+        <p className="vg-text-secondary mt-1 text-[13px]">
           {donation.itemCount} {donation.itemCount === 1 ? 'item' : 'itens'} · destino{' '}
-          <strong className="font-semibold text-primary-deeper/80">{dropOff}</strong>
+          <strong className="vg-text-primary font-semibold">{dropOff}</strong>
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export function LastDonationTracker({ donation }: LastDonationTrackerProps) {
                     'relative z-[1] flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 transition-all duration-300 motion-reduce:transition-none',
                     done
                       ? 'border-primary bg-primary text-white'
-                      : 'border-primary-deeper/15 bg-white text-primary-deeper/40',
+                      : 'border-[var(--vg-border-strong)] bg-[var(--vg-bg-elevated)] text-[var(--vg-text-muted)]',
                     active && 'shadow-[0_0_0_6px_rgba(0,106,98,0.12)]',
                   )}
                 >
@@ -83,7 +83,7 @@ export function LastDonationTracker({ donation }: LastDonationTrackerProps) {
                     'text-center text-[11px] font-medium',
                     done
                       ? 'font-bold text-primary-deeper'
-                      : 'text-primary-deeper/50',
+                      : 'vg-text-muted',
                   )}
                 >
                   {step.label}
@@ -94,7 +94,7 @@ export function LastDonationTracker({ donation }: LastDonationTrackerProps) {
         </ol>
       </div>
 
-      <footer className="flex items-center justify-between gap-3 border-t border-primary-deeper/[0.06] pt-4">
+      <footer className="flex items-center justify-between gap-3 border-t border-[var(--vg-border)] pt-4">
         <span
           className={cn(
             'rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em]',
@@ -103,7 +103,7 @@ export function LastDonationTracker({ donation }: LastDonationTrackerProps) {
         >
           {meta.label}
         </span>
-        <span className="text-[13px] text-primary-deeper/55">
+        <span className="vg-text-secondary text-[13px]">
           atualizado {formatDonorDate(donation.updatedAt)}
         </span>
       </footer>

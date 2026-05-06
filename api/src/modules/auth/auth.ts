@@ -21,6 +21,7 @@ import {
   consumeUserTokenWithDiagnostics,
   createUserToken,
 } from '../../shared/user-tokens';
+import { syncDonorGamification } from '../gamification/gamification';
 import { getInitialProfileState } from '../profiles/profile-shared';
 import {
   assertTwoFactorEncryptionReady,
@@ -937,6 +938,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
 
       ensureActiveUser(user);
+
+      if (user.role === UserRole.DONOR) {
+        try {
+          await syncDonorGamification(fastify, user.id, { trigger: 'PROFILE_UPDATED' });
+        } catch (error) {
+          fastify.log.error(
+            { err: error, userId: user.id },
+            'Falha ao atualizar conquistas apos verificacao de e-mail',
+          );
+        }
+      }
 
       return reply.code(200).send({ user: safeUser(user) });
     } catch (err) {

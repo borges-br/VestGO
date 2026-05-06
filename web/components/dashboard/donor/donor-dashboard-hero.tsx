@@ -15,6 +15,9 @@ export type DonorDashboardLevel = {
   pointsToNext: number;
   isMax: boolean;
   nextLevelName: string | null;
+  lockedUntilFirstDonation: boolean;
+  effectivePoints: number;
+  unlockMessage: string | null;
 };
 
 type DonorDashboardHeroProps = {
@@ -35,9 +38,10 @@ export function DonorDashboardHero({
   latestDonation,
 }: DonorDashboardHeroProps) {
   const isNew = stats.totalDonations === 0;
+  const levelLocked = level.lockedUntilFirstDonation;
 
   return (
-    <header className="relative overflow-hidden bg-gradient-to-b from-surface-cream via-surface-cream to-white px-4 pb-12 pt-14 sm:px-6 lg:px-12">
+    <header className="relative overflow-hidden bg-[linear-gradient(180deg,var(--vg-bg-soft)_0%,var(--vg-bg)_100%)] px-4 pb-12 pt-14 sm:px-6 lg:px-12">
       <svg
         aria-hidden
         className="pointer-events-none absolute -right-10 top-20 h-80 w-80 opacity-50"
@@ -66,14 +70,14 @@ export function DonorDashboardHero({
             <h1 className="mt-3 text-[clamp(2.25rem,4vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-primary-deeper">
               {greeting}, {firstName}.
             </h1>
-            <p className="mt-3 max-w-[34rem] text-[17px] leading-relaxed text-primary-deeper/65">
+            <p className="vg-text-secondary mt-3 max-w-[34rem] text-[17px] leading-relaxed">
               {isNew
                 ? 'Sua jornada solidária começa com a primeira peça registrada. Veja por onde começar ao lado.'
                 : 'Você está construindo impacto contínuo. Próximo passo: registrar mais uma doação ou explorar parceiros próximos.'}
             </p>
           </div>
 
-          <div className="flex flex-col items-center gap-6 rounded-3xl border border-primary-deeper/[0.07] bg-white p-7 shadow-[0_10px_30px_-18px_rgba(0,51,60,0.2)] sm:flex-row sm:items-center sm:gap-7">
+          <div className="vg-card flex flex-col items-center gap-6 rounded-3xl p-7 shadow-[0_10px_30px_-18px_rgba(0,51,60,0.2)] sm:flex-row sm:items-center sm:gap-7">
             <DonorLevelIcon
               level={level.current}
               levelName={level.name}
@@ -82,20 +86,26 @@ export function DonorDashboardHero({
             />
             <div className="flex min-w-0 flex-1 flex-col gap-4 text-center sm:text-left">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-deeper/50">
+                <p className="vg-text-muted text-[11px] font-semibold uppercase tracking-[0.22em]">
                   Seu nível atual
                 </p>
-                <p className="mt-1 text-2xl font-extrabold tracking-tight text-primary-deeper">
+                <p className="vg-text-primary mt-1 text-2xl font-extrabold tracking-tight">
                   {level.name}
                 </p>
-                <p className="mt-1 text-[13px] text-primary-deeper/55">
-                  <strong className="font-bold text-primary-deeper tabular-nums">
+                <p className="vg-text-secondary mt-1 text-[13px]">
+                  <strong className="vg-text-primary font-bold tabular-nums">
                     {points.toLocaleString('pt-BR')}
                   </strong>{' '}
                   pontos solidários acumulados
                 </p>
               </div>
-              {!level.isMax && level.nextLevelName ? (
+              {levelLocked ? (
+                <LevelProgressBar
+                  pct={0}
+                  label={level.unlockMessage ?? 'Faça a primeira doação para subir de nível!'}
+                  hint="Nível 1"
+                />
+              ) : !level.isMax && level.nextLevelName ? (
                 <LevelProgressBar
                   pct={level.progressPct}
                   label={`Próximo: ${level.nextLevelName}`}
@@ -119,7 +129,7 @@ export function DonorDashboardHero({
             </Link>
             <Link
               href="/mapa"
-              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white px-6 py-3.5 text-sm font-semibold text-primary-deeper transition-colors hover:border-primary/40"
+              className="vg-card inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold text-primary-deeper transition-colors hover:border-primary/40"
             >
               <MapPin size={16} strokeWidth={1.8} />
               Encontrar pontos

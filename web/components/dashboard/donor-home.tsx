@@ -1,6 +1,7 @@
 import type {
   CollectionPoint,
   DonationRecord,
+  DonorAchievement,
   DonorGamificationResponse,
 } from '@/lib/api';
 import {
@@ -53,6 +54,9 @@ function deriveLevel(
       pointsToNext: level.pointsToNextLevel,
       isMax: level.nextThreshold == null,
       nextLevelName: nextLevel?.name ?? null,
+      lockedUntilFirstDonation: level.lockedUntilFirstDonation,
+      effectivePoints: level.effectivePoints,
+      unlockMessage: level.unlockMessage,
     };
   }
 
@@ -75,6 +79,9 @@ function deriveLevel(
       : 0,
     isMax: fallback.nextThreshold == null,
     nextLevelName: next?.name ?? null,
+    lockedUntilFirstDonation: false,
+    effectivePoints: points,
+    unlockMessage: null,
   };
 }
 
@@ -121,9 +128,13 @@ export function DonorHome({
   const stats = deriveImpactStats(donations, gamification, snapshot.streak.value);
   const greeting = pickGreeting();
   const latestDonation = donations[0] ?? null;
+  const achievements: DonorAchievement[] = gamification?.achievements ?? [];
+  const visibleAchievements = achievements.filter(
+    (achievement) => achievement.unlocked || !achievement.hidden,
+  );
 
   return (
-    <div className="flex min-h-[100vh] flex-col bg-surface-cream/40">
+    <div className="vg-page-bg vg-dark-fix flex min-h-[100vh] flex-col">
       <DonorDashboardHero
         firstName={firstName}
         greeting={greeting}
@@ -158,7 +169,7 @@ export function DonorHome({
                 }
               />
               <div
-                className="rounded-3xl border border-primary-deeper/[0.06] bg-white"
+                className="vg-card rounded-3xl"
                 style={{
                   padding: donations.length === 0 ? 8 : '8px 8px 8px 0',
                 }}
@@ -172,12 +183,12 @@ export function DonorHome({
                 kicker="Conquistas"
                 title="Marcos da sua jornada"
                 action={
-                  snapshot.badges.some((b) => b.earned)
+                  visibleAchievements.some((achievement) => achievement.unlocked)
                     ? { label: 'Ver perfil', href: '/perfil' }
                     : null
                 }
               />
-              <AchievementsStrip items={snapshot.badges} />
+              <AchievementsStrip items={achievements} />
             </div>
           </div>
 

@@ -131,6 +131,10 @@
     background-color: var(--vg-bg-soft);
   }
 
+  .dark .vg-dark-fix [class*="bg-surface-cream"] {
+    background-color: var(--vg-bg-soft);
+  }
+
   .dark .vg-dark-fix [class*="bg-primary-light"] {
     background-color: rgba(0, 106, 98, 0.2);
   }
@@ -155,6 +159,10 @@
     color: var(--vg-text-primary);
   }
 
+  .dark .vg-dark-fix [class*="text-primary-deeper/"] {
+    color: var(--vg-text-secondary);
+  }
+
   .dark .vg-dark-fix .text-gray-600,
   .dark .vg-dark-fix .text-gray-500 {
     color: var(--vg-text-secondary);
@@ -172,6 +180,10 @@
   .dark .vg-dark-fix .border-gray-50,
   .dark .vg-dark-fix .border-gray-100,
   .dark .vg-dark-fix .border-gray-200 {
+    border-color: var(--vg-border);
+  }
+
+  .dark .vg-dark-fix [class*="border-primary-deeper/"] {
     border-color: var(--vg-border);
   }
 

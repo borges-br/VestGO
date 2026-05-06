@@ -39,16 +39,16 @@ export function ImpactPills({ stats }: ImpactPillsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 divide-x divide-y divide-primary-deeper/10 border-y border-primary-deeper/10 sm:grid-cols-4 sm:divide-y-0">
+    <div className="grid grid-cols-2 divide-x divide-y divide-[var(--vg-border)] border-y border-[var(--vg-border)] sm:grid-cols-4 sm:divide-y-0">
       {pills.map(({ icon: Icon, value, label }) => (
         <div key={label} className="flex flex-col gap-2 px-5 py-5 first:border-l-0">
           <span className="inline-flex items-center text-primary">
             <Icon size={14} strokeWidth={1.6} />
           </span>
-          <span className="text-3xl font-extrabold leading-none tracking-tight text-primary-deeper tabular-nums">
+          <span className="vg-text-primary text-3xl font-extrabold leading-none tracking-tight tabular-nums">
             {value.toLocaleString('pt-BR')}
           </span>
-          <span className="text-[13px] leading-tight text-primary-deeper/65">{label}</span>
+          <span className="vg-text-secondary text-[13px] leading-tight">{label}</span>
         </div>
       ))}
     </div>

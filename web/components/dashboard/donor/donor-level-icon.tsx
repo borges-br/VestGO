@@ -10,6 +10,7 @@ type DonorLevelIconProps = {
   totalLevels?: number;
   size?: number;
   iconBasePath?: string;
+  showRing?: boolean;
 };
 
 export function DonorLevelIcon({
@@ -19,6 +20,7 @@ export function DonorLevelIcon({
   totalLevels = 30,
   size = 156,
   iconBasePath = '/images/levels',
+  showRing = true,
 }: DonorLevelIconProps) {
   const [imageFailed, setImageFailed] = useState(false);
   const stroke = 8;
@@ -27,50 +29,53 @@ export function DonorLevelIcon({
   const safePct = Math.max(0, Math.min(1, progressPct));
   const offset = circumference * (1 - safePct);
   const iconUrl = `${iconBasePath}/${level}.png`;
-  const iconSize = Math.round(size * 0.74);
+  const iconSize = Math.round(size * (showRing ? 0.74 : 0.9));
 
   return (
     <div
       className="relative flex-shrink-0"
       style={{ width: size, height: size }}
-      role="img"
-      aria-label={`Ícone do nível ${level} — ${levelName}`}
+      role={showRing ? 'img' : undefined}
+      aria-label={showRing ? `Ícone do nível ${level} — ${levelName}` : undefined}
+      aria-hidden={showRing ? undefined : true}
     >
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        className="absolute inset-0 -rotate-90"
-        aria-hidden
-      >
-        <defs>
-          <linearGradient id={`donor-level-ring-${level}`} x1="0%" x2="100%" y1="0%" y2="100%">
-            <stop offset="0%" stopColor="#006a62" />
-            <stop offset="55%" stopColor="#21d3c4" />
-            <stop offset="100%" stopColor="#e8a33d" />
-          </linearGradient>
-        </defs>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="rgba(0,51,60,0.08)"
-          strokeWidth={stroke}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={`url(#donor-level-ring-${level})`}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeWidth={stroke}
-          className="transition-[stroke-dashoffset] duration-700 ease-out motion-reduce:transition-none"
-        />
-      </svg>
+      {showRing && (
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          className="absolute inset-0 -rotate-90"
+          aria-hidden
+        >
+          <defs>
+            <linearGradient id={`donor-level-ring-${level}`} x1="0%" x2="100%" y1="0%" y2="100%">
+              <stop offset="0%" stopColor="#006a62" />
+              <stop offset="55%" stopColor="#21d3c4" />
+              <stop offset="100%" stopColor="#e8a33d" />
+            </linearGradient>
+          </defs>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="rgba(0,51,60,0.08)"
+            strokeWidth={stroke}
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={`url(#donor-level-ring-${level})`}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeWidth={stroke}
+            className="transition-[stroke-dashoffset] duration-700 ease-out motion-reduce:transition-none"
+          />
+        </svg>
+      )}
 
       <div className="absolute inset-0 flex items-center justify-center">
         {imageFailed ? (

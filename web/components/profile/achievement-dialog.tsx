@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef } from 'react';
-import { X } from 'lucide-react';
+import { CheckCircle2, Circle, X } from 'lucide-react';
 import type { AchievementTier, DonorAchievement } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -55,14 +55,14 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="relative max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[1.75rem] bg-white p-6 shadow-panel outline-none"
+        className="vg-card relative max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[1.75rem] p-6 shadow-panel outline-none"
       >
         <button
           ref={closeRef}
           type="button"
           onClick={onClose}
           aria-label="Fechar"
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-primary-deeper transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
+          className="vg-card-soft absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-primary-deeper transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
         >
           <X size={17} />
         </button>
@@ -70,18 +70,18 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
           Conquista
         </p>
-        <h3 id={titleId} className="mt-2 pr-10 text-2xl font-extrabold tracking-tight text-primary-deeper">
+        <h3 id={titleId} className="vg-text-primary mt-2 pr-10 text-2xl font-extrabold tracking-tight">
           {achievement.title}
         </h3>
-        <p id={descriptionId} className="mt-3 text-sm leading-7 text-primary-deeper/65">
+        <p id={descriptionId} className="vg-text-secondary mt-3 text-sm leading-7">
           {achievement.description}
         </p>
 
-        <div className="mt-5 rounded-2xl bg-surface-cream p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-deeper/50">
+        <div className="vg-card-soft mt-5 rounded-2xl p-4">
+          <p className="vg-text-muted text-xs font-bold uppercase tracking-[0.16em]">
             Como conseguir
           </p>
-          <p className="mt-2 text-sm leading-7 text-primary-deeper/70">{achievement.howToEarn}</p>
+          <p className="vg-text-secondary mt-2 text-sm leading-7">{achievement.howToEarn}</p>
           {achievement.unavailableReason && (
             <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-800">
               {achievement.unavailableReason}
@@ -90,32 +90,63 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
         </div>
 
         <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-primary-deeper/10 p-4">
-            <dt className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary-deeper/45">
+          <div className="rounded-2xl border border-[var(--vg-border)] p-4">
+            <dt className="vg-text-muted text-[10px] font-bold uppercase tracking-[0.16em]">
               Progresso
             </dt>
-            <dd className="mt-2 text-sm font-bold text-primary-deeper">{achievement.progressLabel}</dd>
+            <dd className="vg-text-primary mt-2 text-sm font-bold">{achievement.progressLabel}</dd>
           </div>
-          <div className="rounded-2xl border border-primary-deeper/10 p-4">
-            <dt className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary-deeper/45">
+          <div className="rounded-2xl border border-[var(--vg-border)] p-4">
+            <dt className="vg-text-muted text-[10px] font-bold uppercase tracking-[0.16em]">
               Nível atual
             </dt>
-            <dd className="mt-2 text-sm font-bold text-primary-deeper">
+            <dd className="vg-text-primary mt-2 text-sm font-bold">
               {achievement.tier ? tierLabels[achievement.tier] : 'Bloqueada'}
             </dd>
           </div>
-          <div className="rounded-2xl border border-primary-deeper/10 p-4">
-            <dt className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary-deeper/45">
+          <div className="rounded-2xl border border-[var(--vg-border)] p-4">
+            <dt className="vg-text-muted text-[10px] font-bold uppercase tracking-[0.16em]">
               Pontos
             </dt>
-            <dd className="mt-2 text-sm font-bold text-primary-deeper">
+            <dd className="vg-text-primary mt-2 text-sm font-bold">
               {achievement.points.toLocaleString('pt-BR')}
             </dd>
           </div>
         </dl>
 
+        {achievement.criteria && achievement.criteria.length > 0 && (
+          <div className="mt-5">
+            <p className="vg-text-muted text-xs font-bold uppercase tracking-[0.16em]">
+              Etapas do progresso
+            </p>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {achievement.criteria.map((criterion) => {
+                const Icon = criterion.complete ? CheckCircle2 : Circle;
+
+                return (
+                  <li
+                    key={`${achievement.key}-${criterion.key}`}
+                    className={cn(
+                      'flex items-center gap-2 rounded-2xl px-3 py-2 text-sm',
+                      criterion.complete
+                        ? 'bg-primary-light text-primary-deeper'
+                        : 'vg-card-soft vg-text-secondary',
+                    )}
+                  >
+                    <Icon
+                      size={15}
+                      className={criterion.complete ? 'text-primary' : 'vg-text-muted'}
+                    />
+                    <span>{criterion.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-5">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-deeper/50">
+          <p className="vg-text-muted text-xs font-bold uppercase tracking-[0.16em]">
             Critérios por nível
           </p>
           <ul className="mt-3 space-y-2">
@@ -129,7 +160,7 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
                   key={`${achievement.key}-${level.tier}`}
                   className={cn(
                     'flex items-start justify-between gap-4 rounded-2xl px-4 py-3 text-sm',
-                    reached ? 'bg-primary-light text-primary-deeper' : 'bg-surface text-primary-deeper/65',
+                    reached ? 'bg-primary-light text-primary-deeper' : 'vg-card-soft vg-text-secondary',
                   )}
                 >
                   <span className="font-semibold">{tierLabels[level.tier]}</span>
@@ -140,9 +171,8 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
           </ul>
         </div>
 
-        <p className="mt-5 text-xs leading-6 text-primary-deeper/45">
-          Os pontos de conquista vêm do backend de gamificação. O total oficial do perfil ainda
-          usa a pontuação atual das doações até existir um ledger dedicado.
+        <p className="vg-text-muted mt-5 text-xs leading-6">
+          Seu progresso é atualizado automaticamente conforme suas doações e ações no perfil avançam.
         </p>
       </section>
     </div>

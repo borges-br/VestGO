@@ -305,6 +305,12 @@ export type AchievementLevel = {
   targetLabel: string;
 };
 
+export type AchievementCriterion = {
+  key: string;
+  label: string;
+  complete: boolean;
+};
+
 export type DonorAchievement = {
   key: string;
   title: string;
@@ -323,6 +329,7 @@ export type DonorAchievement = {
   unavailableReason?: string;
   unlockedAt?: string | null;
   levels: AchievementLevel[];
+  criteria?: AchievementCriterion[];
 };
 
 export type DonorGamificationResponse = {
@@ -340,6 +347,9 @@ export type DonorGamificationResponse = {
     nextThreshold: number | null;
     pointsToNextLevel: number;
     progress: number;
+    lockedUntilFirstDonation: boolean;
+    effectivePoints: number;
+    unlockMessage: string | null;
   };
   achievements: DonorAchievement[];
   summary: {
