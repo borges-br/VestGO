@@ -13,6 +13,7 @@ import {
   NotFoundError,
   toErrorResponse,
 } from '../../shared/errors';
+import { formatShortDateInAppTimezone } from '../../shared/date-time';
 import { createNotifications } from '../../shared/notifications';
 
 const pickupPartnerSelect = {
@@ -293,7 +294,7 @@ export default async function pickupRequestRoutes(fastify: FastifyInstance) {
           userId: pickupRequest.collectionPoint.id,
           type: 'PICKUP_REQUEST_RECEIVED' as const,
           title: 'Nova solicitacao de retirada',
-          body: `${pickupRequest.ngo.organizationName ?? pickupRequest.ngo.name} solicitou retirada${pickupRequest.requestedDate ? ` para ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(pickupRequest.requestedDate)}` : ''}${pickupRequest.timeWindowStart && pickupRequest.timeWindowEnd ? `, entre ${pickupRequest.timeWindowStart} e ${pickupRequest.timeWindowEnd}` : ''}.`,
+          body: `${pickupRequest.ngo.organizationName ?? pickupRequest.ngo.name} solicitou retirada${pickupRequest.requestedDate ? ` para ${formatShortDateInAppTimezone(pickupRequest.requestedDate)}` : ''}${pickupRequest.timeWindowStart && pickupRequest.timeWindowEnd ? `, entre ${pickupRequest.timeWindowStart} e ${pickupRequest.timeWindowEnd}` : ''}.`,
           href: '/inicio',
           payload: {
             pickupRequestId: pickupRequest.id,
@@ -305,7 +306,7 @@ export default async function pickupRequestRoutes(fastify: FastifyInstance) {
           userId: pickupRequest.ngo.id,
           type: 'PICKUP_REQUEST_CREATED' as const,
           title: 'Solicitacao de retirada enviada',
-          body: `A solicitacao para ${pickupRequest.collectionPoint.organizationName ?? pickupRequest.collectionPoint.name} foi enviada${pickupRequest.requestedDate ? ` com previsao para ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(pickupRequest.requestedDate)}` : ''} e aguarda aprovacao.`,
+          body: `A solicitacao para ${pickupRequest.collectionPoint.organizationName ?? pickupRequest.collectionPoint.name} foi enviada${pickupRequest.requestedDate ? ` com previsao para ${formatShortDateInAppTimezone(pickupRequest.requestedDate)}` : ''} e aguarda aprovacao.`,
           href: '/inicio',
           payload: {
             pickupRequestId: pickupRequest.id,

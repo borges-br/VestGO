@@ -26,6 +26,7 @@ import {
   type SeasonalCampaign,
   type SeasonalCampaignInput,
 } from '@/lib/api';
+import { formatDateTimeLabel } from '@/lib/date-time';
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   CLOTHING: 'Roupas',
@@ -101,10 +102,7 @@ function toDatetimeLocal(value: string) {
 }
 
 function toBrazilianDateTime(value: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  return formatDateTimeLabel(value);
 }
 
 function getCampaignPhase(campaign: SeasonalCampaign): CampaignPhase {

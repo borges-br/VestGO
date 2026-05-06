@@ -37,6 +37,7 @@ import {
   type OperationalBatchRecord,
   type OperationalBatchStatus,
 } from '@/lib/api';
+import { formatShortDateLabel } from '@/lib/date-time';
 import { normalizeOperationalCode, parseOperationalCode } from '@/lib/operational-codes';
 
 const ITEM_CATEGORIES: ItemCategory[] = [
@@ -98,10 +99,7 @@ function defaultBatchName(donation: DonationRecord) {
   const category = inferPrimaryCategory(donation);
   const categoryLabel = category ? CATEGORY_LABELS[category] : 'Doacoes';
   const ngoName = pointLabel(donation.ngo);
-  const dateLabel = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-  }).format(new Date());
+  const dateLabel = formatShortDateLabel(new Date());
 
   return `Carga ${categoryLabel} - ${ngoName} - ${dateLabel}`;
 }

@@ -589,6 +589,112 @@ function parseBirthDate(value: string | undefined) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
+const PROFILE_PATCH_FIELDS = new Set([
+  'name',
+  'email',
+  'birthDate',
+  'phone',
+  'cpf',
+  'cnpj',
+  'organizationName',
+  'description',
+  'purpose',
+  'address',
+  'addressNumber',
+  'addressComplement',
+  'neighborhood',
+  'zipCode',
+  'city',
+  'state',
+  'openingHours',
+  'openingSchedule',
+  'openingHoursExceptions',
+  'publicNotes',
+  'operationalNotes',
+  'accessibilityDetails',
+  'accessibilityFeatures',
+  'verificationNotes',
+  'estimatedCapacity',
+  'avatarUrl',
+  'coverImageUrl',
+  'galleryImageUrls',
+  'acceptedCategories',
+  'donationInterestCategories',
+  'nonAcceptedItems',
+  'rules',
+  'serviceRegions',
+]);
+
+const PROFILE_ARRAY_FIELDS = new Set([
+  'accessibilityFeatures',
+  'galleryImageUrls',
+  'acceptedCategories',
+  'donationInterestCategories',
+  'nonAcceptedItems',
+  'rules',
+  'serviceRegions',
+]);
+
+function normalizePatchFieldValue(key: string, value: unknown) {
+  if (value !== null) {
+    return value;
+  }
+
+  return PROFILE_ARRAY_FIELDS.has(key) || key === 'openingSchedule' ? [] : '';
+}
+
+function mergeProfilePatchPayload(user: EditableProfileRecord, payload: unknown) {
+  const base = {
+    name: user.name,
+    email: user.email,
+    birthDate: user.birthDate?.toISOString().slice(0, 10) ?? '',
+    phone: user.phone ?? '',
+    cpf: user.cpf ?? '',
+    cnpj: user.cnpj ?? '',
+    organizationName: user.organizationName ?? '',
+    description: user.description ?? '',
+    purpose: user.purpose ?? '',
+    address: user.address ?? '',
+    addressNumber: user.addressNumber ?? '',
+    addressComplement: user.addressComplement ?? '',
+    neighborhood: user.neighborhood ?? '',
+    zipCode: user.zipCode ?? '',
+    city: user.city ?? '',
+    state: user.state ?? '',
+    openingHours: user.openingHours ?? '',
+    openingSchedule: normalizeScheduleForComparison(user.openingSchedule),
+    openingHoursExceptions: user.openingHoursExceptions ?? '',
+    publicNotes: user.publicNotes ?? '',
+    operationalNotes: user.operationalNotes ?? '',
+    accessibilityDetails: user.accessibilityDetails ?? '',
+    accessibilityFeatures: user.accessibilityFeatures ?? [],
+    verificationNotes: user.verificationNotes ?? '',
+    estimatedCapacity: user.estimatedCapacity ?? '',
+    avatarUrl: user.avatarUrl ?? '',
+    coverImageUrl: user.coverImageUrl ?? '',
+    galleryImageUrls: user.galleryImageUrls ?? [],
+    acceptedCategories: user.acceptedCategories ?? [],
+    donationInterestCategories: user.donationInterestCategories ?? [],
+    nonAcceptedItems: user.nonAcceptedItems ?? [],
+    rules: user.rules ?? [],
+    serviceRegions: user.serviceRegions ?? [],
+  };
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return base;
+  }
+
+  const next: Record<string, unknown> = { ...base };
+
+  for (const [key, value] of Object.entries(payload)) {
+    if (PROFILE_PATCH_FIELDS.has(key)) {
+      next[key] = normalizePatchFieldValue(key, value);
+    }
+  }
+
+  return next;
+}
+
 function publicUserSummary(user: {
   id: string;
   role: UserRole;
@@ -1075,7 +1181,6 @@ export default async function profileRoutes(fastify: FastifyInstance) {
 
   fastify.patch('/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
-      const body = sanitizeProfileWriteInput(profileWriteSchema.parse(request.body));
       const existingUser = await fastify.prisma.user.findUnique({
         where: { id: request.user.id },
         select: editableProfileSelect,
@@ -1084,6 +1189,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
       if (!existingUser) {
         throw new NotFoundError('Perfil');
       }
+
+      const body = sanitizeProfileWriteInput(
+        profileWriteSchema.parse(mergeProfilePatchPayload(existingUser, request.body)),
+      );
 
       if (body.email !== existingUser.email) {
         const duplicateEmail = await fastify.prisma.user.findUnique({

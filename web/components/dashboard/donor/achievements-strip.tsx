@@ -1,5 +1,5 @@
-import { Award } from 'lucide-react';
 import type { AchievementTier, DonorAchievement } from '@/lib/api';
+import { AchievementMedal } from '@/components/profile/achievement-medal';
 import { cn } from '@/lib/utils';
 
 type AchievementsStripProps = {
@@ -49,29 +49,14 @@ function getVisibleAchievements(items: DonorAchievement[]) {
   return inProgress.sort((left, right) => getProgressPct(right) - getProgressPct(left));
 }
 
-function MiniMedal({ earned }: { earned: boolean }) {
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border-2',
-        earned
-          ? 'border-amber-400 bg-gradient-to-br from-amber-100 to-amber-300 text-amber-900 shadow-[inset_0_-3px_6px_rgba(0,0,0,0.12),0_3px_8px_rgba(0,0,0,0.08)]'
-          : 'border-[var(--vg-border-strong)] bg-[var(--vg-bg-soft)] text-[var(--vg-text-muted)]',
-      )}
-    >
-      <Award size={18} strokeWidth={1.6} />
-    </div>
-  );
-}
-
 export function AchievementsStrip({ items }: AchievementsStripProps) {
   const visibleItems = getVisibleAchievements(items);
+  const fallbackAchievement = items.find((achievement) => achievement.unlocked || !achievement.hidden);
 
   if (visibleItems.length === 0) {
     return (
       <div className="vg-card-soft flex items-center gap-4 rounded-2xl border-dashed px-5 py-5">
-        <MiniMedal earned={false} />
+        {fallbackAchievement ? <AchievementMedal achievement={fallbackAchievement} compact /> : null}
         <div>
           <p className="vg-text-primary text-[13px] font-bold">
             Suas conquistas aparecem aqui conforme seu progresso avança.
@@ -90,11 +75,11 @@ export function AchievementsStrip({ items }: AchievementsStripProps) {
         <li
           key={achievement.key}
           className={cn(
-            'flex items-center gap-3 rounded-2xl px-4 py-3',
+            'flex items-center gap-3 rounded-2xl px-3 py-3',
             achievement.unlocked ? 'vg-card' : 'vg-card-soft border-dashed',
           )}
         >
-          <MiniMedal earned={achievement.unlocked} />
+          <AchievementMedal achievement={achievement} compact />
           <div className="min-w-0">
             <p
               className={cn(

@@ -1,4 +1,10 @@
 import type { DonationRecord, DonationStatus } from '@/lib/api';
+import {
+  formatDateLabel,
+  getCurrentMonthKey,
+  getMonthKey,
+  getPreviousMonthKey,
+} from '@/lib/date-time';
 import { calculateDonationPointsBreakdown } from '@/lib/donation-points';
 
 export type ImpactBadgeTone = 'primary' | 'indigo' | 'emerald' | 'amber';
@@ -20,8 +26,8 @@ export type DonorLevel = {
 };
 
 // Espelho da curva oficial em api/src/modules/gamification/gamification.ts.
-// Niveis 20-30 confirmados pelo produto (10 pts/item, +500 pts por nivel).
-// Niveis 1-19 sao uma estimativa razoavel, sujeita a confirmacao do produto.
+// Niveis 1-14 preservam a progressao original. A partir do nivel 15,
+// cada novo nivel exige +300 pontos.
 const donorLevelBase = [
   { name: 'Primeiro Gesto', color: 'gray', minPoints: 0 },
   { name: 'Doador Iniciante', color: 'primary', minPoints: 60 },
@@ -38,21 +44,21 @@ const donorLevelBase = [
   { name: 'Força Coletiva', color: 'rose', minPoints: 2040 },
   { name: 'Líder de Impacto', color: 'primary', minPoints: 2340 },
   { name: 'Farol Solidário', color: 'emerald', minPoints: 2660 },
-  { name: 'Construtor de Pontes', color: 'amber', minPoints: 3000 },
-  { name: 'Guardião da Rede', color: 'indigo', minPoints: 3360 },
-  { name: 'Mestre da Constância', color: 'violet', minPoints: 3740 },
-  { name: 'Voz da Comunidade', color: 'rose', minPoints: 4140 },
-  { name: 'Embaixador do Impacto', color: 'primary', minPoints: 4500 },
-  { name: 'Benfeitor Regional', color: 'emerald', minPoints: 5000 },
-  { name: 'Elo Transformador', color: 'amber', minPoints: 5500 },
-  { name: 'Guardião Supremo', color: 'indigo', minPoints: 6000 },
-  { name: 'Arquiteto do Bem', color: 'violet', minPoints: 6500 },
-  { name: 'Legado Solidário', color: 'rose', minPoints: 7000 },
-  { name: 'Referência Nacional', color: 'primary', minPoints: 7500 },
-  { name: 'Inspirador da Rede', color: 'emerald', minPoints: 8000 },
-  { name: 'Grande Embaixador', color: 'amber', minPoints: 8500 },
-  { name: 'Lenda Solidária', color: 'indigo', minPoints: 9000 },
-  { name: 'Herói Solidário Supremo', color: 'violet', minPoints: 10000 },
+  { name: 'Construtor de Pontes', color: 'amber', minPoints: 2960 },
+  { name: 'Guardião da Rede', color: 'indigo', minPoints: 3260 },
+  { name: 'Mestre da Constância', color: 'violet', minPoints: 3560 },
+  { name: 'Voz da Comunidade', color: 'rose', minPoints: 3860 },
+  { name: 'Embaixador do Impacto', color: 'primary', minPoints: 4160 },
+  { name: 'Benfeitor Regional', color: 'emerald', minPoints: 4460 },
+  { name: 'Elo Transformador', color: 'amber', minPoints: 4760 },
+  { name: 'Guardião Supremo', color: 'indigo', minPoints: 5060 },
+  { name: 'Arquiteto do Bem', color: 'violet', minPoints: 5360 },
+  { name: 'Legado Solidário', color: 'rose', minPoints: 5660 },
+  { name: 'Referência Nacional', color: 'primary', minPoints: 5960 },
+  { name: 'Inspirador da Rede', color: 'emerald', minPoints: 6260 },
+  { name: 'Grande Embaixador', color: 'amber', minPoints: 6560 },
+  { name: 'Lenda Solidária', color: 'indigo', minPoints: 6860 },
+  { name: 'Herói Solidário Supremo', color: 'violet', minPoints: 7160 },
 ] satisfies Array<Omit<DonorLevel, 'nextThreshold'>>;
 
 export const DONOR_LEVELS: DonorLevel[] = donorLevelBase.map((level, index) => ({
@@ -127,23 +133,6 @@ const COMPLETED_STATUSES: DonationStatus[] = ['DELIVERED', 'DISTRIBUTED'];
 const TRACKED_STATUSES: DonationStatus[] = ['AT_POINT', 'IN_TRANSIT', 'DELIVERED', 'DISTRIBUTED'];
 const ACTIVE_STATUSES: DonationStatus[] = ['PENDING', 'AT_POINT', 'IN_TRANSIT'];
 
-function formatDateLabel(input: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(input));
-}
-
-function getMonthKey(input: string) {
-  const date = new Date(input);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-function getCurrentMonthKey() {
-  return getMonthKey(new Date().toISOString());
-}
-
 function getMonthlyStreak(donations: DonationRecord[]) {
   if (donations.length === 0) return 0;
 
@@ -151,13 +140,12 @@ function getMonthlyStreak(donations: DonationRecord[]) {
   const ordered = [...donations].sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
-  const mostRecent = new Date(ordered[0].createdAt);
-  const cursor = new Date(Date.UTC(mostRecent.getUTCFullYear(), mostRecent.getUTCMonth(), 1));
+  let cursor = getMonthKey(ordered[0].createdAt);
   let streak = 0;
 
-  while (monthSet.has(`${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`)) {
+  while (monthSet.has(cursor)) {
     streak += 1;
-    cursor.setUTCMonth(cursor.getUTCMonth() - 1);
+    cursor = getPreviousMonthKey(cursor);
   }
 
   return streak;

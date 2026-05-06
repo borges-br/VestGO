@@ -1,4 +1,5 @@
 import type { DonationStatus } from '@/lib/api';
+import { formatDayMonthLabel } from '@/lib/date-time';
 
 export type DonorStatusMeta = {
   label: string;
@@ -42,8 +43,5 @@ export const DONOR_STATUS_META: Record<DonationStatus, DonorStatusMeta> = {
 };
 
 export function formatDonorDate(input: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(input));
+  return formatDayMonthLabel(input);
 }

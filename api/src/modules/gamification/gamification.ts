@@ -13,6 +13,12 @@ import {
   isConfirmedDonationStatus,
 } from '../../shared/donation-points';
 import { createNotifications } from '../../shared/notifications';
+import {
+  getMonthsSinceInAppTimezone,
+  getPreviousMonthKey,
+  getZonedMonthKey,
+  getZonedYear,
+} from '../../shared/date-time';
 import { getOperationalProfileChecklist } from '../profiles/profile-shared';
 
 type AchievementTier = 'BRONZE' | 'PRATA' | 'OURO' | 'DIAMANTE' | 'RUBY';
@@ -115,13 +121,9 @@ const ACHIEVEMENT_TIER_POINTS: Record<AchievementTier, number> = {
 const ACHIEVEMENT_SOURCE_PREFIX = 'achievement';
 const MAX_SYNC_ITERATIONS = 5;
 
-// Curva oficial de 30 niveis. Niveis 20-30 confirmados pelo produto, baseados em
-// 10 pontos por item confirmado no ponto: nivel 20 = 4500 pts (450 itens) e
-// nivel 30 = 10000 pts (1000 itens), com saltos de 500 pts (50 itens) por nivel.
-//
-// Niveis 1-19 sao uma estimativa razoavel ate o produto confirmar a tabela
-// definitiva: a curva sobe de forma incremental e suave para evitar que o
-// usuario fique preso em um unico nivel apos as primeiras doacoes.
+// Curva oficial de 30 niveis. Os niveis 1-14 preservam a progressao original.
+// A partir do nivel 15, a regra de produto usa incremento fixo de +300 pontos
+// por nivel para manter a evolucao previsivel sem divergir do frontend.
 const donorLevelBase = [
   { name: 'Primeiro Gesto', color: 'gray', minPoints: 0 },
   { name: 'Doador Iniciante', color: 'primary', minPoints: 60 },
@@ -292,7 +294,7 @@ function getLevel(
 }
 
 function getMonthKey(input: Date) {
-  return `${input.getUTCFullYear()}-${String(input.getUTCMonth() + 1).padStart(2, '0')}`;
+  return getZonedMonthKey(input);
 }
 
 function getTotalQuantity(donations: GamificationDonation[]) {
@@ -343,25 +345,19 @@ function getConsecutiveActiveMonths(donations: GamificationDonation[]) {
   const ordered = [...donations].sort(
     (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
   );
-  const mostRecent = ordered[0].createdAt;
-  const cursor = new Date(Date.UTC(mostRecent.getUTCFullYear(), mostRecent.getUTCMonth(), 1));
+  let cursor = getMonthKey(ordered[0].createdAt);
   let streak = 0;
 
-  while (monthSet.has(getMonthKey(cursor))) {
+  while (monthSet.has(cursor)) {
     streak += 1;
-    cursor.setUTCMonth(cursor.getUTCMonth() - 1);
+    cursor = getPreviousMonthKey(cursor);
   }
 
   return streak;
 }
 
 function getMonthsSince(input: Date) {
-  const now = new Date();
-  return Math.max(
-    0,
-    (now.getUTCFullYear() - input.getUTCFullYear()) * 12 +
-      (now.getUTCMonth() - input.getUTCMonth()),
-  );
+  return getMonthsSinceInAppTimezone(input);
 }
 
 function getTierFromLevels(value: number | null, levels: AchievementLevel[]) {
@@ -515,13 +511,12 @@ function getConsecutiveConfirmedMonths(donations: GamificationDonation[]) {
   const orderedDates = donations
     .map((donation) => getConfirmationDate(donation))
     .sort((left, right) => right.getTime() - left.getTime());
-  const mostRecent = orderedDates[0];
-  const cursor = new Date(Date.UTC(mostRecent.getUTCFullYear(), mostRecent.getUTCMonth(), 1));
+  let cursor = getMonthKey(orderedDates[0]);
   let streak = 0;
 
-  while (monthSet.has(getMonthKey(cursor))) {
+  while (monthSet.has(cursor)) {
     streak += 1;
-    cursor.setUTCMonth(cursor.getUTCMonth() - 1);
+    cursor = getPreviousMonthKey(cursor);
   }
 
   return streak;
@@ -671,30 +666,30 @@ function buildAchievements(params: {
       key: 'solidarity-delivery',
       title: 'Entrega Solidária',
       description: 'Conta doações que chegaram à distribuição pela ONG.',
-      howToEarn: 'Acompanhe suas doações até a distribuição final pela ONG parceira.',
+      howToEarn: 'Acompanhe ao menos 3 doações até a distribuição final pela ONG parceira.',
       metricLabel: 'distribuições confirmadas',
       progressValue: distributedCount,
       progressLabel: `${distributedCount} ${distributedCount === 1 ? 'distribuição' : 'distribuições'}`,
       levels: [
-        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 distribuição' },
+        { tier: 'BRONZE', targetValue: 3, targetLabel: '3 distribuições' },
         { tier: 'PRATA', targetValue: 6, targetLabel: '6 distribuições' },
         { tier: 'OURO', targetValue: 12, targetLabel: '12 distribuições' },
-        { tier: 'DIAMANTE', targetValue: 24, targetLabel: '24+ distribuições' },
+        { tier: 'DIAMANTE', targetValue: 24, targetLabel: '24 distribuições' },
       ],
     }),
     buildNumericAchievement({
       key: 'active-network',
       title: 'Rede Ativa',
       description: 'Mostra em quantos pontos parceiros diferentes você já teve doações confirmadas.',
-      howToEarn: 'Confirme entregas em pontos parceiros diferentes da rede VestGO.',
+      howToEarn: 'Confirme entregas em pelo menos 2 pontos parceiros diferentes da rede VestGO.',
       metricLabel: 'pontos parceiros usados',
       progressValue: usedCollectionPointsCount,
       progressLabel: `${usedCollectionPointsCount} ${usedCollectionPointsCount === 1 ? 'ponto' : 'pontos'}`,
       levels: [
-        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 ponto parceiro' },
-        { tier: 'PRATA', targetValue: 2, targetLabel: '2 pontos parceiros' },
-        { tier: 'OURO', targetValue: 3, targetLabel: '3 pontos parceiros' },
-        { tier: 'DIAMANTE', targetValue: 4, targetLabel: '4+ pontos parceiros' },
+        { tier: 'BRONZE', targetValue: 2, targetLabel: '2 pontos parceiros' },
+        { tier: 'PRATA', targetValue: 3, targetLabel: '3 pontos parceiros' },
+        { tier: 'OURO', targetValue: 4, targetLabel: '4 pontos parceiros' },
+        { tier: 'DIAMANTE', targetValue: 5, targetLabel: '5 pontos parceiros' },
       ],
     }),
     buildNumericAchievement({
@@ -717,15 +712,15 @@ function buildAchievements(params: {
       key: 'diversity',
       title: 'Diversidade',
       description: 'Reconhece variedade de categorias usadas em doações confirmadas.',
-      howToEarn: 'Doe itens registrados em categorias diferentes e confirme a entrega no ponto.',
+      howToEarn: 'Doe itens de pelo menos 2 categorias diferentes e confirme a entrega no ponto.',
       metricLabel: 'categorias usadas',
       progressValue: usedCategoriesCount,
       progressLabel: `${usedCategoriesCount} ${usedCategoriesCount === 1 ? 'categoria' : 'categorias'}`,
       levels: [
-        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 categoria' },
-        { tier: 'PRATA', targetValue: 2, targetLabel: '2 categorias' },
-        { tier: 'OURO', targetValue: 3, targetLabel: '3 categorias' },
-        { tier: 'DIAMANTE', targetValue: 4, targetLabel: '4+ categorias' },
+        { tier: 'BRONZE', targetValue: 2, targetLabel: '2 categorias' },
+        { tier: 'PRATA', targetValue: 3, targetLabel: '3 categorias' },
+        { tier: 'OURO', targetValue: 4, targetLabel: '4 categorias' },
+        { tier: 'DIAMANTE', targetValue: 5, targetLabel: '5 categorias' },
       ],
     }),
     buildNumericAchievement({
@@ -779,7 +774,7 @@ function buildAchievements(params: {
     (achievement) => achievement.tier != null && !achievement.unavailable,
   );
   const hasConfirmedDonation = params.confirmedDonations.length > 0;
-  const createdIn2026 = params.profile.createdAt.getUTCFullYear() === 2026;
+  const createdIn2026 = getZonedYear(params.profile.createdAt) === 2026;
 
   return [
     ...publicAchievements,

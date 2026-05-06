@@ -27,7 +27,8 @@ import {
 } from '@/lib/api';
 import { useAddressSuggestions } from '@/hooks/use-address-suggestions';
 import { SafeImage } from '@/components/ui/safe-image';
-import { ProfileImageCropper } from '@/components/profile/profile-image-cropper';
+import { ImageCropperDialog } from '@/components/uploads/image-cropper-dialog';
+import { IMAGE_CROP_PRESETS, type ImageCropPreset } from '@/lib/image-crop';
 import { formatBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/phone';
 import { formatCpfInput, normalizeCpfInput, isValidCpf } from '@/lib/cpf';
 import { formatCnpjInput, normalizeCnpjInput, isValidCnpj } from '@/lib/cnpj';
@@ -118,10 +119,8 @@ type CropTarget = 'avatar' | 'cover' | 'gallery';
 type CropRequest = {
   file: File;
   target: CropTarget;
-  aspectRatio: number;
-  outputWidth: number;
-  outputHeight: number;
-  label: string;
+  preset: ImageCropPreset;
+  remainingFiles?: File[];
 };
 
 type FormState = {
@@ -693,20 +692,26 @@ export function OperationalProfileForm() {
 
   // ── Image upload with crop ──────────────────────────────────────────────────
 
-  function requestCrop(target: CropTarget, file: File) {
-    const configs: Record<CropTarget, { aspectRatio: number; outputWidth: number; outputHeight: number; label: string }> = {
-      avatar: { aspectRatio: 1, outputWidth: 480, outputHeight: 480, label: 'Ajustar avatar' },
-      cover: { aspectRatio: 16 / 9, outputWidth: 1200, outputHeight: 675, label: 'Ajustar capa' },
-      gallery: { aspectRatio: 4 / 3, outputWidth: 800, outputHeight: 600, label: 'Ajustar foto da galeria' },
+  function requestCrop(target: CropTarget, file: File, remainingFiles: File[] = []) {
+    const configs: Record<CropTarget, ImageCropPreset> = {
+      avatar: IMAGE_CROP_PRESETS.avatar,
+      cover: IMAGE_CROP_PRESETS.cover,
+      gallery: IMAGE_CROP_PRESETS.gallery,
     };
-    setCropRequest({ file, target, ...configs[target] });
+    setCropRequest({ file, target, preset: configs[target], remainingFiles });
   }
 
   async function handleCropConfirm(croppedFile: File) {
-    const target = cropRequest?.target;
+    const request = cropRequest;
+    const target = request?.target;
     setCropRequest(null);
     if (!target) return;
     await handleUploadAsset(target, croppedFile);
+
+    const [nextFile, ...remainingFiles] = request?.remainingFiles ?? [];
+    if (target === 'gallery' && nextFile) {
+      requestCrop('gallery', nextFile, remainingFiles);
+    }
   }
 
   async function handleUploadAsset(target: CropTarget, file: File | null | undefined) {
@@ -764,7 +769,7 @@ export function OperationalProfileForm() {
     // For gallery, crop the first file then queue the rest
     const uploadQueue = Array.from(files).slice(0, remainingSlots);
     if (uploadQueue[0]) {
-      requestCrop('gallery', uploadQueue[0]);
+      requestCrop('gallery', uploadQueue[0], uploadQueue.slice(1));
     }
 
     if (galleryInputRef.current) {
@@ -921,13 +926,10 @@ export function OperationalProfileForm() {
   return (
     <>
       {cropRequest && (
-        <ProfileImageCropper
+        <ImageCropperDialog
           file={cropRequest.file}
-          aspectRatio={cropRequest.aspectRatio}
-          outputWidth={cropRequest.outputWidth}
-          outputHeight={cropRequest.outputHeight}
-          label={cropRequest.label}
-          onConfirm={handleCropConfirm}
+          preset={cropRequest.preset}
+          onApply={handleCropConfirm}
           onCancel={() => setCropRequest(null)}
         />
       )}

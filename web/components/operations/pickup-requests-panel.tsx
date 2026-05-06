@@ -16,6 +16,7 @@ import {
   type PickupRequestStatus,
 } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
+import { formatDateLabel, formatDateTimeLabel } from '@/lib/date-time';
 
 const STATUS_META: Record<
   PickupRequestStatus,
@@ -36,12 +37,7 @@ const STATUS_META: Record<
 };
 
 function formatPickupDate(value: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+  return formatDateTimeLabel(value);
 }
 
 function formatRequestedWindow(pickupRequest: PickupRequestRecord) {
@@ -49,11 +45,7 @@ function formatRequestedWindow(pickupRequest: PickupRequestRecord) {
 
   if (pickupRequest.requestedDate) {
     segments.push(
-      new Intl.DateTimeFormat('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      }).format(new Date(pickupRequest.requestedDate)),
+      formatDateLabel(pickupRequest.requestedDate),
     );
   }
 

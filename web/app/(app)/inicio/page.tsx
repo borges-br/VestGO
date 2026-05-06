@@ -47,6 +47,7 @@ import {
 } from '@/lib/api';
 import { DonorHome } from '@/components/dashboard/donor-home';
 import { formatAddressSummary } from '@/lib/address';
+import { formatDayMonthLabel } from '@/lib/date-time';
 
 const quickActions = [
   {
@@ -222,10 +223,7 @@ const NEXT_ACTION_LABELS: Partial<Record<DonationStatus, string>> = {
 };
 
 function formatDateLabel(input: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(input));
+  return formatDayMonthLabel(input);
 }
 
 function getOperationPartnerLabel(role: string, donation: DonationRecord) {

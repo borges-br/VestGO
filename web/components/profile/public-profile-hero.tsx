@@ -101,7 +101,10 @@ export function PublicProfileHero({
                   accept="image/png,image/jpeg,image/webp"
                   className="sr-only"
                   disabled={avatarUploading}
-                  onChange={(event) => onAvatarFileSelected(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    onAvatarFileSelected(event.target.files?.[0] ?? null);
+                    event.target.value = '';
+                  }}
                 />
               </label>
             </div>
