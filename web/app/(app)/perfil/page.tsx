@@ -17,6 +17,7 @@ import { AchievementsScroller } from '@/components/profile/achievements-scroller
 import { GamificationSyncToast } from '@/components/profile/gamification-sync-toast';
 import { OperationalProfileSummary } from '@/components/profile/operational-profile-summary';
 import { PublicProfileHero } from '@/components/profile/public-profile-hero';
+import { ImageCropperDialog } from '@/components/uploads/image-cropper-dialog';
 import {
   getMyGamification,
   getMyProfile,
@@ -30,6 +31,8 @@ import {
   type GamificationSyncResponse,
   type MyProfile,
 } from '@/lib/api';
+import { formatDayLabel, formatMonthLabel } from '@/lib/date-time';
+import { IMAGE_CROP_PRESETS } from '@/lib/image-crop';
 
 const footerLinks = [
   { icon: Edit3, label: 'Configurações da conta', href: '/configuracoes' },
@@ -57,16 +60,6 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function formatMonthLabel(input: string) {
-  return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric' })
-    .format(new Date(input))
-    .replace('.', '');
-}
-
-function formatDayLabel(input: string) {
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit' }).format(new Date(input));
-}
-
 export default function PerfilPage() {
   const { data: session, status, update: updateSession } = useSession();
   const syncedTokenRef = useRef<string | null>(null);
@@ -78,6 +71,7 @@ export default function PerfilPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
   const [emailVerificationSending, setEmailVerificationSending] = useState(false);
   const [emailVerificationMessage, setEmailVerificationMessage] = useState<string | null>(null);
   const [emailVerificationError, setEmailVerificationError] = useState<string | null>(null);
@@ -237,6 +231,11 @@ export default function PerfilPage() {
     }
   }
 
+  function handleDonorAvatarSelected(file: File | null | undefined) {
+    if (!file) return;
+    setAvatarCropFile(file);
+  }
+
   async function handleResendEmailVerification() {
     if (!session?.user?.accessToken) return;
 
@@ -262,6 +261,18 @@ export default function PerfilPage() {
 
   return (
     <div className="vg-page-bg vg-dark-fix min-h-screen">
+      {avatarCropFile ? (
+        <ImageCropperDialog
+          file={avatarCropFile}
+          preset={IMAGE_CROP_PRESETS.avatar}
+          onApply={async (file) => {
+            setAvatarCropFile(null);
+            await handleDonorAvatarUpload(file);
+          }}
+          onCancel={() => setAvatarCropFile(null)}
+        />
+      ) : null}
+
       <PublicProfileHero
         name={userName}
         email={userEmail}
@@ -282,7 +293,7 @@ export default function PerfilPage() {
         emailVerificationSending={emailVerificationSending}
         emailVerificationMessage={emailVerificationMessage}
         emailVerificationError={emailVerificationError}
-        onAvatarFileSelected={handleDonorAvatarUpload}
+        onAvatarFileSelected={handleDonorAvatarSelected}
         onResendEmailVerification={() => void handleResendEmailVerification()}
       />
 

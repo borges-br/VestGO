@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { DonationStatus } from '@/lib/api';
+import { formatDateTimeLabel } from '@/lib/date-time';
 
 export const DONATION_STATUS_ORDER: DonationStatus[] = [
   'PENDING',
@@ -101,11 +102,5 @@ export const DONATION_STATUS_ACTIONS: Record<
 };
 
 export function formatDonationDateLabel(input: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(input));
+  return formatDateTimeLabel(input);
 }

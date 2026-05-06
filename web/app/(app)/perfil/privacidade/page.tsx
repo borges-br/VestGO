@@ -37,6 +37,7 @@ import {
   type ActiveSession,
   type TwoFactorStatus,
 } from '@/lib/api';
+import { formatDateTimeLabel } from '@/lib/date-time';
 
 type SetupState =
   | { stage: 'idle' }
@@ -72,13 +73,7 @@ type AccountDeletionState = {
 
 function formatDate(iso: string) {
   try {
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(iso));
+    return formatDateTimeLabel(iso);
   } catch {
     return iso;
   }

@@ -84,25 +84,44 @@ const achievementIcons: Record<string, LucideIcon> = {
 
 type AchievementMedalProps = {
   achievement: DonorAchievement;
-  onSelect: (achievement: DonorAchievement) => void;
+  onSelect?: (achievement: DonorAchievement) => void;
+  compact?: boolean;
+  className?: string;
 };
 
-export function AchievementMedal({ achievement, onSelect }: AchievementMedalProps) {
+export function AchievementMedal({
+  achievement,
+  onSelect,
+  compact = false,
+  className,
+}: AchievementMedalProps) {
   const tier = achievement.tier ?? achievement.nextTier ?? 'BRONZE';
   const styles = tierStyles[tier];
   const Icon = achievement.unavailable ? Lock : achievementIcons[achievement.key] ?? Sparkles;
   const muted = !achievement.unlocked || achievement.unavailable;
+  const isInteractive = Boolean(onSelect);
 
   return (
     <button
       type="button"
-      onClick={() => onSelect(achievement)}
-      className="group flex w-[136px] flex-shrink-0 scroll-ml-8 flex-col items-center gap-2 rounded-2xl px-2 py-2 text-center outline-none transition-transform motion-safe:hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-      aria-label={`Abrir conquista ${achievement.title}`}
+      onClick={() => onSelect?.(achievement)}
+      disabled={!isInteractive}
+      className={cn(
+        'group flex flex-shrink-0 flex-col items-center text-center outline-none transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+        compact
+          ? 'w-[76px] gap-1 rounded-xl px-1 py-1'
+          : 'w-[136px] scroll-ml-8 gap-2 rounded-2xl px-2 py-2',
+        isInteractive && 'motion-safe:hover:-translate-y-1',
+        !isInteractive && 'cursor-default',
+        className,
+      )}
+      aria-label={isInteractive ? `Abrir conquista ${achievement.title}` : achievement.title}
     >
       <span
         className={cn(
-          'relative block h-[96px] w-[82px] transition duration-200 motion-safe:[transform-style:preserve-3d] motion-safe:group-hover:[transform:perspective(700px)_rotateX(5deg)_rotateY(-5deg)] motion-safe:group-focus-visible:[transform:perspective(700px)_rotateX(5deg)_rotateY(-5deg)]',
+          'relative block transition duration-200 motion-safe:[transform-style:preserve-3d] motion-safe:group-focus-visible:[transform:perspective(700px)_rotateX(5deg)_rotateY(-5deg)]',
+          compact ? 'h-[58px] w-[52px]' : 'h-[96px] w-[82px]',
+          isInteractive && 'motion-safe:group-hover:[transform:perspective(700px)_rotateX(5deg)_rotateY(-5deg)]',
           muted && 'opacity-45 grayscale',
           !muted && 'drop-shadow-[0_12px_20px_rgba(0,51,60,0.18)]',
         )}
@@ -110,20 +129,23 @@ export function AchievementMedal({ achievement, onSelect }: AchievementMedalProp
         <span
           aria-hidden="true"
           className={cn(
-            'absolute bottom-0 left-[19px] h-12 w-5 -skew-x-6 bg-gradient-to-b',
+            'absolute bottom-0 -skew-x-6 bg-gradient-to-b',
+            compact ? 'left-[12px] h-8 w-3' : 'left-[19px] h-12 w-5',
             styles.ribbon,
           )}
         />
         <span
           aria-hidden="true"
           className={cn(
-            'absolute bottom-0 right-[19px] h-12 w-5 skew-x-6 bg-gradient-to-b',
+            'absolute bottom-0 skew-x-6 bg-gradient-to-b',
+            compact ? 'right-[12px] h-8 w-3' : 'right-[19px] h-12 w-5',
             styles.ribbon,
           )}
         />
         <span
           className={cn(
-            'absolute left-1/2 top-1 flex h-16 w-16 -translate-x-1/2 items-center justify-center overflow-hidden rounded-full border-[3px] bg-gradient-to-br shadow-inner transition-shadow duration-300',
+            'absolute left-1/2 top-1 flex -translate-x-1/2 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br shadow-inner transition-shadow duration-300',
+            compact ? 'h-10 w-10 border-2' : 'h-16 w-16 border-[3px]',
             styles.disk,
             styles.border,
             styles.text,
@@ -132,19 +154,27 @@ export function AchievementMedal({ achievement, onSelect }: AchievementMedalProp
         >
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-[-35%] -translate-x-10 rotate-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.68),transparent)] opacity-0 transition duration-700 motion-safe:group-hover:translate-x-10 motion-safe:group-hover:opacity-80 motion-safe:group-focus-visible:translate-x-10 motion-safe:group-focus-visible:opacity-80"
+            className={cn(
+              'pointer-events-none absolute inset-[-35%] -translate-x-10 rotate-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.68),transparent)] opacity-0 transition duration-700 motion-safe:group-focus-visible:translate-x-10 motion-safe:group-focus-visible:opacity-80',
+              isInteractive && 'motion-safe:group-hover:translate-x-10 motion-safe:group-hover:opacity-80',
+            )}
           />
           <span
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.75),transparent_32%),radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.22),transparent_38%)] mix-blend-overlay"
           />
-          <Icon size={27} strokeWidth={1.8} />
+          <Icon size={compact ? 20 : 27} strokeWidth={1.8} />
         </span>
       </span>
-      <span className="vg-text-primary line-clamp-2 min-h-[34px] text-[13px] font-extrabold leading-tight tracking-tight">
+      <span
+        className={cn(
+          'vg-text-primary line-clamp-2 font-extrabold leading-tight tracking-tight',
+          compact ? 'min-h-[30px] text-[11px]' : 'min-h-[34px] text-[13px]',
+        )}
+      >
         {achievement.title}
       </span>
-      <span className="vg-text-secondary text-[11px] leading-tight">
+      <span className={cn('vg-text-secondary leading-tight', compact ? 'text-[10px]' : 'text-[11px]')}>
         {achievement.unavailable
           ? 'Indisponível'
           : achievement.tier
