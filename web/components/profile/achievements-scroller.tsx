@@ -16,7 +16,7 @@ export function AchievementsScroller({ achievements }: AchievementsScrollerProps
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<DonorAchievement | null>(null);
   const visibleAchievements = useMemo(
-    () => achievements.filter((achievement) => !achievement.hidden),
+    () => achievements.filter((achievement) => achievement.unlocked || !achievement.hidden),
     [achievements],
   );
   const unlocked = visibleAchievements.filter((achievement) => achievement.unlocked).length;
@@ -67,20 +67,30 @@ export function AchievementsScroller({ achievements }: AchievementsScrollerProps
             </p>
             <h2
               id="achievements-heading"
-              className="text-3xl font-extrabold tracking-tight text-primary-deeper sm:text-4xl"
+              className="vg-text-primary text-3xl font-extrabold tracking-tight sm:text-4xl"
             >
               Sua coleção solidária
             </h2>
           </div>
-          <p className="text-sm text-primary-deeper/55">
+          <p className="vg-text-secondary text-sm">
             {unlocked} de {visibleAchievements.length} desbloqueadas
           </p>
         </div>
 
+        {visibleAchievements.length === 0 ? (
+          <div className="vg-card-soft rounded-[1.75rem] border-dashed px-6 py-8">
+            <p className="vg-text-primary text-sm font-bold">
+              Suas conquistas aparecem aqui conforme seu progresso avança.
+            </p>
+            <p className="vg-text-secondary mt-2 text-sm leading-7">
+              Faça sua primeira doação para começar a desbloquear novos marcos.
+            </p>
+          </div>
+        ) : (
         <div className="relative">
           <div
             ref={scrollerRef}
-            className="scrollbar-hide flex gap-4 overflow-x-auto rounded-[1.75rem] border border-primary-deeper/5 bg-surface-cream px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"
+            className="vg-card-soft scrollbar-hide flex gap-4 overflow-x-auto rounded-[1.75rem] px-6 py-8"
             style={{
               scrollSnapType: 'x mandatory',
               WebkitMaskImage:
@@ -103,7 +113,7 @@ export function AchievementsScroller({ achievements }: AchievementsScrollerProps
               type="button"
               onClick={() => scrollByDirection(-1)}
               aria-label="Conquistas anteriores"
-              className="absolute left-0 top-1/2 flex h-10 w-10 -translate-x-3 -translate-y-1/2 items-center justify-center rounded-full border border-primary-deeper/10 bg-white text-primary-deeper shadow-md transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
+              className="vg-card absolute left-0 top-1/2 flex h-10 w-10 -translate-x-3 -translate-y-1/2 items-center justify-center rounded-full text-primary-deeper shadow-md transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
             >
               <ChevronLeft size={18} />
             </button>
@@ -113,12 +123,13 @@ export function AchievementsScroller({ achievements }: AchievementsScrollerProps
               type="button"
               onClick={() => scrollByDirection(1)}
               aria-label="Próximas conquistas"
-              className="absolute right-0 top-1/2 flex h-10 w-10 translate-x-3 -translate-y-1/2 items-center justify-center rounded-full border border-primary-deeper/10 bg-white text-primary-deeper shadow-md transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
+              className="vg-card absolute right-0 top-1/2 flex h-10 w-10 translate-x-3 -translate-y-1/2 items-center justify-center rounded-full text-primary-deeper shadow-md transition-colors hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary"
             >
               <ChevronRight size={18} />
             </button>
           )}
         </div>
+        )}
       </div>
 
       <AchievementDialog

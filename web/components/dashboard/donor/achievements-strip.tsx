@@ -1,10 +1,53 @@
 import { Award } from 'lucide-react';
+import type { AchievementTier, DonorAchievement } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { ImpactBadge } from '@/lib/gamification';
 
 type AchievementsStripProps = {
-  items: ImpactBadge[];
+  items: DonorAchievement[];
 };
+
+const tierLabels: Record<AchievementTier, string> = {
+  BRONZE: 'Bronze',
+  PRATA: 'Prata',
+  OURO: 'Ouro',
+  DIAMANTE: 'Diamante',
+  RUBY: 'Ruby',
+};
+
+function getProgressPct(achievement: DonorAchievement) {
+  if (
+    typeof achievement.progressValue !== 'number' ||
+    typeof achievement.progressTarget !== 'number' ||
+    achievement.progressTarget <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, achievement.progressValue / achievement.progressTarget));
+}
+
+function getVisibleAchievements(items: DonorAchievement[]) {
+  const visible = items.filter((achievement) => achievement.unlocked || !achievement.hidden);
+  const unlocked = visible.filter((achievement) => achievement.unlocked);
+  const inProgress = visible.filter((achievement) => !achievement.unlocked && !achievement.unavailable);
+
+  if (unlocked.length > 0) {
+    return visible.sort((left, right) => {
+      if (left.unlocked !== right.unlocked) return left.unlocked ? -1 : 1;
+
+      if (left.unlocked && right.unlocked) {
+        const leftTime = left.unlockedAt ? new Date(left.unlockedAt).getTime() : 0;
+        const rightTime = right.unlockedAt ? new Date(right.unlockedAt).getTime() : 0;
+
+        if (leftTime !== rightTime) return rightTime - leftTime;
+      }
+
+      return getProgressPct(right) - getProgressPct(left);
+    });
+  }
+
+  return inProgress.sort((left, right) => getProgressPct(right) - getProgressPct(left));
+}
 
 function MiniMedal({ earned }: { earned: boolean }) {
   return (
@@ -14,7 +57,7 @@ function MiniMedal({ earned }: { earned: boolean }) {
         'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border-2',
         earned
           ? 'border-amber-400 bg-gradient-to-br from-amber-100 to-amber-300 text-amber-900 shadow-[inset_0_-3px_6px_rgba(0,0,0,0.12),0_3px_8px_rgba(0,0,0,0.08)]'
-          : 'border-primary-deeper/15 bg-surface text-primary-deeper/40',
+          : 'border-[var(--vg-border-strong)] bg-[var(--vg-bg-soft)] text-[var(--vg-text-muted)]',
       )}
     >
       <Award size={18} strokeWidth={1.6} />
@@ -23,16 +66,18 @@ function MiniMedal({ earned }: { earned: boolean }) {
 }
 
 export function AchievementsStrip({ items }: AchievementsStripProps) {
-  if (items.length === 0) {
+  const visibleItems = getVisibleAchievements(items);
+
+  if (visibleItems.length === 0) {
     return (
-      <div className="flex items-center gap-4 rounded-2xl border border-dashed border-primary-deeper/12 bg-surface-cream/40 px-5 py-5">
+      <div className="vg-card-soft flex items-center gap-4 rounded-2xl border-dashed px-5 py-5">
         <MiniMedal earned={false} />
         <div>
-          <p className="text-[13px] font-bold text-primary-deeper">
-            Suas conquistas começam na primeira doação.
+          <p className="vg-text-primary text-[13px] font-bold">
+            Suas conquistas aparecem aqui conforme seu progresso avança.
           </p>
-          <p className="mt-1 text-xs text-primary-deeper/55">
-            Cada marco vira uma medalha permanente no perfil.
+          <p className="vg-text-secondary mt-1 text-xs">
+            Faça sua primeira doação para começar a desbloquear novos marcos.
           </p>
         </div>
       </div>
@@ -41,30 +86,30 @@ export function AchievementsStrip({ items }: AchievementsStripProps) {
 
   return (
     <ul className="m-0 grid list-none grid-cols-1 gap-2.5 p-0 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
-      {items.slice(0, 4).map((badge) => (
+      {visibleItems.slice(0, 4).map((achievement) => (
         <li
-          key={badge.id}
+          key={achievement.key}
           className={cn(
             'flex items-center gap-3 rounded-2xl px-4 py-3',
-            badge.earned
-              ? 'border border-primary-deeper/[0.06] bg-white'
-              : 'border border-dashed border-primary-deeper/12 bg-surface-cream/40',
+            achievement.unlocked ? 'vg-card' : 'vg-card-soft border-dashed',
           )}
         >
-          <MiniMedal earned={badge.earned} />
+          <MiniMedal earned={achievement.unlocked} />
           <div className="min-w-0">
             <p
               className={cn(
                 'text-[13px] font-bold leading-tight',
-                badge.earned ? 'text-primary-deeper' : 'text-primary-deeper/55',
+                achievement.unlocked ? 'vg-text-primary' : 'vg-text-secondary',
               )}
             >
-              {badge.label}
+              {achievement.title}
             </p>
-            <p className="mt-1 text-[11px] text-primary-deeper/50">
-              {badge.earned
-                ? 'Desbloqueada'
-                : (badge.progressLabel ?? 'Em progresso')}
+            <p className="vg-text-muted mt-1 text-[11px]">
+              {achievement.unlocked
+                ? achievement.tier
+                  ? `Desbloqueada · ${tierLabels[achievement.tier]}`
+                  : 'Desbloqueada'
+                : achievement.progressLabel || 'Em progresso'}
             </p>
           </div>
         </li>

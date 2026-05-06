@@ -141,10 +141,10 @@ export function AchievementMedal({ achievement, onSelect }: AchievementMedalProp
           <Icon size={27} strokeWidth={1.8} />
         </span>
       </span>
-      <span className="line-clamp-2 min-h-[34px] text-[13px] font-extrabold leading-tight tracking-tight text-primary-deeper">
+      <span className="vg-text-primary line-clamp-2 min-h-[34px] text-[13px] font-extrabold leading-tight tracking-tight">
         {achievement.title}
       </span>
-      <span className="text-[11px] leading-tight text-primary-deeper/55">
+      <span className="vg-text-secondary text-[11px] leading-tight">
         {achievement.unavailable
           ? 'Indisponível'
           : achievement.tier

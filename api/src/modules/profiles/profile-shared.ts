@@ -319,7 +319,7 @@ export function getOperationalProfileChecklist(
       { key: 'state', label: 'Estado', complete: hasValue(payload.state) },
       {
         key: 'donationInterestCategories',
-        label: 'Interesses de doacao',
+        label: 'Interesses de doação',
         complete:
           Array.isArray(payload.donationInterestCategories) &&
           payload.donationInterestCategories.length > 0,

@@ -23,6 +23,12 @@ type AchievementLevel = {
   targetLabel: string;
 };
 
+type AchievementCriterion = {
+  key: string;
+  label: string;
+  complete: boolean;
+};
+
 type AchievementResponse = {
   key: string;
   title: string;
@@ -41,6 +47,7 @@ type AchievementResponse = {
   unavailableReason?: string;
   unlockedAt?: string | null;
   levels: AchievementLevel[];
+  criteria?: AchievementCriterion[];
 };
 
 export type SyncTrigger =
@@ -118,34 +125,34 @@ const MAX_SYNC_ITERATIONS = 5;
 const donorLevelBase = [
   { name: 'Primeiro Gesto', color: 'gray', minPoints: 0 },
   { name: 'Doador Iniciante', color: 'primary', minPoints: 60 },
-  { name: 'Semeador Solidario', color: 'emerald', minPoints: 140 },
+  { name: 'Semeador Solidário', color: 'emerald', minPoints: 140 },
   { name: 'Aliado do Bem', color: 'amber', minPoints: 240 },
-  { name: 'Guardiao Local', color: 'indigo', minPoints: 360 },
-  { name: 'Guardiao da Generosidade', color: 'violet', minPoints: 500 },
-  { name: 'Ponte Solidaria', color: 'rose', minPoints: 660 },
+  { name: 'Guardião Local', color: 'indigo', minPoints: 360 },
+  { name: 'Guardião da Generosidade', color: 'violet', minPoints: 500 },
+  { name: 'Ponte Solidária', color: 'rose', minPoints: 660 },
   { name: 'Mobilizador da Rede', color: 'primary', minPoints: 840 },
-  { name: 'Multiplicador Solidario', color: 'emerald', minPoints: 1040 },
-  { name: 'Referencia Comunitaria', color: 'amber', minPoints: 1260 },
+  { name: 'Multiplicador Solidário', color: 'emerald', minPoints: 1040 },
+  { name: 'Referência Comunitária', color: 'amber', minPoints: 1260 },
   { name: 'Cuidador Frequente', color: 'indigo', minPoints: 1500 },
-  { name: 'Parceiro da Esperanca', color: 'violet', minPoints: 1760 },
-  { name: 'Forca Coletiva', color: 'rose', minPoints: 2040 },
-  { name: 'Lider de Impacto', color: 'primary', minPoints: 2340 },
-  { name: 'Farol Solidario', color: 'emerald', minPoints: 2660 },
+  { name: 'Parceiro da Esperança', color: 'violet', minPoints: 1760 },
+  { name: 'Força Coletiva', color: 'rose', minPoints: 2040 },
+  { name: 'Líder de Impacto', color: 'primary', minPoints: 2340 },
+  { name: 'Farol Solidário', color: 'emerald', minPoints: 2660 },
   { name: 'Construtor de Pontes', color: 'amber', minPoints: 3000 },
-  { name: 'Guardiao da Rede', color: 'indigo', minPoints: 3360 },
-  { name: 'Mestre da Constancia', color: 'violet', minPoints: 3740 },
+  { name: 'Guardião da Rede', color: 'indigo', minPoints: 3360 },
+  { name: 'Mestre da Constância', color: 'violet', minPoints: 3740 },
   { name: 'Voz da Comunidade', color: 'rose', minPoints: 4140 },
   { name: 'Embaixador do Impacto', color: 'primary', minPoints: 4500 },
   { name: 'Benfeitor Regional', color: 'emerald', minPoints: 5000 },
   { name: 'Elo Transformador', color: 'amber', minPoints: 5500 },
   { name: 'Guardiao Supremo', color: 'indigo', minPoints: 6000 },
   { name: 'Arquiteto do Bem', color: 'violet', minPoints: 6500 },
-  { name: 'Legado Solidario', color: 'rose', minPoints: 7000 },
-  { name: 'Referencia Nacional', color: 'primary', minPoints: 7500 },
+  { name: 'Legado Solidário', color: 'rose', minPoints: 7000 },
+  { name: 'Referência Nacional', color: 'primary', minPoints: 7500 },
   { name: 'Inspirador da Rede', color: 'emerald', minPoints: 8000 },
   { name: 'Grande Embaixador', color: 'amber', minPoints: 8500 },
   { name: 'Lenda Solidaria', color: 'indigo', minPoints: 9000 },
-  { name: 'Heroi Solidario Supremo', color: 'violet', minPoints: 10000 },
+  { name: 'Herói Solidário Supremo', color: 'violet', minPoints: 10000 },
 ] satisfies Array<{ name: string; color: string; minPoints: number }>;
 
 const DONOR_LEVELS = donorLevelBase.map((level, index) => ({
@@ -253,7 +260,13 @@ function getAwardableTiers(tier: AchievementTier | null): AchievementTier[] {
   return ORDERED_TIERS.slice(0, index + 1);
 }
 
-function getLevel(points: number) {
+function getLevel(
+  points: number,
+  options: {
+    lockedUntilFirstDonation?: boolean;
+    unlockMessage?: string | null;
+  } = {},
+) {
   const levelIndex = [...DONOR_LEVELS].reverse().findIndex((level) => points >= level.minPoints);
   const currentIndex =
     levelIndex >= 0 ? DONOR_LEVELS.length - 1 - levelIndex : 0;
@@ -272,6 +285,9 @@ function getLevel(points: number) {
     nextThreshold,
     pointsToNextLevel: nextThreshold ? Math.max(nextThreshold - points, 0) : 0,
     progress,
+    lockedUntilFirstDonation: options.lockedUntilFirstDonation ?? false,
+    effectivePoints: points,
+    unlockMessage: options.unlockMessage ?? null,
   };
 }
 
@@ -305,6 +321,19 @@ function getDistributedCount(donations: GamificationDonation[]) {
       donation.status === DonationStatus.DISTRIBUTED ||
       donation.timeline.some((event) => event.status === DonationStatus.DISTRIBUTED),
   ).length;
+}
+
+function hasDeliveredDonation(donations: GamificationDonation[]) {
+  return donations.some(
+    (donation) =>
+      donation.status === DonationStatus.DELIVERED ||
+      donation.status === DonationStatus.DISTRIBUTED ||
+      donation.timeline.some(
+        (event) =>
+          event.status === DonationStatus.DELIVERED ||
+          event.status === DonationStatus.DISTRIBUTED,
+      ),
+  );
 }
 
 function getConsecutiveActiveMonths(donations: GamificationDonation[]) {
@@ -405,11 +434,29 @@ function getProfileChecklist(profile: DonorProfile) {
   });
 }
 
+function getProfileAchievementCriteria(profile: DonorProfile): AchievementCriterion[] {
+  return [
+    ...getProfileChecklist(profile),
+    {
+      key: 'emailVerifiedAt',
+      label: 'E-mail verificado',
+      complete: Boolean(profile.emailVerifiedAt),
+    },
+    {
+      key: 'avatarUrl',
+      label: 'Avatar no perfil',
+      complete: Boolean(profile.avatarUrl),
+    },
+  ];
+}
+
 function buildProfileAchievement(profile: DonorProfile): AchievementResponse {
   const checklist = getProfileChecklist(profile);
+  const criteria = getProfileAchievementCriteria(profile);
   const registrationComplete = checklist.every((entry) => entry.complete);
   const emailVerified = Boolean(profile.emailVerifiedAt);
   const hasAvatar = Boolean(profile.avatarUrl);
+  const completedCriteriaCount = criteria.filter((entry) => entry.complete).length;
 
   const checks = {
     BRONZE: Boolean(profile.createdAt && profile.name && profile.email),
@@ -432,14 +479,15 @@ function buildProfileAchievement(profile: DonorProfile): AchievementResponse {
   return {
     key: 'complete-profile',
     title: 'Perfil Completo',
-    description: 'Reconhece um cadastro confiavel, verificado e bem apresentado.',
+    description: 'Reconhece um cadastro confiável, verificado e bem apresentado.',
     howToEarn: 'Complete os dados complementares do cadastro, verifique seu e-mail e adicione um avatar ao perfil.',
     metricLabel: 'cadastro',
-    progressValue: null,
-    progressTarget: null,
-    progressLabel: registrationComplete
-      ? 'Cadastro preenchido'
-      : `${checklist.filter((entry) => entry.complete).length}/${checklist.length} itens`,
+    progressValue: completedCriteriaCount,
+    progressTarget: criteria.length,
+    progressLabel:
+      completedCriteriaCount === criteria.length
+        ? 'Tudo completo'
+        : `${completedCriteriaCount} de ${criteria.length} etapas concluídas`,
     tier,
     nextTier,
     hidden: false,
@@ -448,6 +496,7 @@ function buildProfileAchievement(profile: DonorProfile): AchievementResponse {
     unavailable: false,
     unlockedAt: null,
     levels,
+    criteria,
   };
 }
 
@@ -457,6 +506,25 @@ function getConfirmationDate(donation: GamificationDonation) {
   // Limitation until a PointLedger/DonationPointEvent exists: legacy rows without
   // an AT_POINT event fall back to updatedAt so confirmed donations remain rankable.
   return firstAtPoint?.createdAt ?? donation.updatedAt;
+}
+
+function getConsecutiveConfirmedMonths(donations: GamificationDonation[]) {
+  if (donations.length === 0) return 0;
+
+  const monthSet = new Set(donations.map((donation) => getMonthKey(getConfirmationDate(donation))));
+  const orderedDates = donations
+    .map((donation) => getConfirmationDate(donation))
+    .sort((left, right) => right.getTime() - left.getTime());
+  const mostRecent = orderedDates[0];
+  const cursor = new Date(Date.UTC(mostRecent.getUTCFullYear(), mostRecent.getUTCMonth(), 1));
+  let streak = 0;
+
+  while (monthSet.has(getMonthKey(cursor))) {
+    streak += 1;
+    cursor.setUTCMonth(cursor.getUTCMonth() - 1);
+  }
+
+  return streak;
 }
 
 function getDonationBreakdown(donation: GamificationDonation) {
@@ -528,7 +596,7 @@ function buildRubyAchievement(input: {
     title: input.unlocked ? input.title : 'Conquista secreta',
     description: input.unlocked
       ? input.description
-      : 'Uma conquista especial da rede VestGO ainda esta oculta.',
+      : 'Uma conquista especial da rede VestGO ainda está oculta.',
     howToEarn: input.unlocked ? input.howToEarn : 'Continue doando e evoluindo para revelar esta conquista.',
     metricLabel: 'secreta',
     tier: input.unlocked ? 'RUBY' : null,
@@ -544,7 +612,7 @@ function buildRubyAchievement(input: {
     levels: [
       {
         tier: 'RUBY',
-        targetLabel: input.unlocked ? input.howToEarn : 'Criterio secreto.',
+        targetLabel: input.unlocked ? input.howToEarn : 'Critério secreto.',
       },
     ],
   };
@@ -561,7 +629,7 @@ function buildAchievements(params: {
   // Conquistas de doacao so contam doacoes ja confirmadas no ponto de coleta -
   // doacoes em PENDING ainda nao geram pontos nem progresso de conquista.
   const confirmedDonationCount = params.confirmedDonations.length;
-  const consecutiveMonths = getConsecutiveActiveMonths(params.confirmedDonations);
+  const consecutiveMonths = getConsecutiveConfirmedMonths(params.confirmedDonations);
   const distributedCount = getDistributedCount(params.confirmedDonations);
   const usedCollectionPointsCount = getUsedCollectionPointCount(params.confirmedDonations);
   const usedCategoriesCount = getUniqueCategoryCount(params.confirmedDonations);
@@ -571,29 +639,29 @@ function buildAchievements(params: {
   const publicAchievements: AchievementResponse[] = [
     buildNumericAchievement({
       key: 'recurring-donation',
-      title: 'Doacao Recorrente',
-      description: 'Valoriza a recorrencia de doacoes confirmadas no ponto de coleta.',
-      howToEarn: 'Registre novas doacoes e confirme a entrega no ponto parceiro.',
-      metricLabel: 'doacoes confirmadas',
+      title: 'Doação Recorrente',
+      description: 'Valoriza a recorrência de doações confirmadas no ponto de coleta.',
+      howToEarn: 'Registre novas doações e confirme a entrega no ponto parceiro.',
+      metricLabel: 'doações confirmadas',
       progressValue: confirmedDonationCount,
-      progressLabel: `${confirmedDonationCount} ${confirmedDonationCount === 1 ? 'doacao' : 'doacoes'}`,
+      progressLabel: `${confirmedDonationCount} ${confirmedDonationCount === 1 ? 'doação' : 'doações'}`,
       levels: [
-        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 doacao' },
-        { tier: 'PRATA', targetValue: 3, targetLabel: '3 doacoes' },
-        { tier: 'OURO', targetValue: 6, targetLabel: '6 doacoes' },
-        { tier: 'DIAMANTE', targetValue: 12, targetLabel: '12+ doacoes' },
+        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 doação' },
+        { tier: 'PRATA', targetValue: 3, targetLabel: '3 doações' },
+        { tier: 'OURO', targetValue: 6, targetLabel: '6 doações' },
+        { tier: 'DIAMANTE', targetValue: 12, targetLabel: '12+ doações' },
       ],
     }),
     buildNumericAchievement({
       key: 'streak',
-      title: 'Constancia',
+      title: 'Constância',
       description: 'Reconhece meses ativos consecutivos doando na plataforma.',
-      howToEarn: 'Mantenha pelo menos uma doacao registrada em meses seguidos.',
+      howToEarn: 'Mantenha pelo menos uma doação confirmada em meses seguidos.',
       metricLabel: 'meses consecutivos',
       progressValue: consecutiveMonths,
-      progressLabel: `${consecutiveMonths} ${consecutiveMonths === 1 ? 'mes seguido' : 'meses seguidos'}`,
+      progressLabel: `${consecutiveMonths} ${consecutiveMonths === 1 ? 'mês seguido' : 'meses seguidos'}`,
       levels: [
-        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 mes consecutivo' },
+        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 mês consecutivo' },
         { tier: 'PRATA', targetValue: 3, targetLabel: '3 meses consecutivos' },
         { tier: 'OURO', targetValue: 6, targetLabel: '6 meses consecutivos' },
         { tier: 'DIAMANTE', targetValue: 12, targetLabel: '12+ meses consecutivos' },
@@ -601,23 +669,23 @@ function buildAchievements(params: {
     }),
     buildNumericAchievement({
       key: 'solidarity-delivery',
-      title: 'Entrega Solidaria',
-      description: 'Conta doacoes que chegaram ao status de distribuicao pela ONG.',
-      howToEarn: 'Acompanhe suas doacoes ate a distribuicao final pela ONG parceira.',
-      metricLabel: 'distribuicoes confirmadas',
+      title: 'Entrega Solidária',
+      description: 'Conta doações que chegaram à distribuição pela ONG.',
+      howToEarn: 'Acompanhe suas doações até a distribuição final pela ONG parceira.',
+      metricLabel: 'distribuições confirmadas',
       progressValue: distributedCount,
-      progressLabel: `${distributedCount} ${distributedCount === 1 ? 'distribuicao' : 'distribuicoes'}`,
+      progressLabel: `${distributedCount} ${distributedCount === 1 ? 'distribuição' : 'distribuições'}`,
       levels: [
-        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 distribuicao' },
-        { tier: 'PRATA', targetValue: 6, targetLabel: '6 distribuicoes' },
-        { tier: 'OURO', targetValue: 12, targetLabel: '12 distribuicoes' },
-        { tier: 'DIAMANTE', targetValue: 24, targetLabel: '24+ distribuicoes' },
+        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 distribuição' },
+        { tier: 'PRATA', targetValue: 6, targetLabel: '6 distribuições' },
+        { tier: 'OURO', targetValue: 12, targetLabel: '12 distribuições' },
+        { tier: 'DIAMANTE', targetValue: 24, targetLabel: '24+ distribuições' },
       ],
     }),
     buildNumericAchievement({
       key: 'active-network',
       title: 'Rede Ativa',
-      description: 'Mostra em quantos pontos parceiros diferentes voce ja teve doacoes confirmadas.',
+      description: 'Mostra em quantos pontos parceiros diferentes você já teve doações confirmadas.',
       howToEarn: 'Confirme entregas em pontos parceiros diferentes da rede VestGO.',
       metricLabel: 'pontos parceiros usados',
       progressValue: usedCollectionPointsCount,
@@ -631,14 +699,14 @@ function buildAchievements(params: {
     }),
     buildNumericAchievement({
       key: 'monthly-hero',
-      title: 'Heroi Solidario',
-      description: 'Destaque entre os top 5 doadores do mes.',
-      howToEarn: 'Fique entre os 5 doadores com mais pontos confirmados em um mes.',
+      title: 'Herói Solidário',
+      description: 'Destaque entre os top 5 doadores do mês.',
+      howToEarn: 'Fique entre os 5 doadores com mais pontos confirmados em um mês.',
       metricLabel: 'meses em destaque',
       progressValue: params.highlightedMonthsCount,
-      progressLabel: `${params.highlightedMonthsCount} ${params.highlightedMonthsCount === 1 ? 'mes' : 'meses'} em destaque`,
+      progressLabel: `${params.highlightedMonthsCount} ${params.highlightedMonthsCount === 1 ? 'mês' : 'meses'} em destaque`,
       levels: [
-        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 mes em destaque' },
+        { tier: 'BRONZE', targetValue: 1, targetLabel: '1 mês em destaque' },
         { tier: 'PRATA', targetValue: 2, targetLabel: '2 meses em destaque' },
         { tier: 'OURO', targetValue: 3, targetLabel: '3 meses em destaque' },
         { tier: 'DIAMANTE', targetValue: 4, targetLabel: '4+ meses em destaque' },
@@ -648,7 +716,7 @@ function buildAchievements(params: {
     buildNumericAchievement({
       key: 'diversity',
       title: 'Diversidade',
-      description: 'Reconhece variedade de categorias usadas em doacoes confirmadas.',
+      description: 'Reconhece variedade de categorias usadas em doações confirmadas.',
       howToEarn: 'Doe itens registrados em categorias diferentes e confirme a entrega no ponto.',
       metricLabel: 'categorias usadas',
       progressValue: usedCategoriesCount,
@@ -662,8 +730,8 @@ function buildAchievements(params: {
     }),
     buildNumericAchievement({
       key: 'seasonal-spirit',
-      title: 'Espirito Sazonal',
-      description: 'Participacao em eventos sazonais de doacao.',
+      title: 'Espírito Sazonal',
+      description: 'Participação em eventos sazonais de doação.',
       howToEarn: 'Doe durante campanhas sazonais ativas e confirme a entrega no ponto.',
       metricLabel: 'campanhas sazonais',
       progressValue: params.seasonalCampaignsCount,
@@ -677,8 +745,8 @@ function buildAchievements(params: {
     }),
     buildNumericAchievement({
       key: 'abundance',
-      title: 'Abundancia',
-      description: 'Conta a quantidade real de pecas ou itens doados e confirmados.',
+      title: 'Abundância',
+      description: 'Conta a quantidade real de peças ou itens doados e confirmados.',
       howToEarn: 'Doe mais itens e confirme a entrega no ponto parceiro.',
       metricLabel: 'itens doados',
       progressValue: donatedItemsQuantity,
@@ -697,7 +765,7 @@ function buildAchievements(params: {
       howToEarn: 'Mantenha sua conta ativa ao longo do tempo.',
       metricLabel: 'meses desde o cadastro',
       progressValue: tenureMonths,
-      progressLabel: `${tenureMonths} ${tenureMonths === 1 ? 'mes' : 'meses'}`,
+      progressLabel: `${tenureMonths} ${tenureMonths === 1 ? 'mês' : 'meses'}`,
       levels: [
         { tier: 'BRONZE', targetValue: 3, targetLabel: '3 meses' },
         { tier: 'PRATA', targetValue: 9, targetLabel: '9 meses' },
@@ -717,37 +785,37 @@ function buildAchievements(params: {
     ...publicAchievements,
     buildRubyAchievement({
       key: 'medal-hunter',
-      title: 'Cacador de Medalhas',
-      description: 'Todas as conquistas publicas no nivel Bronze ou superior.',
-      howToEarn: 'Alcance pelo menos Bronze em todas as conquistas publicas.',
+      title: 'Caçador de Medalhas',
+      description: 'Todas as conquistas públicas no nível Bronze ou superior.',
+      howToEarn: 'Alcance pelo menos Bronze em todas as conquistas públicas.',
       unlocked: hasAllPublicBronze,
     }),
     buildRubyAchievement({
       key: 'community-ambassador',
       title: 'Embaixador da Comunidade',
-      description: 'Perfil criado em 2026, com pelo menos uma doacao confirmada.',
-      howToEarn: 'Tenha criado o perfil em 2026 e confirme ao menos uma doacao.',
+      description: 'Perfil criado em 2026, com pelo menos uma doação confirmada.',
+      howToEarn: 'Tenha criado o perfil em 2026 e confirme ao menos uma doação.',
       unlocked: createdIn2026 && hasConfirmedDonation,
     }),
     buildRubyAchievement({
       key: 'unstoppable',
-      title: 'Implacavel',
-      description: 'Alcancou o nivel 15 do doador.',
-      howToEarn: 'Alcance o nivel 15.',
+      title: 'Implacável',
+      description: 'Alcançou o nível 15 do doador.',
+      howToEarn: 'Alcance o nível 15.',
       unlocked: params.level.currentLevel >= 15,
     }),
     buildRubyAchievement({
       key: 'supreme-donor',
       title: 'O Doador Supremo',
-      description: 'Alcancou o nivel 20 do doador.',
-      howToEarn: 'Alcance o nivel 20.',
+      description: 'Alcançou o nível 20 do doador.',
+      howToEarn: 'Alcance o nível 20.',
       unlocked: params.level.currentLevel >= 20,
     }),
     buildRubyAchievement({
       key: 'supreme-solidarity-hero',
-      title: 'Heroi Solidario Supremo',
-      description: 'Alcancou o nivel 30 do doador.',
-      howToEarn: 'Alcance o nivel 30.',
+      title: 'Herói Solidário Supremo',
+      description: 'Alcançou o nível 30 do doador.',
+      howToEarn: 'Alcance o nível 30.',
       unlocked: params.level.currentLevel >= 30,
     }),
   ];
@@ -781,6 +849,7 @@ function buildProgressMetadata(achievement: AchievementResponse) {
     progressLabel: achievement.progressLabel,
     unavailable: achievement.unavailable,
     unavailableReason: achievement.unavailableReason ?? null,
+    criteria: achievement.criteria ?? null,
   };
 }
 
@@ -871,7 +940,14 @@ async function buildDonorGamification(
   const donationPoints = donationLedger._sum.points ?? 0;
   const achievementPoints = achievementLedger._sum.points ?? 0;
   const totalPoints = donationPoints + achievementPoints;
-  const level = getLevel(totalPoints);
+  const hasFirstDeliveredDonation = hasDeliveredDonation(donations);
+  const effectiveLevelPoints = hasFirstDeliveredDonation ? totalPoints : 0;
+  const level = getLevel(effectiveLevelPoints, {
+    lockedUntilFirstDonation: !hasFirstDeliveredDonation,
+    unlockMessage: hasFirstDeliveredDonation
+      ? null
+      : 'Faça a primeira doação para subir de nível!',
+  });
   const highlightedMonthsCount = getHighlightedMonthsCount(allConfirmedDonations, userId);
   const seasonalCampaignsCount = new Set(
     confirmedDonations.map((donation) => donation.seasonalCampaignId).filter(Boolean),
@@ -1092,7 +1168,7 @@ async function notifyGamificationChanges(
         userId,
         type: 'BADGE_EARNED' as const,
         title: `${changes.length} conquistas atualizadas`,
-        body: `Voce ganhou +${pointsAwarded} pontos em conquistas do perfil.`,
+        body: `Você ganhou +${pointsAwarded} pontos em conquistas do perfil.`,
         href: '/perfil#conquistas',
         payload: {
           pointsAwarded,

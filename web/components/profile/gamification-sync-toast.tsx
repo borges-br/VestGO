@@ -61,7 +61,7 @@ export function GamificationSyncToast({ sync, onDismiss }: GamificationSyncToast
     <aside
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 left-4 right-4 z-[90] mx-auto max-w-[440px] overflow-hidden rounded-3xl border border-primary/15 bg-white/95 p-4 text-primary-deeper shadow-[0_24px_70px_rgba(0,51,60,0.22)] backdrop-blur md:left-auto md:mx-0"
+      className="vg-card fixed bottom-4 left-4 right-4 z-[90] mx-auto max-w-[440px] overflow-hidden rounded-3xl p-4 text-primary-deeper shadow-[0_24px_70px_rgba(0,51,60,0.22)] backdrop-blur md:left-auto md:mx-0"
     >
       <style>
         {`@keyframes vestgo-sync-flow {
@@ -95,11 +95,11 @@ export function GamificationSyncToast({ sync, onDismiss }: GamificationSyncToast
             {title}
           </p>
           <p className="mt-1 text-sm font-extrabold leading-6">
-            {singleChange ? singleChange.title : 'Sua colecao solidaria evoluiu'}
+            {singleChange ? singleChange.title : 'Sua coleção solidária evoluiu'}
           </p>
           {singleChange && (
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-deeper/55">
-              Novo nivel: {singleChange.toTier}
+            <p className="vg-text-secondary text-xs font-semibold uppercase tracking-[0.14em]">
+              Novo nível: {singleChange.toTier}
             </p>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -108,7 +108,7 @@ export function GamificationSyncToast({ sync, onDismiss }: GamificationSyncToast
             </span>
             <Link
               href="/perfil#conquistas"
-              className="rounded-full border border-primary/20 bg-white/80 px-3 py-1 text-xs font-bold text-primary transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary"
+              className="vg-card rounded-full px-3 py-1 text-xs font-bold text-primary transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary"
             >
               Ver conquistas
             </Link>
@@ -119,7 +119,7 @@ export function GamificationSyncToast({ sync, onDismiss }: GamificationSyncToast
           type="button"
           aria-label="Fechar notificacao de conquista"
           onClick={onDismiss}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-primary-deeper/45 transition-colors hover:bg-primary-light hover:text-primary-deeper focus-visible:ring-2 focus-visible:ring-primary"
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[var(--vg-text-muted)] transition-colors hover:bg-primary-light hover:text-primary-deeper focus-visible:ring-2 focus-visible:ring-primary"
         >
           <X size={17} />
         </button>

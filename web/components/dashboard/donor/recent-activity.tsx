@@ -10,11 +10,11 @@ type RecentActivityProps = {
 export function RecentActivity({ donations }: RecentActivityProps) {
   if (donations.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-primary-deeper/12 bg-surface-cream/40 px-7 py-9 text-center">
-        <p className="text-[15px] font-bold text-primary-deeper">
+      <div className="vg-card-soft rounded-3xl border-dashed px-7 py-9 text-center">
+        <p className="vg-text-primary text-[15px] font-bold">
           Sua linha solidária aparece aqui.
         </p>
-        <p className="mt-2 text-[13px] leading-relaxed text-primary-deeper/55">
+        <p className="vg-text-secondary mt-2 text-[13px] leading-relaxed">
           Cada doação registrada vira um marco com pontos, status e destino real.
         </p>
       </div>
@@ -40,26 +40,26 @@ export function RecentActivity({ donations }: RecentActivityProps) {
             key={donation.id}
             className={cn(
               'relative pl-12 pr-3 py-4',
-              i < items.length - 1 && 'border-b border-primary-deeper/5',
+              i < items.length - 1 && 'border-b border-[var(--vg-border)]',
             )}
           >
             <span
               aria-hidden
-              className="absolute left-[11px] top-[22px] h-3.5 w-3.5 rounded-full border-2 border-primary bg-white shadow-[0_0_0_4px_rgba(0,106,98,0.08)]"
+              className="absolute left-[11px] top-[22px] h-3.5 w-3.5 rounded-full border-2 border-primary bg-[var(--vg-bg-elevated)] shadow-[0_0_0_4px_rgba(0,106,98,0.08)]"
             />
             <Link
               href={`/rastreio/${donation.id}`}
               className="flex flex-col gap-2 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               <div className="flex items-baseline justify-between gap-3">
-                <p className="truncate text-sm font-bold text-primary-deeper">
+                <p className="vg-text-primary truncate text-sm font-bold">
                   {donation.itemLabel}
                 </p>
-                <span className="flex-shrink-0 text-[11px] text-primary-deeper/45">
+                <span className="vg-text-muted flex-shrink-0 text-[11px]">
                   {formatDonorDate(donation.createdAt)}
                 </span>
               </div>
-              <p className="truncate text-xs text-primary-deeper/55">{dropOff}</p>
+              <p className="vg-text-secondary truncate text-xs">{dropOff}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span
                   className={cn(

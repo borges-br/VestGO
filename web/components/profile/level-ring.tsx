@@ -1,20 +1,24 @@
 'use client';
 
+import { DonorLevelIcon } from '@/components/dashboard/donor/donor-level-icon';
 import { DONOR_LEVELS, getDonorLevel } from '@/lib/gamification';
 import type { DonorGamificationResponse } from '@/lib/api';
 
 type LevelRingProps = {
   points: number;
   level?: DonorGamificationResponse['level'] | null;
+  levelName?: string;
   className?: string;
 };
 
-export function LevelRing({ points, level, className }: LevelRingProps) {
+export function LevelRing({ points, level, levelName, className }: LevelRingProps) {
   const fallbackLevel = getDonorLevel(points);
   const totalLevels = level?.totalLevels ?? DONOR_LEVELS.length;
   const currentIndex = level
     ? Math.max(0, level.currentLevel - 1)
     : DONOR_LEVELS.findIndex((item) => item.minPoints === fallbackLevel.minPoints);
+  const currentLevel = currentIndex + 1;
+  const currentLevelName = level?.name ?? levelName ?? fallbackLevel.name;
   const fallbackNextThreshold = fallbackLevel.nextThreshold ?? fallbackLevel.minPoints;
   const fallbackRange = Math.max(fallbackNextThreshold - fallbackLevel.minPoints, 1);
   const fallbackProgress = fallbackLevel.nextThreshold
@@ -33,7 +37,14 @@ export function LevelRing({ points, level, className }: LevelRingProps) {
   return (
     <div
       className={className}
-      aria-label={`Nivel ${currentIndex + 1} de ${totalLevels}. ${points} pontos. ${pointsToNext} pontos para o proximo nivel.`}
+      role="img"
+      aria-label={`Nível ${currentLevel} de ${totalLevels}. ${points} pontos acumulados.${
+        level?.lockedUntilFirstDonation && level.unlockMessage
+          ? ` ${level.unlockMessage}`
+          : pointsToNext > 0
+            ? ` Faltam ${pointsToNext} pontos para o próximo nível.`
+            : ' Nível máximo alcançado.'
+      }`}
     >
       <div className="relative mx-auto h-[244px] w-[244px]">
         <svg
@@ -82,27 +93,23 @@ export function LevelRing({ points, level, className }: LevelRingProps) {
                 cx={cx}
                 cy={cy}
                 r={index === currentIndex ? 4.8 : 2.8}
-                fill={reached ? '#006a62' : '#ffffff'}
-                stroke={index === currentIndex ? '#ffffff' : 'rgba(0,51,60,0.16)'}
+                fill={reached ? '#006a62' : 'var(--vg-bg-elevated)'}
+                stroke={index === currentIndex ? 'var(--vg-bg-elevated)' : 'var(--vg-border-strong)'}
                 strokeWidth={index === currentIndex ? 3 : 2}
               />
             );
           })}
         </svg>
 
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
-          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary-deeper/55">
-            Nivel {currentIndex + 1} de {totalLevels}
-          </span>
-          <span className="mt-2 text-4xl font-extrabold leading-none tracking-tight text-primary-deeper tabular-nums">
-            {points.toLocaleString('pt-BR')}
-          </span>
-          <span className="mt-1 text-xs text-primary-deeper/55">pontos</span>
-          <span className="mt-3 max-w-[145px] text-[11px] leading-snug text-primary-deeper/55">
-            {pointsToNext > 0
-              ? `+${pointsToNext.toLocaleString('pt-BR')} para o proximo nivel`
-              : 'Nivel maximo alcancado'}
-          </span>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <DonorLevelIcon
+            level={currentLevel}
+            levelName={currentLevelName}
+            progressPct={progress}
+            totalLevels={totalLevels}
+            size={132}
+            showRing={false}
+          />
         </div>
       </div>
     </div>
