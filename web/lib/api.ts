@@ -40,6 +40,7 @@ export type CollectionPoint = {
   nonAcceptedItems?: string[];
   publicProfileState?: PublicProfileState;
   verifiedAt?: string | null;
+  privatePreview?: boolean;
   acceptedCategories: string[];
   distanceKm?: number;
   totalDonations?: number;
@@ -113,6 +114,9 @@ export type OpeningScheduleEntry = {
 };
 
 export type PublicRevisionPayload = {
+  organizationName?: string | null;
+  description?: string | null;
+  purpose?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
   coverImageUrl?: string | null;
@@ -132,7 +136,11 @@ export type PublicRevisionPayload = {
   publicNotes?: string | null;
   accessibilityDetails?: string | null;
   accessibilityFeatures?: string[];
+  estimatedCapacity?: string | null;
+  acceptedCategories?: string[];
+  nonAcceptedItems?: string[];
   rules?: string[];
+  serviceRegions?: string[];
 };
 
 export type DonationPoint = {
@@ -619,31 +627,31 @@ export type MyProfile = {
 export type UpdateMyProfileInput = {
   name: string;
   email: string;
-  birthDate?: string;
-  phone?: string;
-  cpf?: string;
-  cnpj?: string;
-  avatarUrl?: string;
-  coverImageUrl?: string;
+  birthDate?: string | null;
+  phone?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  avatarUrl?: string | null;
+  coverImageUrl?: string | null;
   galleryImageUrls?: string[];
-  organizationName?: string;
-  description?: string;
-  purpose?: string;
-  address?: string;
-  addressNumber?: string;
-  addressComplement?: string;
-  neighborhood?: string;
-  zipCode?: string;
-  city?: string;
-  state?: string;
-  openingHours?: string;
+  organizationName?: string | null;
+  description?: string | null;
+  purpose?: string | null;
+  address?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  neighborhood?: string | null;
+  zipCode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  openingHours?: string | null;
   openingSchedule?: OpeningScheduleEntry[];
-  openingHoursExceptions?: string;
-  publicNotes?: string;
-  operationalNotes?: string;
-  accessibilityDetails?: string;
+  openingHoursExceptions?: string | null;
+  publicNotes?: string | null;
+  operationalNotes?: string | null;
+  accessibilityDetails?: string | null;
   accessibilityFeatures?: string[];
-  estimatedCapacity?: string;
+  estimatedCapacity?: string | null;
   acceptedCategories?: string[];
   donationInterestCategories?: string[];
   nonAcceptedItems?: string[];
@@ -1033,12 +1041,16 @@ export async function reverseGeocodeAddress(
 
 export async function getCollectionPoint(
   id: string,
-  options?: { forDonation?: boolean; accessToken?: string },
+  options?: { forDonation?: boolean; preview?: boolean; accessToken?: string },
 ): Promise<CollectionPoint> {
   const qs = new URLSearchParams();
 
   if (options?.forDonation) {
     qs.set('forDonation', 'true');
+  }
+
+  if (options?.preview) {
+    qs.set('preview', '1');
   }
 
   const suffix = qs.toString() ? `?${qs}` : '';
@@ -1298,6 +1310,9 @@ export type AdminProfileRecord = {
   neighborhood: string | null;
   zipCode: string | null;
   acceptedCategories: string[];
+  estimatedCapacity: string | null;
+  nonAcceptedItems: string[];
+  serviceRegions: string[];
   publicProfileState: PublicProfileState;
   verifiedAt: string | null;
   createdAt: string;

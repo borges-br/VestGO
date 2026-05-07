@@ -119,6 +119,9 @@ const emailPreferencesSchema = z.object({
 type EditableProfileRecord = Prisma.UserGetPayload<{ select: typeof editableProfileSelect }>;
 
 type PendingPublicRevisionPayload = {
+  organizationName?: string | null;
+  description?: string | null;
+  purpose?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
   coverImageUrl?: string | null;
@@ -138,7 +141,11 @@ type PendingPublicRevisionPayload = {
   publicNotes?: string | null;
   accessibilityDetails?: string | null;
   accessibilityFeatures?: string[];
+  estimatedCapacity?: string | null;
+  acceptedCategories?: string[];
+  nonAcceptedItems?: string[];
   rules?: string[];
+  serviceRegions?: string[];
 };
 
 type EditableProfileView = {
@@ -199,6 +206,9 @@ type EditableProfileView = {
 };
 
 const GOVERNED_PUBLIC_FIELDS = [
+  'organizationName',
+  'description',
+  'purpose',
   'address',
   'addressNumber',
   'addressComplement',
@@ -215,7 +225,11 @@ const GOVERNED_PUBLIC_FIELDS = [
   'openingHours',
   'openingSchedule',
   'openingHoursExceptions',
+  'estimatedCapacity',
+  'acceptedCategories',
+  'nonAcceptedItems',
   'rules',
+  'serviceRegions',
   'publicNotes',
   'accessibilityDetails',
   'accessibilityFeatures',
@@ -313,10 +327,16 @@ function governedValuesDiffer(
   left: PendingPublicRevisionPayload,
   right: PendingPublicRevisionPayload,
 ) {
-  if (field === 'rules' || field === 'accessibilityFeatures') {
+  if (
+    field === 'rules' ||
+    field === 'accessibilityFeatures' ||
+    field === 'acceptedCategories' ||
+    field === 'nonAcceptedItems' ||
+    field === 'serviceRegions'
+  ) {
     return (
-      JSON.stringify(normalizeStringArray(left[field])) !==
-      JSON.stringify(normalizeStringArray(right[field]))
+      JSON.stringify(normalizeStringArray(left[field] as string[] | null | undefined)) !==
+      JSON.stringify(normalizeStringArray(right[field] as string[] | null | undefined))
     );
   }
 
@@ -350,6 +370,9 @@ function buildGovernedPayload(
   openingHours: string | undefined,
 ): PendingPublicRevisionPayload {
   return {
+    organizationName: body.organizationName ?? null,
+    description: body.description ?? null,
+    purpose: body.purpose ?? null,
     phone: body.phone ?? null,
     avatarUrl: body.avatarUrl ?? null,
     coverImageUrl: body.coverImageUrl ?? null,
@@ -369,12 +392,19 @@ function buildGovernedPayload(
     publicNotes: body.publicNotes ?? null,
     accessibilityDetails: body.accessibilityDetails ?? null,
     accessibilityFeatures: body.accessibilityFeatures ?? [],
+    estimatedCapacity: body.estimatedCapacity ?? null,
+    acceptedCategories: body.acceptedCategories ?? [],
+    nonAcceptedItems: body.nonAcceptedItems ?? [],
     rules: body.rules ?? [],
+    serviceRegions: body.serviceRegions ?? [],
   };
 }
 
 function buildPublishedGovernedPayload(user: EditableProfileRecord): PendingPublicRevisionPayload {
   return {
+    organizationName: user.organizationName ?? null,
+    description: user.description ?? null,
+    purpose: user.purpose ?? null,
     phone: user.phone ?? null,
     avatarUrl: user.avatarUrl ?? null,
     coverImageUrl: user.coverImageUrl ?? null,
@@ -394,7 +424,11 @@ function buildPublishedGovernedPayload(user: EditableProfileRecord): PendingPubl
     publicNotes: user.publicNotes ?? null,
     accessibilityDetails: user.accessibilityDetails ?? null,
     accessibilityFeatures: user.accessibilityFeatures ?? [],
+    estimatedCapacity: user.estimatedCapacity ?? null,
+    acceptedCategories: user.acceptedCategories ?? [],
+    nonAcceptedItems: user.nonAcceptedItems ?? [],
     rules: user.rules ?? [],
+    serviceRegions: user.serviceRegions ?? [],
   };
 }
 
@@ -438,6 +472,22 @@ function getChangedGovernedFields(
   return GOVERNED_PUBLIC_FIELDS.filter((field) => governedValuesDiffer(field, published, next));
 }
 
+function getPendingField<K extends keyof PendingPublicRevisionPayload>(
+  payload: PendingPublicRevisionPayload | null,
+  field: K,
+  fallback: Exclude<PendingPublicRevisionPayload[K], undefined>,
+) {
+  const value =
+    payload && Object.prototype.hasOwnProperty.call(payload, field)
+      ? payload[field]
+      : undefined;
+
+  return (value === undefined ? fallback : value) as Exclude<
+    PendingPublicRevisionPayload[K],
+    undefined
+  >;
+}
+
 function overlayPendingRevision(user: EditableProfileRecord): EditableProfileView {
   const pendingPayload = parsePendingPublicRevision(user.pendingPublicRevision);
   const activePendingRevision =
@@ -460,31 +510,40 @@ function overlayPendingRevision(user: EditableProfileRecord): EditableProfileVie
 
   return {
     ...user,
-    phone: effective?.phone ?? user.phone,
-    avatarUrl: effective?.avatarUrl ?? user.avatarUrl,
-    coverImageUrl: effective?.coverImageUrl ?? user.coverImageUrl,
-    galleryImageUrls: effective?.galleryImageUrls ?? user.galleryImageUrls ?? [],
-    address: effective?.address ?? user.address,
-    addressNumber: effective?.addressNumber ?? user.addressNumber,
-    addressComplement: effective?.addressComplement ?? user.addressComplement,
-    neighborhood: effective?.neighborhood ?? user.neighborhood,
-    zipCode: effective?.zipCode ?? user.zipCode,
-    city: effective?.city ?? user.city,
-    state: effective?.state ?? user.state,
-    latitude: effective?.latitude ?? user.latitude,
-    longitude: effective?.longitude ?? user.longitude,
-    openingHours: effective?.openingHours ?? user.openingHours,
+    organizationName: getPendingField(effective, 'organizationName', user.organizationName),
+    description: getPendingField(effective, 'description', user.description),
+    purpose: getPendingField(effective, 'purpose', user.purpose),
+    phone: getPendingField(effective, 'phone', user.phone),
+    avatarUrl: getPendingField(effective, 'avatarUrl', user.avatarUrl),
+    coverImageUrl: getPendingField(effective, 'coverImageUrl', user.coverImageUrl),
+    galleryImageUrls: getPendingField(effective, 'galleryImageUrls', user.galleryImageUrls ?? []) ?? [],
+    address: getPendingField(effective, 'address', user.address),
+    addressNumber: getPendingField(effective, 'addressNumber', user.addressNumber),
+    addressComplement: getPendingField(effective, 'addressComplement', user.addressComplement),
+    neighborhood: getPendingField(effective, 'neighborhood', user.neighborhood),
+    zipCode: getPendingField(effective, 'zipCode', user.zipCode),
+    city: getPendingField(effective, 'city', user.city),
+    state: getPendingField(effective, 'state', user.state),
+    latitude: getPendingField(effective, 'latitude', user.latitude),
+    longitude: getPendingField(effective, 'longitude', user.longitude),
+    openingHours: getPendingField(effective, 'openingHours', user.openingHours),
     openingSchedule: normalizeScheduleForComparison(
-      effective?.openingSchedule ?? user.openingSchedule,
+      getPendingField(effective, 'openingSchedule', user.openingSchedule as OpeningScheduleEntry[]),
     ),
     openingHoursExceptions:
-      effective?.openingHoursExceptions ?? user.openingHoursExceptions ?? null,
-    publicNotes: effective?.publicNotes ?? user.publicNotes,
+      getPendingField(effective, 'openingHoursExceptions', user.openingHoursExceptions) ?? null,
+    publicNotes: getPendingField(effective, 'publicNotes', user.publicNotes),
     accessibilityDetails:
-      effective?.accessibilityDetails ?? user.accessibilityDetails,
+      getPendingField(effective, 'accessibilityDetails', user.accessibilityDetails),
     accessibilityFeatures:
-      effective?.accessibilityFeatures ?? user.accessibilityFeatures ?? [],
-    rules: effective?.rules ?? user.rules ?? [],
+      getPendingField(effective, 'accessibilityFeatures', user.accessibilityFeatures ?? []) ?? [],
+    estimatedCapacity: getPendingField(effective, 'estimatedCapacity', user.estimatedCapacity),
+    acceptedCategories:
+      (getPendingField(effective, 'acceptedCategories', user.acceptedCategories) ??
+        []) as EditableProfileRecord['acceptedCategories'],
+    nonAcceptedItems: getPendingField(effective, 'nonAcceptedItems', user.nonAcceptedItems ?? []) ?? [],
+    rules: getPendingField(effective, 'rules', user.rules ?? []) ?? [],
+    serviceRegions: getPendingField(effective, 'serviceRegions', user.serviceRegions ?? []) ?? [],
     pendingPublicRevision: activePendingRevision,
   };
 }
@@ -1307,20 +1366,16 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         birthDate: parseBirthDate(body.birthDate),
         cpf: body.cpf,
         cnpj: body.cnpj,
-        organizationName: body.organizationName,
-        description: body.description,
-        purpose: body.purpose,
         operationalNotes: body.operationalNotes,
-        estimatedCapacity: body.estimatedCapacity,
-        acceptedCategories: body.acceptedCategories,
         donationInterestCategories: body.donationInterestCategories,
-        nonAcceptedItems: body.nonAcceptedItems,
-        serviceRegions: body.serviceRegions,
       };
       let nextDirectPublicProfileState: PublicProfileState | null = null;
 
       if (!storeAsPendingRevision) {
         Object.assign(directUpdateData, {
+          organizationName: nextGovernedPayload.organizationName,
+          description: nextGovernedPayload.description,
+          purpose: nextGovernedPayload.purpose,
           phone: nextGovernedPayload.phone,
           avatarUrl: nextGovernedPayload.avatarUrl,
           coverImageUrl: nextGovernedPayload.coverImageUrl,
@@ -1340,7 +1395,11 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           publicNotes: nextGovernedPayload.publicNotes,
           accessibilityDetails: nextGovernedPayload.accessibilityDetails,
           accessibilityFeatures: nextGovernedPayload.accessibilityFeatures,
+          estimatedCapacity: nextGovernedPayload.estimatedCapacity,
+          acceptedCategories: nextGovernedPayload.acceptedCategories,
+          nonAcceptedItems: nextGovernedPayload.nonAcceptedItems,
           rules: nextGovernedPayload.rules,
+          serviceRegions: nextGovernedPayload.serviceRegions,
         });
 
         if (existingUser.role === UserRole.COLLECTION_POINT || existingUser.role === UserRole.NGO) {

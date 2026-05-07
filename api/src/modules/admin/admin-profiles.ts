@@ -55,7 +55,9 @@ const adminProfileSelect = {
   zipCode: true,
   acceptedCategories: true,
   donationInterestCategories: true,
+  estimatedCapacity: true,
   serviceRegions: true,
+  nonAcceptedItems: true,
   publicProfileState: true,
   verifiedAt: true,
   createdAt: true,
@@ -81,6 +83,9 @@ const adminProfileSelect = {
 type AdminProfileRecord = Prisma.UserGetPayload<{ select: typeof adminProfileSelect }>;
 
 type PendingPublicRevisionPayload = {
+  organizationName?: string | null;
+  description?: string | null;
+  purpose?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
   coverImageUrl?: string | null;
@@ -100,7 +105,11 @@ type PendingPublicRevisionPayload = {
   publicNotes?: string | null;
   accessibilityDetails?: string | null;
   accessibilityFeatures?: string[];
+  estimatedCapacity?: string | null;
+  acceptedCategories?: string[];
+  nonAcceptedItems?: string[];
   rules?: string[];
+  serviceRegions?: string[];
 };
 
 function parsePendingRevisionPayload(value: Prisma.JsonValue | null) {
@@ -111,6 +120,19 @@ function parsePendingRevisionPayload(value: Prisma.JsonValue | null) {
   return value as PendingPublicRevisionPayload;
 }
 
+function getPendingField<K extends keyof PendingPublicRevisionPayload>(
+  payload: PendingPublicRevisionPayload,
+  field: K,
+  fallback: Exclude<PendingPublicRevisionPayload[K], undefined>,
+) {
+  const value = Object.prototype.hasOwnProperty.call(payload, field) ? payload[field] : undefined;
+
+  return (value === undefined ? fallback : value) as Exclude<
+    PendingPublicRevisionPayload[K],
+    undefined
+  >;
+}
+
 function buildOperationalStateInput(profile: AdminProfileRecord, overrides?: PendingPublicRevisionPayload) {
   const openingSchedule = Array.isArray(overrides?.openingSchedule)
     ? (overrides?.openingSchedule as OpeningScheduleEntry[])
@@ -119,24 +141,52 @@ function buildOperationalStateInput(profile: AdminProfileRecord, overrides?: Pen
       : [];
 
   return {
-    organizationName: profile.organizationName ?? undefined,
-    description: profile.description ?? undefined,
-    purpose: profile.purpose ?? undefined,
-    address: overrides?.address ?? profile.address ?? undefined,
-    addressNumber: overrides?.addressNumber ?? profile.addressNumber ?? undefined,
-    addressComplement: overrides?.addressComplement ?? profile.addressComplement ?? undefined,
-    city: overrides?.city ?? profile.city ?? undefined,
-    state: overrides?.state ?? profile.state ?? undefined,
-    zipCode: overrides?.zipCode ?? profile.zipCode ?? undefined,
-    neighborhood: overrides?.neighborhood ?? profile.neighborhood ?? undefined,
-    openingHours: overrides?.openingHours ?? profile.openingHours ?? undefined,
+    organizationName:
+      (overrides ? getPendingField(overrides, 'organizationName', profile.organizationName) : profile.organizationName) ??
+      undefined,
+    description:
+      (overrides ? getPendingField(overrides, 'description', profile.description) : profile.description) ??
+      undefined,
+    purpose:
+      (overrides ? getPendingField(overrides, 'purpose', profile.purpose) : profile.purpose) ??
+      undefined,
+    address:
+      (overrides ? getPendingField(overrides, 'address', profile.address) : profile.address) ??
+      undefined,
+    addressNumber:
+      (overrides ? getPendingField(overrides, 'addressNumber', profile.addressNumber) : profile.addressNumber) ??
+      undefined,
+    addressComplement:
+      (overrides
+        ? getPendingField(overrides, 'addressComplement', profile.addressComplement)
+        : profile.addressComplement) ?? undefined,
+    city: (overrides ? getPendingField(overrides, 'city', profile.city) : profile.city) ?? undefined,
+    state: (overrides ? getPendingField(overrides, 'state', profile.state) : profile.state) ?? undefined,
+    zipCode:
+      (overrides ? getPendingField(overrides, 'zipCode', profile.zipCode) : profile.zipCode) ??
+      undefined,
+    neighborhood:
+      (overrides ? getPendingField(overrides, 'neighborhood', profile.neighborhood) : profile.neighborhood) ??
+      undefined,
+    openingHours:
+      (overrides ? getPendingField(overrides, 'openingHours', profile.openingHours) : profile.openingHours) ??
+      undefined,
     openingSchedule: normalizeOpeningSchedule(openingSchedule),
-    phone: overrides?.phone ?? profile.phone ?? undefined,
-    acceptedCategories: profile.acceptedCategories,
+    phone: (overrides ? getPendingField(overrides, 'phone', profile.phone) : profile.phone) ?? undefined,
+    acceptedCategories:
+      ((overrides
+        ? getPendingField(overrides, 'acceptedCategories', profile.acceptedCategories)
+        : profile.acceptedCategories) as AdminProfileRecord['acceptedCategories']) ?? [],
     donationInterestCategories: profile.donationInterestCategories ?? [],
-    serviceRegions: profile.serviceRegions,
-    latitude: overrides?.latitude ?? profile.latitude ?? undefined,
-    longitude: overrides?.longitude ?? profile.longitude ?? undefined,
+    serviceRegions:
+      (overrides ? getPendingField(overrides, 'serviceRegions', profile.serviceRegions) : profile.serviceRegions) ??
+      [],
+    latitude:
+      (overrides ? getPendingField(overrides, 'latitude', profile.latitude) : profile.latitude) ??
+      undefined,
+    longitude:
+      (overrides ? getPendingField(overrides, 'longitude', profile.longitude) : profile.longitude) ??
+      undefined,
   };
 }
 
@@ -181,6 +231,9 @@ function mapAdminProfile(profile: AdminProfileRecord) {
     neighborhood: profile.neighborhood,
     zipCode: profile.zipCode,
     acceptedCategories: profile.acceptedCategories,
+    estimatedCapacity: profile.estimatedCapacity,
+    nonAcceptedItems: profile.nonAcceptedItems,
+    serviceRegions: profile.serviceRegions,
     publicProfileState: profile.publicProfileState,
     verifiedAt: profile.verifiedAt?.toISOString() ?? null,
     createdAt: profile.createdAt.toISOString(),
@@ -364,31 +417,67 @@ export default async function adminProfileRoutes(fastify: FastifyInstance) {
       const approved = await fastify.prisma.user.update({
         where: { id: profile.id },
         data: {
-          phone: pendingPayload.phone ?? null,
-          avatarUrl: pendingPayload.avatarUrl ?? null,
-          coverImageUrl: pendingPayload.coverImageUrl ?? null,
-          galleryImageUrls: pendingPayload.galleryImageUrls ?? [],
-          address: pendingPayload.address ?? null,
-          addressNumber: pendingPayload.addressNumber ?? null,
-          addressComplement: pendingPayload.addressComplement ?? null,
-          neighborhood: pendingPayload.neighborhood ?? null,
-          zipCode: pendingPayload.zipCode ?? null,
-          city: pendingPayload.city ?? null,
-          state: pendingPayload.state ?? null,
-          latitude: pendingPayload.latitude ?? null,
-          longitude: pendingPayload.longitude ?? null,
-          openingHours: pendingPayload.openingHours ?? null,
+          organizationName: getPendingField(pendingPayload, 'organizationName', profile.organizationName),
+          description: getPendingField(pendingPayload, 'description', profile.description),
+          purpose: getPendingField(pendingPayload, 'purpose', profile.purpose),
+          phone: getPendingField(pendingPayload, 'phone', profile.phone),
+          avatarUrl: getPendingField(pendingPayload, 'avatarUrl', profile.avatarUrl),
+          coverImageUrl: getPendingField(pendingPayload, 'coverImageUrl', profile.coverImageUrl),
+          galleryImageUrls:
+            getPendingField(pendingPayload, 'galleryImageUrls', profile.galleryImageUrls) ?? [],
+          address: getPendingField(pendingPayload, 'address', profile.address),
+          addressNumber: getPendingField(pendingPayload, 'addressNumber', profile.addressNumber),
+          addressComplement: getPendingField(
+            pendingPayload,
+            'addressComplement',
+            profile.addressComplement,
+          ),
+          neighborhood: getPendingField(pendingPayload, 'neighborhood', profile.neighborhood),
+          zipCode: getPendingField(pendingPayload, 'zipCode', profile.zipCode),
+          city: getPendingField(pendingPayload, 'city', profile.city),
+          state: getPendingField(pendingPayload, 'state', profile.state),
+          latitude: getPendingField(pendingPayload, 'latitude', profile.latitude),
+          longitude: getPendingField(pendingPayload, 'longitude', profile.longitude),
+          openingHours: getPendingField(pendingPayload, 'openingHours', profile.openingHours),
           openingSchedule:
             normalizeOpeningSchedule(
-              Array.isArray(pendingPayload.openingSchedule)
-                ? (pendingPayload.openingSchedule as OpeningScheduleEntry[])
+              Array.isArray(getPendingField(pendingPayload, 'openingSchedule', profile.openingSchedule as unknown as OpeningScheduleEntry[]))
+                ? (getPendingField(
+                    pendingPayload,
+                    'openingSchedule',
+                    profile.openingSchedule as unknown as OpeningScheduleEntry[],
+                  ) as OpeningScheduleEntry[])
                 : [],
             ) as unknown as Prisma.InputJsonValue,
-          openingHoursExceptions: pendingPayload.openingHoursExceptions ?? null,
-          publicNotes: pendingPayload.publicNotes ?? null,
-          accessibilityDetails: pendingPayload.accessibilityDetails ?? null,
-          accessibilityFeatures: pendingPayload.accessibilityFeatures ?? [],
-          rules: pendingPayload.rules ?? [],
+          openingHoursExceptions: getPendingField(
+            pendingPayload,
+            'openingHoursExceptions',
+            profile.openingHoursExceptions,
+          ),
+          publicNotes: getPendingField(pendingPayload, 'publicNotes', profile.publicNotes),
+          accessibilityDetails: getPendingField(
+            pendingPayload,
+            'accessibilityDetails',
+            profile.accessibilityDetails,
+          ),
+          accessibilityFeatures:
+            getPendingField(pendingPayload, 'accessibilityFeatures', profile.accessibilityFeatures) ?? [],
+          estimatedCapacity: getPendingField(
+            pendingPayload,
+            'estimatedCapacity',
+            profile.estimatedCapacity,
+          ),
+          acceptedCategories:
+            (getPendingField(
+              pendingPayload,
+              'acceptedCategories',
+              profile.acceptedCategories,
+            ) as AdminProfileRecord['acceptedCategories'] | undefined) ?? [],
+          nonAcceptedItems:
+            getPendingField(pendingPayload, 'nonAcceptedItems', profile.nonAcceptedItems) ?? [],
+          rules: getPendingField(pendingPayload, 'rules', profile.rules) ?? [],
+          serviceRegions:
+            getPendingField(pendingPayload, 'serviceRegions', profile.serviceRegions) ?? [],
           publicProfileState: mergedProfileState,
           verifiedAt,
           pendingPublicRevision: Prisma.JsonNull,

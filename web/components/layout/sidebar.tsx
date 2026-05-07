@@ -9,6 +9,7 @@ import {
   ROLE_LABELS,
   isNavigationItemActive,
 } from '@/components/layout/navigation';
+import { getOperationalDisplayName } from '@/lib/profile-display';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,11 +20,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  const userName = session?.user?.name ?? 'Usuário';
   const userRole = session?.user?.role ?? 'DONOR';
   const userId = session?.user?.id;
   const userEmail = session?.user?.email ?? '';
   const isOperationalUser = userRole === 'COLLECTION_POINT' || userRole === 'NGO';
+  const userName = session?.user
+    ? getOperationalDisplayName({
+        name: session.user.name ?? 'Usuário',
+        organizationName: isOperationalUser ? session.user.organizationName : null,
+      })
+    : 'Usuário';
   const utilityNavItems = getUtilityNavItems(userRole);
   const firstName = userName.split(' ')[0];
   const initials = userName
@@ -140,7 +146,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {isOperationalUser && userId && (
             <div className="mt-3 rounded-3xl bg-surface p-2 dark:bg-surface-ink">
               <Link
-                href={`/mapa/${userId}`}
+                href={`/mapa/${userId}?preview=1`}
                 onClick={onClose}
                 className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-gray-600 transition-all hover:bg-white/70 dark:text-gray-300 dark:hover:bg-white/5"
               >

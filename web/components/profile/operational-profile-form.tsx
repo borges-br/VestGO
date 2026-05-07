@@ -6,10 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
+  Camera,
   CheckCircle2,
   ImagePlus,
   Loader2,
   MapPin,
+  Pencil,
   Save,
   ShieldCheck,
   Sparkles,
@@ -32,6 +36,7 @@ import { IMAGE_CROP_PRESETS, type ImageCropPreset } from '@/lib/image-crop';
 import { formatBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/phone';
 import { formatCpfInput, normalizeCpfInput, isValidCpf } from '@/lib/cpf';
 import { formatCnpjInput, normalizeCnpjInput, isValidCnpj } from '@/lib/cnpj';
+import { getOperationalDisplayName } from '@/lib/profile-display';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -61,8 +66,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const PROFILE_STATE_LABELS = {
   DRAFT: 'Rascunho',
-  PENDING: 'Pendente',
-  ACTIVE: 'Ativo',
+  PENDING: 'Enviado para análise',
+  ACTIVE: 'Aprovado',
   VERIFIED: 'Verificado',
 } as const;
 
@@ -135,6 +140,7 @@ type FormState = {
   organizationName: string;
   description: string;
   purpose: string;
+  publicNotes: string;
   address: string;
   addressNumber: string;
   addressComplement: string;
@@ -144,10 +150,12 @@ type FormState = {
   state: string;
   openingSchedule: OpeningScheduleEntry[];
   openingHoursExceptions: string;
+  accessibilityDetails: string;
   accessibilityFeatures: string[];
   estimatedCapacity: string;
   acceptedCategories: string[];
   nonAcceptedItemsText: string;
+  rulesText: string;
   serviceRegions: string[];
   termsAccepted: boolean;
 };
@@ -241,6 +249,7 @@ function buildInitialState(profile: MyProfile): FormState {
     organizationName: profile.organizationName ?? '',
     description: profile.description ?? '',
     purpose: profile.purpose ?? '',
+    publicNotes: profile.publicNotes ?? '',
     address: profile.address ?? '',
     addressNumber: profile.addressNumber ?? '',
     addressComplement: profile.addressComplement ?? '',
@@ -250,10 +259,12 @@ function buildInitialState(profile: MyProfile): FormState {
     state: profile.state ?? '',
     openingSchedule: normalizeScheduleEntries(profile.openingSchedule),
     openingHoursExceptions: profile.openingHoursExceptions ?? '',
+    accessibilityDetails: profile.accessibilityDetails ?? '',
     accessibilityFeatures: profile.accessibilityFeatures ?? [],
     estimatedCapacity: profile.estimatedCapacity ?? '',
     acceptedCategories: profile.acceptedCategories ?? [],
     nonAcceptedItemsText: (profile.nonAcceptedItems ?? []).join('\n'),
+    rulesText: (profile.rules ?? []).join('\n'),
     serviceRegions: profile.serviceRegions ?? [],
     termsAccepted: false,
   };
@@ -263,33 +274,36 @@ function buildPayload(role: string, form: FormState) {
   return {
     name: form.name,
     email: form.email,
-    phone: form.phone ? normalizeBrazilPhone(form.phone) ?? form.phone : undefined,
-    cpf: form.cpf ? normalizeCpfInput(form.cpf) : undefined,
-    cnpj: form.cnpj ? normalizeCnpjInput(form.cnpj) : undefined,
-    avatarUrl: form.avatarUrl || undefined,
-    coverImageUrl: form.coverImageUrl || undefined,
+    phone: form.phone ? normalizeBrazilPhone(form.phone) ?? form.phone : null,
+    cpf: form.cpf ? normalizeCpfInput(form.cpf) : null,
+    cnpj: form.cnpj ? normalizeCnpjInput(form.cnpj) : null,
+    avatarUrl: form.avatarUrl || null,
+    coverImageUrl: form.coverImageUrl || null,
     galleryImageUrls: form.galleryImageUrls,
-    organizationName: form.organizationName || undefined,
-    description: form.description || undefined,
-    purpose: role === 'NGO' ? form.purpose || undefined : undefined,
-    address: form.address || undefined,
-    addressNumber: form.addressNumber || undefined,
-    addressComplement: form.addressComplement || undefined,
-    neighborhood: form.neighborhood || undefined,
-    zipCode: form.zipCode || undefined,
-    city: form.city || undefined,
-    state: form.state || undefined,
+    organizationName: form.organizationName || null,
+    description: form.description || null,
+    purpose: form.purpose || null,
+    publicNotes: form.publicNotes || null,
+    address: form.address || null,
+    addressNumber: form.addressNumber || null,
+    addressComplement: form.addressComplement || null,
+    neighborhood: form.neighborhood || null,
+    zipCode: form.zipCode || null,
+    city: form.city || null,
+    state: form.state || null,
     openingSchedule: form.openingSchedule.map((entry) => ({
       day: entry.day,
       isOpen: entry.isOpen,
       ...(entry.open ? { open: entry.open } : {}),
       ...(entry.close ? { close: entry.close } : {}),
     })),
-    openingHoursExceptions: form.openingHoursExceptions || undefined,
+    openingHoursExceptions: form.openingHoursExceptions || null,
+    accessibilityDetails: form.accessibilityDetails || null,
     accessibilityFeatures: form.accessibilityFeatures,
-    estimatedCapacity: role === 'COLLECTION_POINT' ? form.estimatedCapacity || undefined : undefined,
+    estimatedCapacity: role === 'COLLECTION_POINT' ? form.estimatedCapacity || null : null,
     acceptedCategories: form.acceptedCategories,
     nonAcceptedItems: serializeMultiline(form.nonAcceptedItemsText),
+    rules: serializeMultiline(form.rulesText),
     serviceRegions: role === 'NGO' ? form.serviceRegions : [],
   };
 }
@@ -348,6 +362,47 @@ function getRoleIcon(role: string) {
   return role === 'NGO' ? Users : Store;
 }
 
+function getProfileStatusLabel(profile: MyProfile) {
+  if (profile.pendingPublicRevision?.status === 'REJECTED') {
+    return 'Rejeitado — ajuste e envie novamente';
+  }
+
+  if (profile.pendingPublicRevision?.status === 'PENDING') {
+    return 'Alterações em revisão';
+  }
+
+  if (profile.publicProfileState === 'PENDING') {
+    return 'Enviado para análise';
+  }
+
+  return PROFILE_STATE_LABELS[profile.publicProfileState];
+}
+
+function needsPrivatePreview(profile: MyProfile) {
+  return (
+    !['ACTIVE', 'VERIFIED'].includes(profile.publicProfileState) ||
+    profile.pendingPublicRevision?.status === 'PENDING'
+  );
+}
+
+function getProfilePreviewHref(profile: MyProfile) {
+  return `/mapa/${profile.id}${needsPrivatePreview(profile) ? '?preview=1' : ''}`;
+}
+
+function getSubmitLabel(profile: MyProfile, step: StepKey, setupMode: boolean) {
+  if (setupMode) return 'Salvar e continuar';
+
+  if (profile.publicProfileState === 'ACTIVE' || profile.publicProfileState === 'VERIFIED') {
+    return 'Salvar alterações para revisão';
+  }
+
+  if (step === 'review') {
+    return 'Enviar para aprovação';
+  }
+
+  return 'Salvar rascunho';
+}
+
 function formatScheduleSummary(schedule: OpeningScheduleEntry[]) {
   const open = schedule.filter((e) => e.isOpen && e.open && e.close);
   if (open.length === 0) return 'Nenhum horário cadastrado';
@@ -389,7 +444,7 @@ function MediaThumb({
 }
 
 function ProfileMediaReview({ profile }: { profile: MyProfile }) {
-  const title = profile.organizationName ?? profile.name;
+  const title = getOperationalDisplayName(profile);
   const published = getPublishedImages(profile);
   const pending = getPendingImages(profile);
   const showPending = pending && hasPendingImageChanges(profile);
@@ -784,6 +839,20 @@ export function OperationalProfileForm() {
     });
   }
 
+  function moveGalleryImage(index: number, direction: -1 | 1) {
+    setForm((current) => {
+      if (!current) return current;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.galleryImageUrls.length) return current;
+
+      const nextGallery = [...current.galleryImageUrls];
+      const [item] = nextGallery.splice(index, 1);
+      nextGallery.splice(nextIndex, 0, item);
+
+      return { ...current, galleryImageUrls: nextGallery };
+    });
+  }
+
   // ── Address ─────────────────────────────────────────────────────────────────
 
   function handleAddressFocus() {
@@ -863,6 +932,7 @@ export function OperationalProfileForm() {
           name: updated.name,
           email: updated.email,
           image: updated.avatarUrl ?? null,
+          organizationName: updated.organizationName,
         },
       });
 
@@ -921,7 +991,7 @@ export function OperationalProfileForm() {
   }
 
   const RoleIcon = getRoleIcon(profile.role);
-  const orgTitle = profile.organizationName ?? profile.name;
+  const orgTitle = getOperationalDisplayName(profile);
 
   return (
     <>
@@ -961,20 +1031,20 @@ export function OperationalProfileForm() {
             </div>
 
             <div className="flex items-center gap-2">
-              {profile.publicProfileState !== 'DRAFT' && profile.id && (
+              {profile.id && (
                 <Link
-                  href={`/mapa/${profile.id}`}
+                  href={getProfilePreviewHref(profile)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-primary shadow-card transition-colors hover:bg-primary-light"
                 >
                   <Sparkles size={13} />
-                  Ver perfil público
+                  {needsPrivatePreview(profile) ? 'Visualizar preview' : 'Ver perfil público'}
                 </Link>
               )}
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-primary shadow-card">
                 <ShieldCheck size={15} />
-                {PROFILE_STATE_LABELS[profile.publicProfileState]}
+                {getProfileStatusLabel(profile)}
               </div>
             </div>
           </div>
@@ -1159,18 +1229,31 @@ export function OperationalProfileForm() {
                     />
                   </label>
 
-                  {profile.role === 'NGO' && (
-                    <label className="space-y-2 text-sm text-gray-500">
-                      <span className="font-semibold text-on-surface">Propósito</span>
-                      <textarea
-                        rows={4}
-                        value={form.purpose}
-                        onChange={(event) => updateField('purpose', event.target.value)}
-                        placeholder="Como a ONG transforma as doações em impacto real."
-                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
-                      />
-                    </label>
-                  )}
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Propósito</span>
+                    <textarea
+                      rows={4}
+                      value={form.purpose}
+                      onChange={(event) => updateField('purpose', event.target.value)}
+                      placeholder={
+                        profile.role === 'NGO'
+                          ? 'Como a ONG transforma as doações em impacto real.'
+                          : 'Explique por que este ponto fortalece as doações na região.'
+                      }
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Observações públicas</span>
+                    <textarea
+                      rows={3}
+                      value={form.publicNotes}
+                      onChange={(event) => updateField('publicNotes', event.target.value)}
+                      placeholder="Inclua orientações úteis para quem vai doar ou conhecer este perfil."
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
 
                   {/* Images */}
                   <div className="grid gap-4 md:grid-cols-2">
@@ -1183,7 +1266,13 @@ export function OperationalProfileForm() {
                             Upload principal do perfil. JPG, PNG ou WEBP até 5MB.
                           </p>
                         </div>
-                        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white text-sm font-bold text-primary shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => avatarInputRef.current?.click()}
+                          disabled={uploadingTarget === 'avatar'}
+                          aria-label="Alterar logo do perfil"
+                          className="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white text-sm font-bold text-primary shadow-sm ring-1 ring-gray-100 transition focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-70"
+                        >
                           {form.avatarUrl ? (
                             <SafeImage
                               src={form.avatarUrl}
@@ -1198,7 +1287,11 @@ export function OperationalProfileForm() {
                               .slice(0, 2)
                               .join('')
                           )}
-                        </div>
+                          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-primary-deeper/72 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
+                            <Camera size={15} />
+                            Alterar logo
+                          </span>
+                        </button>
                       </div>
 
                       <input
@@ -1219,7 +1312,7 @@ export function OperationalProfileForm() {
                         disabled={uploadingTarget === 'avatar'}
                         className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {uploadingTarget === 'avatar' ? 'Enviando...' : 'Enviar avatar'}
+                        {uploadingTarget === 'avatar' ? 'Enviando...' : 'Alterar logo'}
                       </button>
                       <button
                         type="button"
@@ -1240,7 +1333,13 @@ export function OperationalProfileForm() {
                         </p>
                       </div>
 
-                      <div className="overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white">
+                      <button
+                        type="button"
+                        onClick={() => coverInputRef.current?.click()}
+                        disabled={uploadingTarget === 'cover'}
+                        aria-label="Alterar capa do perfil"
+                        className="group relative w-full overflow-hidden rounded-[1.25rem] border border-gray-200 bg-white text-left transition focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-70"
+                      >
                         {form.coverImageUrl ? (
                           <SafeImage
                             src={form.coverImageUrl}
@@ -1253,7 +1352,11 @@ export function OperationalProfileForm() {
                             Nenhuma capa enviada
                           </div>
                         )}
-                      </div>
+                        <span className="absolute inset-0 flex items-center justify-center gap-2 bg-primary-deeper/64 text-sm font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
+                          <Pencil size={16} />
+                          Alterar capa
+                        </span>
+                      </button>
 
                       <input
                         ref={coverInputRef}
@@ -1273,7 +1376,7 @@ export function OperationalProfileForm() {
                         disabled={uploadingTarget === 'cover'}
                         className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {uploadingTarget === 'cover' ? 'Enviando...' : 'Enviar capa'}
+                        {uploadingTarget === 'cover' ? 'Enviando...' : 'Alterar capa'}
                       </button>
                       <button
                         type="button"
@@ -1340,14 +1443,34 @@ export function OperationalProfileForm() {
                               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
                                 Foto {index + 1}
                               </p>
-                              <button
-                                type="button"
-                                onClick={() => removeGalleryImage(imageUrl)}
-                                className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary"
-                              >
-                                <Trash2 size={14} />
-                                Remover
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => moveGalleryImage(index, -1)}
+                                  disabled={index === 0}
+                                  aria-label={`Mover foto ${index + 1} para a esquerda`}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-35"
+                                >
+                                  <ArrowUp size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveGalleryImage(index, 1)}
+                                  disabled={index === form.galleryImageUrls.length - 1}
+                                  aria-label={`Mover foto ${index + 1} para a direita`}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-35"
+                                >
+                                  <ArrowDown size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeGalleryImage(imageUrl)}
+                                  aria-label={`Remover foto ${index + 1}`}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition-colors hover:border-primary hover:text-primary"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1629,6 +1752,16 @@ export function OperationalProfileForm() {
                         );
                       })}
                     </div>
+                    <label className="space-y-2 text-sm text-gray-500">
+                      <span className="font-semibold text-on-surface">Detalhes de acessibilidade</span>
+                      <textarea
+                        rows={3}
+                        value={form.accessibilityDetails}
+                        onChange={(event) => updateField('accessibilityDetails', event.target.value)}
+                        placeholder="Ex.: entrada sem degrau pela lateral, equipe treinada para atendimento prioritário."
+                        className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                      />
+                    </label>
                   </div>
                 </section>
               )}
@@ -1674,6 +1807,17 @@ export function OperationalProfileForm() {
                       value={form.nonAcceptedItemsText}
                       onChange={(event) => updateField('nonAcceptedItemsText', event.target.value)}
                       placeholder={'Um item por linha\nEx.: Peças com mofo'}
+                      className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm text-gray-500">
+                    <span className="font-semibold text-on-surface">Regras para entrega</span>
+                    <textarea
+                      rows={4}
+                      value={form.rulesText}
+                      onChange={(event) => updateField('rulesText', event.target.value)}
+                      placeholder={'Uma regra por linha\nEx.: Entregar roupas limpas e separadas por tipo'}
                       className="w-full rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3.5 text-sm text-on-surface outline-none transition-colors focus:border-primary"
                     />
                   </label>
@@ -1765,6 +1909,9 @@ export function OperationalProfileForm() {
                             : '—'
                         }
                       />
+                      {form.rulesText.trim() && (
+                        <ReviewRow label="Regras" value={serializeMultiline(form.rulesText).join(' | ')} />
+                      )}
                       {form.accessibilityFeatures.length > 0 && (
                         <ReviewRow
                           label="Acessibilidade"
@@ -1866,7 +2013,7 @@ export function OperationalProfileForm() {
                   title={step === 'review' && !form.termsAccepted ? 'Aceite os termos para continuar' : undefined}
                 >
                   {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                  {setupMode ? 'Salvar e continuar' : 'Salvar perfil'}
+                  {getSubmitLabel(profile, step, setupMode)}
                 </button>
               </div>
             </form>
@@ -1878,7 +2025,7 @@ export function OperationalProfileForm() {
                   Status do perfil
                 </p>
                 <h2 className="mt-3 text-2xl font-bold">
-                  {PROFILE_STATE_LABELS[profile.publicProfileState]}
+                  {getProfileStatusLabel(profile)}
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-primary-muted">
                   {profile.profileCompletion.totalItems > 0
