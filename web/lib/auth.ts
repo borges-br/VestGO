@@ -15,6 +15,7 @@ declare module 'next-auth' {
       accessToken: string;
       accessTokenExpiresAt: number;
       emailVerifiedAt: string | null;
+      organizationName: string | null;
     } & DefaultSession['user'];
     error?: 'RefreshAccessTokenError';
   }
@@ -38,6 +39,7 @@ type AppAuthUser = {
   accessTokenExpiresAt: number;
   emailVerifiedAt: string | null;
   image?: string | null;
+  organizationName?: string | null;
   name?: string | null;
   email?: string | null;
 };
@@ -54,6 +56,7 @@ type SessionUpdateUser = {
   email?: string | null;
   image?: string | null;
   emailVerifiedAt?: string | null;
+  organizationName?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -89,6 +92,14 @@ function resolveSessionUpdateUser(value: unknown): SessionUpdateUser | null {
     (typeof candidate.emailVerifiedAt === 'string' || candidate.emailVerifiedAt === null)
   ) {
     update.emailVerifiedAt = candidate.emailVerifiedAt;
+    hasKnownField = true;
+  }
+
+  if (
+    'organizationName' in candidate &&
+    (typeof candidate.organizationName === 'string' || candidate.organizationName === null)
+  ) {
+    update.organizationName = candidate.organizationName;
     hasKnownField = true;
   }
 
@@ -187,6 +198,7 @@ type RemoteUser = {
   role: string;
   avatarUrl?: string | null;
   emailVerifiedAt?: string | null;
+  organizationName?: string | null;
 };
 
 async function fetchRemoteUser(accessToken: string): Promise<RemoteUser | null> {
@@ -236,6 +248,7 @@ async function authorizeWithPassword(
       refreshToken: data.refreshToken,
       accessTokenExpiresAt: getAccessTokenExpiresAt(data.accessToken),
       emailVerifiedAt: data.user.emailVerifiedAt ?? null,
+      organizationName: data.user.organizationName ?? null,
     };
   } catch {
     return null;
@@ -259,6 +272,7 @@ async function authorizeWithTokens(
     refreshToken,
     accessTokenExpiresAt: getAccessTokenExpiresAt(accessToken),
     emailVerifiedAt: remote.emailVerifiedAt ?? null,
+    organizationName: remote.organizationName ?? null,
   };
 }
 
@@ -327,6 +341,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         mutableToken.refreshToken = appUser.refreshToken;
         mutableToken.accessTokenExpiresAt = appUser.accessTokenExpiresAt;
         mutableToken.emailVerifiedAt = appUser.emailVerifiedAt;
+        mutableToken.organizationName = appUser.organizationName ?? null;
         mutableToken.error = undefined;
         return mutableToken;
       }
@@ -346,6 +361,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if ('emailVerifiedAt' in sessionUpdate) {
           mutableToken.emailVerifiedAt = sessionUpdate.emailVerifiedAt ?? null;
+        }
+
+        if ('organizationName' in sessionUpdate) {
+          mutableToken.organizationName = sessionUpdate.organizationName ?? null;
         }
       }
 
@@ -374,6 +393,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.accessToken = appToken.accessToken ?? '';
       session.user.accessTokenExpiresAt = appToken.accessTokenExpiresAt ?? 0;
       session.user.emailVerifiedAt = (appToken.emailVerifiedAt as string | null | undefined) ?? null;
+      session.user.organizationName =
+        (appToken.organizationName as string | null | undefined) ?? null;
       session.error = appToken.error;
 
       return session;

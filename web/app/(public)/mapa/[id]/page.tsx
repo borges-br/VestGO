@@ -14,9 +14,11 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { SafeImage } from '@/components/ui/safe-image';
+import { ShareProfileButton } from '@/components/profile/share-profile-button';
 import { auth } from '@/lib/auth';
 import { getCollectionPoint, type CollectionPoint } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
+import { getOperationalDisplayName } from '@/lib/profile-display';
 
 const CATEGORY_LABELS: Record<string, string> = {
   CLOTHING: 'Roupas e vestuário',
@@ -48,6 +50,7 @@ type ActiveNgo = NonNullable<NonNullable<CollectionPoint['donationEligibility']>
 
 interface Props {
   params: { id: string };
+  searchParams?: { preview?: string };
 }
 
 function initialsFrom(value: string) {
@@ -142,7 +145,7 @@ function PartnerCard({ partner }: { partner: ActiveNgo | null }) {
     return null;
   }
 
-  const title = partner.organizationName ?? partner.name;
+  const title = getOperationalDisplayName(partner);
 
   return (
     <div className="rounded-[1.25rem] bg-surface p-4">
@@ -169,7 +172,17 @@ function PartnerCard({ partner }: { partner: ActiveNgo | null }) {
   );
 }
 
-export default async function CollectionPointDetailPage({ params }: Props) {
+function getPublicProfileUrl(id: string) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_PUBLIC_URL;
+
+  if (!baseUrl) {
+    return `/mapa/${id}`;
+  }
+
+  return new URL(`/mapa/${id}`, baseUrl).toString();
+}
+
+export default async function CollectionPointDetailPage({ params, searchParams }: Props) {
   const session = await auth();
   const currentRole = session?.user?.role ?? null;
   const isProfileOwner = session?.user?.id === params.id;
@@ -182,12 +195,13 @@ export default async function CollectionPointDetailPage({ params }: Props) {
   try {
     point = await getCollectionPoint(params.id, {
       accessToken: viewerAccessToken,
+      preview: searchParams?.preview === '1',
     });
   } catch {
     notFound();
   }
 
-  const title = point.organizationName ?? point.name;
+  const title = getOperationalDisplayName(point);
   const isNgo = point.role === 'NGO';
   const isDonor = currentRole === 'DONOR';
   const isOperationalViewer =
@@ -201,6 +215,11 @@ export default async function CollectionPointDetailPage({ params }: Props) {
       ? `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`
       : null;
   const profileState = point.publicProfileState ?? 'ACTIVE';
+  const isPubliclyVisible = profileState === 'ACTIVE' || profileState === 'VERIFIED';
+  const isPrivatePreview = point.privatePreview === true;
+  const shareText = isNgo
+    ? 'Conheça esta ONG parceira no VestGO e veja como ela ajuda a transformar doações em impacto real:'
+    : 'Conheça este ponto de coleta no VestGO e ajude a fortalecer doações rastreáveis na sua região:';
   const locationLabel = hideSensitiveNgoLocation
     ? point.serviceRegions && point.serviceRegions.length > 0
       ? `Atuação regional: ${point.serviceRegions.join(', ')}`
@@ -228,6 +247,22 @@ export default async function CollectionPointDetailPage({ params }: Props) {
             </Link>
           )}
         </div>
+
+        {isPrivatePreview && (
+          <section className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 shadow-sm">
+            <div className="flex items-start gap-3">
+              <ShieldCheck size={18} className="mt-1 shrink-0 text-amber-700" />
+              <div>
+                <p className="text-sm font-semibold">Preview privado</p>
+                <p className="mt-1 text-sm leading-7">
+                  {isPubliclyVisible
+                    ? 'Essas alterações ainda não estão públicas. O perfil publicado continua estável até a aprovação.'
+                    : 'Este é um preview privado. Seu perfil público ainda está em análise e ficará visível para doadores após aprovação.'}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="relative min-h-[420px] overflow-hidden rounded-[2rem] bg-primary-deeper text-white shadow-card-lg">
           <SafeImage
@@ -294,6 +329,15 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                   </p>
                 </div>
               )}
+              <div className="mt-4">
+                <ShareProfileButton
+                  title={title}
+                  text={shareText}
+                  url={getPublicProfileUrl(point.id)}
+                  disabled={isPrivatePreview || !isPubliclyVisible}
+                  disabledMessage="Disponível após aprovação do perfil público."
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -389,6 +433,12 @@ export default async function CollectionPointDetailPage({ params }: Props) {
                     </div>
                   ))}
                 </div>
+              </InfoCard>
+            )}
+
+            {point.publicNotes && (
+              <InfoCard label="Observações" title="Antes de visitar">
+                {point.publicNotes}
               </InfoCard>
             )}
 

@@ -14,6 +14,7 @@ import {
   Check,
   X,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 import {
   getAdminProfiles,
@@ -398,6 +399,14 @@ export default function AdminPerfisPage() {
               <div className="flex flex-wrap gap-2 sm:ml-auto">
                 {profile.pendingPublicRevision?.status === 'PENDING' && (
                   <>
+                    <a
+                      href={`/mapa/${profile.id}?preview=1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-primary shadow-sm transition hover:bg-primary-light"
+                    >
+                      <ExternalLink size={16} /> Ver preview
+                    </a>
                     <button
                       onClick={() => handleRevisionDecision(profile.id, 'APPROVE')}
                       disabled={actingRevisionId === profile.id}
@@ -416,6 +425,14 @@ export default function AdminPerfisPage() {
                 )}
                 {profile.publicProfileState === 'PENDING' && (
                   <>
+                    <a
+                      href={`/mapa/${profile.id}?preview=1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-primary shadow-sm transition hover:bg-primary-light"
+                    >
+                      <ExternalLink size={16} /> Ver preview
+                    </a>
                     <button
                       onClick={() => handleStatusChange(profile.id, 'ACTIVE')}
                       className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-deeper"

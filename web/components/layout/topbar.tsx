@@ -12,6 +12,7 @@ import {
   getPrimaryNavItems,
   isNavigationItemActive,
 } from '@/components/layout/navigation';
+import { getOperationalDisplayName } from '@/lib/profile-display';
 
 interface TopBarProps {
   onMenuOpen: () => void;
@@ -41,8 +42,16 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
   const dropdownRef = useRef<HTMLDivElement>(null);
   const lastScrollRef = useRef(0);
 
-  const userName = session?.user?.name ?? 'VestGO';
   const userRole = session?.user?.role ?? 'DONOR';
+  const userName = session?.user
+    ? getOperationalDisplayName({
+        name: session.user.name ?? 'VestGO',
+        organizationName:
+          userRole === 'COLLECTION_POINT' || userRole === 'NGO'
+            ? session.user.organizationName
+            : null,
+      })
+    : 'VestGO';
   const userImage = session?.user?.image ?? null;
   const primaryNavItems = getPrimaryNavItems(userRole);
   const firstName = userName.split(' ')[0];

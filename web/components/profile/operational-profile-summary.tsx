@@ -25,11 +25,12 @@ import {
 } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
 import { SafeImage } from '@/components/ui/safe-image';
+import { getOperationalDisplayName } from '@/lib/profile-display';
 
 const PROFILE_STATE_LABELS = {
   DRAFT: 'Rascunho',
-  PENDING: 'Pendente',
-  ACTIVE: 'Ativo',
+  PENDING: 'Enviado para análise',
+  ACTIVE: 'Aprovado',
   VERIFIED: 'Verificado',
 } as const;
 
@@ -252,7 +253,7 @@ export function OperationalProfileSummary({
     );
   }
 
-  const title = profile.organizationName ?? profile.name;
+  const title = getOperationalDisplayName(profile);
   const subtitle = profile.role === 'NGO' ? 'ONG Parceira' : 'Ponto de Coleta';
   const emailVerified = Boolean(emailVerifiedAt);
   const publishedImages = getPublishedImages(profile);
@@ -285,7 +286,9 @@ export function OperationalProfileSummary({
                 Perfil publico
               </span>
               <span className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                {PROFILE_STATE_LABELS[profile.publicProfileState]}
+                  {profile.pendingPublicRevision?.status === 'PENDING'
+                    ? 'Alterações em revisão'
+                    : PROFILE_STATE_LABELS[profile.publicProfileState]}
               </span>
             </div>
 
@@ -397,6 +400,20 @@ export function OperationalProfileSummary({
                   <CheckCircle2 size={16} className="text-primary" />
                 </Link>
                 <Link
+                  href={`/mapa/${profile.id}${
+                    !['ACTIVE', 'VERIFIED'].includes(profile.publicProfileState) ||
+                    profile.pendingPublicRevision?.status === 'PENDING'
+                      ? '?preview=1'
+                      : ''
+                  }`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between rounded-[1.5rem] bg-surface px-4 py-4 text-sm font-semibold text-primary-deeper transition-colors hover:bg-primary-light"
+                >
+                  Visualizar perfil público
+                  <Sparkles size={16} className="text-primary" />
+                </Link>
+                <Link
                   href="/operacoes"
                   className="flex items-center justify-between rounded-[1.5rem] bg-surface px-4 py-4 text-sm font-semibold text-primary-deeper transition-colors hover:bg-primary-light"
                 >
@@ -444,7 +461,7 @@ export function OperationalProfileSummary({
                     <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
                       <p className="font-semibold">Pronto para doar</p>
                       <p className="mt-2 leading-7">
-                        ONG ativa: {activePartnership.ngo.organizationName ?? activePartnership.ngo.name}.
+                        ONG ativa: {getOperationalDisplayName(activePartnership.ngo)}.
                       </p>
                     </div>
                   )}
@@ -453,7 +470,7 @@ export function OperationalProfileSummary({
                     <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
                       <p className="font-semibold">Aguardando ONG</p>
                       <p className="mt-2 leading-7">
-                        Solicitacao enviada para {pendingPartnership.ngo.organizationName ?? pendingPartnership.ngo.name}. O ponto fica visivel no mapa, mas ainda nao pode finalizar doacoes.
+                        Solicitacao enviada para {getOperationalDisplayName(pendingPartnership.ngo)}. O ponto fica visivel no mapa, mas ainda nao pode finalizar doacoes.
                       </p>
                     </div>
                   )}
@@ -481,7 +498,7 @@ export function OperationalProfileSummary({
                             </option>
                             {ngoCandidates.map((ngo) => (
                               <option key={ngo.id} value={ngo.id}>
-                                {ngo.organizationName ?? ngo.name}
+                                {getOperationalDisplayName(ngo)}
                               </option>
                             ))}
                           </select>
@@ -523,7 +540,7 @@ export function OperationalProfileSummary({
                       <div className="mt-3 space-y-2 text-sm text-gray-500">
                         {rejectedPartnerships.slice(0, 2).map((partnership) => (
                           <p key={partnership.id}>
-                            Solicitacao rejeitada por {partnership.ngo.organizationName ?? partnership.ngo.name}.
+                            Solicitacao rejeitada por {getOperationalDisplayName(partnership.ngo)}.
                           </p>
                         ))}
                       </div>
@@ -543,7 +560,7 @@ export function OperationalProfileSummary({
                       return (
                         <div key={partnership.id} className="rounded-[1.5rem] bg-surface px-4 py-4">
                           <p className="text-sm font-semibold text-primary-deeper">
-                            {partnership.collectionPoint.organizationName ?? partnership.collectionPoint.name}
+                            {getOperationalDisplayName(partnership.collectionPoint)}
                             </p>
                             <p className="mt-2 text-sm leading-7 text-gray-500">
                               {formatAddressSummary(partnership.collectionPoint) ??
@@ -576,7 +593,7 @@ export function OperationalProfileSummary({
                     <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
                       <p className="font-semibold">Parceria ativa</p>
                       <p className="mt-2 leading-7">
-                        Este perfil ja opera com o ponto {activePartnership.collectionPoint.organizationName ?? activePartnership.collectionPoint.name}.
+                        Este perfil ja opera com o ponto {getOperationalDisplayName(activePartnership.collectionPoint)}.
                       </p>
                     </div>
                   )}

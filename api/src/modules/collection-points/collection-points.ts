@@ -2,6 +2,7 @@ import {
   ItemCategory,
   OperationalPartnershipStatus,
   Prisma,
+  PublicProfileRevisionStatus,
   PublicProfileState,
   UserRole,
 } from '@prisma/client';
@@ -29,6 +30,7 @@ const nearbyQuerySchema = z.object({
 
 const detailQuerySchema = z.object({
   forDonation: z.coerce.boolean().default(false),
+  preview: z.coerce.boolean().default(false),
 });
 
 const publicPartnerSelect = {
@@ -73,6 +75,8 @@ const publicProfileSelect = {
   acceptedCategories: true,
   publicProfileState: true,
   verifiedAt: true,
+  pendingPublicRevision: true,
+  pendingPublicRevisionStatus: true,
   createdAt: true,
   _count: {
     select: {
@@ -107,6 +111,128 @@ const publicProfileSelect = {
 type PublicProfileRecord = Prisma.UserGetPayload<{ select: typeof publicProfileSelect }>;
 type PublicViewer = { id: string; role: string } | null;
 
+type PendingPublicRevisionPayload = {
+  organizationName?: string | null;
+  description?: string | null;
+  purpose?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  coverImageUrl?: string | null;
+  galleryImageUrls?: string[];
+  address?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  neighborhood?: string | null;
+  zipCode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  openingHours?: string | null;
+  openingSchedule?: unknown;
+  openingHoursExceptions?: string | null;
+  publicNotes?: string | null;
+  accessibilityDetails?: string | null;
+  accessibilityFeatures?: string[];
+  estimatedCapacity?: string | null;
+  acceptedCategories?: ItemCategory[];
+  nonAcceptedItems?: string[];
+  rules?: string[];
+  serviceRegions?: string[];
+};
+
+function parsePendingPublicRevision(
+  value: Prisma.JsonValue | null,
+): PendingPublicRevisionPayload | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as PendingPublicRevisionPayload;
+}
+
+function getPendingField<K extends keyof PendingPublicRevisionPayload>(
+  payload: PendingPublicRevisionPayload,
+  field: K,
+  fallback: Exclude<PendingPublicRevisionPayload[K], undefined>,
+) {
+  const value = Object.prototype.hasOwnProperty.call(payload, field) ? payload[field] : undefined;
+
+  return (value === undefined ? fallback : value) as Exclude<
+    PendingPublicRevisionPayload[K],
+    undefined
+  >;
+}
+
+function isPubliclyVisibleProfile(point: PublicProfileRecord) {
+  return (
+    point.publicProfileState === PublicProfileState.ACTIVE ||
+    point.publicProfileState === PublicProfileState.VERIFIED
+  );
+}
+
+function canViewPrivatePreview(viewer: PublicViewer, id: string) {
+  return Boolean(viewer && (viewer.id === id || viewer.role === UserRole.ADMIN));
+}
+
+function overlayPendingPublicRevision(point: PublicProfileRecord): PublicProfileRecord {
+  if (point.pendingPublicRevisionStatus !== PublicProfileRevisionStatus.PENDING) {
+    return point;
+  }
+
+  const payload = parsePendingPublicRevision(point.pendingPublicRevision);
+
+  if (!payload) {
+    return point;
+  }
+
+  return {
+    ...point,
+    organizationName: getPendingField(payload, 'organizationName', point.organizationName),
+    description: getPendingField(payload, 'description', point.description),
+    purpose: getPendingField(payload, 'purpose', point.purpose),
+    phone: getPendingField(payload, 'phone', point.phone),
+    avatarUrl: getPendingField(payload, 'avatarUrl', point.avatarUrl),
+    coverImageUrl: getPendingField(payload, 'coverImageUrl', point.coverImageUrl),
+    galleryImageUrls: getPendingField(payload, 'galleryImageUrls', point.galleryImageUrls) ?? [],
+    address: getPendingField(payload, 'address', point.address),
+    addressNumber: getPendingField(payload, 'addressNumber', point.addressNumber),
+    addressComplement: getPendingField(payload, 'addressComplement', point.addressComplement),
+    neighborhood: getPendingField(payload, 'neighborhood', point.neighborhood),
+    zipCode: getPendingField(payload, 'zipCode', point.zipCode),
+    city: getPendingField(payload, 'city', point.city),
+    state: getPendingField(payload, 'state', point.state),
+    latitude: getPendingField(payload, 'latitude', point.latitude),
+    longitude: getPendingField(payload, 'longitude', point.longitude),
+    openingHours: getPendingField(payload, 'openingHours', point.openingHours),
+    openingSchedule: getPendingField(
+      payload,
+      'openingSchedule',
+      point.openingSchedule,
+    ) as Prisma.JsonValue,
+    openingHoursExceptions: getPendingField(
+      payload,
+      'openingHoursExceptions',
+      point.openingHoursExceptions,
+    ),
+    publicNotes: getPendingField(payload, 'publicNotes', point.publicNotes),
+    accessibilityDetails: getPendingField(
+      payload,
+      'accessibilityDetails',
+      point.accessibilityDetails,
+    ),
+    accessibilityFeatures:
+      getPendingField(payload, 'accessibilityFeatures', point.accessibilityFeatures) ?? [],
+    estimatedCapacity: getPendingField(payload, 'estimatedCapacity', point.estimatedCapacity),
+    acceptedCategories:
+      (getPendingField(payload, 'acceptedCategories', point.acceptedCategories) as ItemCategory[] | undefined) ??
+      [],
+    nonAcceptedItems: getPendingField(payload, 'nonAcceptedItems', point.nonAcceptedItems) ?? [],
+    rules: getPendingField(payload, 'rules', point.rules) ?? [],
+    serviceRegions: getPendingField(payload, 'serviceRegions', point.serviceRegions) ?? [],
+  };
+}
+
 function canViewPreciseNgoData(viewer: PublicViewer) {
   return (
     viewer?.role === UserRole.COLLECTION_POINT ||
@@ -139,7 +265,15 @@ function mapPublicPartner(
   };
 }
 
-function mapPublicProfile(point: PublicProfileRecord, viewer: PublicViewer) {
+function getOperationalDisplayName(value: { name: string; organizationName?: string | null }) {
+  return value.organizationName?.trim() || value.name;
+}
+
+function mapPublicProfile(
+  point: PublicProfileRecord,
+  viewer: PublicViewer,
+  options?: { privatePreview?: boolean },
+) {
   const handledDonations =
     point.role === UserRole.NGO ? point._count.receivedAt : point._count.collectedAt;
   const activePartnerships =
@@ -159,7 +293,7 @@ function mapPublicProfile(point: PublicProfileRecord, viewer: PublicViewer) {
             canDonateHere: true,
             status: 'ELIGIBLE',
             label: 'Pronto para doar',
-            message: `Doacoes concluidas aqui seguem para ${activeNgo.organizationName ?? activeNgo.name}.`,
+            message: `Doacoes concluidas aqui seguem para ${getOperationalDisplayName(activeNgo)}.`,
             activeNgo: mapPublicPartner(activeNgo),
           }
         : {
@@ -210,6 +344,7 @@ function mapPublicProfile(point: PublicProfileRecord, viewer: PublicViewer) {
     acceptedCategories: point.acceptedCategories,
     publicProfileState: point.publicProfileState,
     verifiedAt: point.verifiedAt?.toISOString() ?? null,
+    privatePreview: options?.privatePreview === true,
     createdAt: point.createdAt.toISOString(),
     totalDonations: handledDonations,
     activePartnerships,
@@ -355,15 +490,21 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
       const { id } = request.params as { id: string };
       const query = detailQuerySchema.parse(request.query);
       const viewer = await resolvePublicViewer(request);
+      const includePrivatePreview =
+        query.preview && !query.forDonation && canViewPrivatePreview(viewer, id);
       const point = await fastify.prisma.user.findFirst({
         where: {
           id,
           role: query.forDonation
             ? UserRole.COLLECTION_POINT
             : { in: [UserRole.COLLECTION_POINT, UserRole.NGO] },
-          publicProfileState: {
-            in: [PublicProfileState.ACTIVE, PublicProfileState.VERIFIED],
-          },
+          ...(includePrivatePreview
+            ? {}
+            : {
+                publicProfileState: {
+                  in: [PublicProfileState.ACTIVE, PublicProfileState.VERIFIED],
+                },
+              }),
         },
         select: publicProfileSelect,
       });
@@ -372,7 +513,14 @@ export default async function collectionPointRoutes(fastify: FastifyInstance) {
         throw new NotFoundError('Ponto de coleta');
       }
 
-      return reply.send(mapPublicProfile(point, viewer));
+      const hasPendingRevision =
+        point.pendingPublicRevisionStatus === PublicProfileRevisionStatus.PENDING &&
+        parsePendingPublicRevision(point.pendingPublicRevision) !== null;
+      const privatePreview =
+        includePrivatePreview && (!isPubliclyVisibleProfile(point) || hasPendingRevision);
+      const view = privatePreview && hasPendingRevision ? overlayPendingPublicRevision(point) : point;
+
+      return reply.send(mapPublicProfile(view, viewer, { privatePreview }));
     } catch (err) {
       if (err instanceof AppError) {
         return reply.code(err.statusCode).send(toErrorResponse(err));
