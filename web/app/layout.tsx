@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import '@/styles/globals.css';
 import 'leaflet/dist/leaflet.css';
 import { SessionProvider } from 'next-auth/react';
+import { Toaster } from 'sonner';
 import { auth } from '@/lib/auth';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { CookieConsentBanner } from '@/components/layout/cookie-consent-banner';
@@ -58,6 +59,7 @@ export default async function RootLayout({
             {children}
             <AccountSessionGuard />
             <CookieConsentBanner />
+            <Toaster position="bottom-right" richColors closeButton />
           </ThemeProvider>
         </SessionProvider>
       </body>

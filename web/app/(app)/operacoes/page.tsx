@@ -2,6 +2,7 @@ import { Route } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { OperationalBoard } from '@/components/donations/operational-board';
 import { OperationalBatchesPanel } from '@/components/operations/operational-batches-panel';
+import { NgoOperationsView } from '@/components/donations/ngo-operations-view';
 import { auth } from '@/lib/auth';
 import {
   getOperationalBatches,
@@ -61,8 +62,25 @@ export default async function OperacoesPage({
 
   const [response, batchesResponse] = await Promise.all([
     getOperationalDonations(accessToken, buildFiltersFromSearchParams(searchParams)),
-    getOperationalBatches(accessToken, { limit: 50 }),
+    role !== 'NGO' ? getOperationalBatches(accessToken, { limit: 50 }) : Promise.resolve({ data: [] }),
   ]);
+
+  // NGO partners get the dedicated two-column workspace view
+  if (role === 'NGO') {
+    return (
+      <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-shell">
+          <NgoOperationsView
+            initialDonations={response.data}
+            availableCollectionPoints={response.meta.availableCollectionPoints}
+            statusCounts={response.meta.statusCounts}
+            actionableCount={response.meta.actionableCount}
+            organizationName={session?.user?.name ?? null}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
