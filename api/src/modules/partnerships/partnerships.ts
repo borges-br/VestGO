@@ -14,6 +14,10 @@ import {
   toErrorResponse,
 } from '../../shared/errors';
 import { createNotifications } from '../../shared/notifications';
+import {
+  sendPartnershipRequestOperationalEmail,
+  sendPartnershipStatusOperationalEmail,
+} from '../../shared/operational-emails';
 
 const partnershipPartnerSelect = {
   id: true,
@@ -320,6 +324,20 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
         },
       ]);
 
+      try {
+        await sendPartnershipRequestOperationalEmail(fastify, {
+          ngoUserId: partnership.ngo.id,
+          collectionPointUserId: partnership.collectionPoint.id,
+          collectionPointName:
+            partnership.collectionPoint.organizationName ?? partnership.collectionPoint.name,
+        });
+      } catch (smtpErr) {
+        fastify.log.warn(
+          { err: smtpErr, partnershipId: partnership.id },
+          'Falha no envio de e-mail de solicitacao de parceria',
+        );
+      }
+
       return reply.code(existing ? 200 : 201).send(mapPartnership(partnership));
     } catch (err) {
       if (err instanceof AppError) {
@@ -438,6 +456,20 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
           },
         },
       ]);
+
+      try {
+        await sendPartnershipStatusOperationalEmail(fastify, {
+          collectionPointUserId: updated.collectionPoint.id,
+          ngoUserId: updated.ngo.id,
+          ngoName: updated.ngo.organizationName ?? updated.ngo.name,
+          status: updated.status === OperationalPartnershipStatus.ACTIVE ? 'APPROVED' : 'REJECTED',
+        });
+      } catch (smtpErr) {
+        fastify.log.warn(
+          { err: smtpErr, partnershipId: updated.id },
+          'Falha no envio de e-mail de status de parceria',
+        );
+      }
 
       return reply.send(mapPartnership(updated));
     } catch (err) {

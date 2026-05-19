@@ -25,9 +25,9 @@ Doações soltas, sem rastreabilidade, com pontos de coleta sem visibilidade e O
 
 ## 5. Estado atual
 
-- **Funcional**: autenticação, 2FA TOTP, sessões ativas, verificação de e-mail, encerramento de conta com anonimização, perfil operacional, mapa público, doação, parceria, retirada, lotes operacionais, notificações in-app, uploads em MinIO, validação de CPF/telefone, banner de consentimento de cookies.
-- **Parcial**: redefinição de senha — UI e cliente HTTP existem (`/esqueci-senha`, `/redefinir-senha`), mas as rotas `/auth/request-password-reset` e `/auth/reset-password` ainda não foram implementadas no backend.
-- **Planejado**: WebSocket, push, e-mail transacional para todos os eventos, gamificação completa, testes automatizados, dashboards de impacto.
+- **Funcional**: autenticação, 2FA TOTP, sessões ativas, verificação de e-mail, redefinição de senha completa, e-mails operacionais transacionais, gamificação (com curva frontend e backend sincronizadas), encerramento de conta com anonimização, perfil operacional, mapa público, doação, parceria, retirada, lotes operacionais, notificações in-app, uploads em MinIO, validação de CPF/telefone, banner de consentimento de cookies.
+- **Parcial**: nenhuma funcionalidade principal do escopo básico do monorepo está parcial no momento.
+- **Planejado**: WebSocket, push, testes automatizados extensivos, dashboards de impacto.
 
 ## 6. Stack técnica
 
@@ -93,13 +93,10 @@ VestGO/
 
 ## 11. O que está parcial
 
-- Redefinição de senha: telas (`/esqueci-senha`, `/redefinir-senha`), cliente HTTP em `web/lib/api.ts` e template `passwordResetTemplate` existem; as rotas `/auth/request-password-reset` e `/auth/reset-password` ainda não foram criadas no backend, então as chamadas retornam 404.
-- Gamificação: estrutura no frontend e tipos de notificação, mas regras de badges/pontos no backend ainda mínimas.
-- E-mails operacionais: hoje só "doação registrada" e "mudança de status".
+- Gamificação: curva de níveis sincronizada no frontend (`web/lib/gamification.ts`) com os thresholds oficiais do backend, servindo `/gamification/me` como a fonte oficial de dados e a curva local estritamente como fallback visual.
 
 ## 12. O que está pendente
 
-- Implementar `POST /auth/request-password-reset` e `POST /auth/reset-password` em `api/src/modules/auth/auth.ts`.
 - Política oficial de backup do Postgres e do MinIO (não documentada no repo).
 - Testes automatizados (sem framework configurado).
 - WebSocket / push notifications.

@@ -75,6 +75,9 @@ A lista abaixo separa por estado real no código.
 - Rate limit por IP e por e-mail no login (Redis)
 - Verificação de e-mail (envio do link e confirmação)
 - Encerramento de conta com anonimização (`/auth/account-deletion/request` e `/auth/account-deletion/confirm`)
+- Redefinição de senha completa (endpoints `POST /auth/request-password-reset` e `POST /auth/reset-password` no backend, envio seguro de templates de e-mail com SMTP fallback, sem login automático pós-reset, revogação de sessões e tokens PASSWORD_RESET anteriores)
+- E-mails operacionais transacionais com layout HTML rico e e-mail em texto puro para todas as transações operacionais importantes (parcerias, retiradas de coleta, lote pronto/despachado/entregue/fechado), com desduplicação automática e respeito às preferências do usuário
+- Gamificação no frontend sincronizada com os thresholds do backend (`/gamification/me`)
 - Validação de CPF e telefone no backend e no frontend (`api/src/shared/cpf.ts`, `phone.ts`)
 - Lista de cidades/estados brasileiros para autocomplete (`brazil-locations.ts`)
 - Banner de consentimento de cookies (`cookie-consent-banner.tsx` + `cookie-consent.ts`)
@@ -83,9 +86,7 @@ A lista abaixo separa por estado real no código.
 
 ### Parcialmente implementadas
 
-- **Redefinição de senha**: as telas `/esqueci-senha` e `/redefinir-senha` existem, o cliente HTTP em `web/lib/api.ts` chama `/auth/request-password-reset` e `/auth/reset-password`, e o template de e-mail (`passwordResetTemplate`) já existe — porém **as duas rotas correspondentes em `api/src/modules/auth/auth.ts` ainda não foram implementadas**. O fluxo só termina quando o backend ganhar essas rotas.
-- **Gamificação**: existe estrutura no frontend (`web/lib/gamification.ts`, componentes de `impact-widgets` e badges) e tipos de notificação (`DONATION_POINTS`, `BADGE_EARNED`) no banco, mas as regras de pontuação e badges no backend ainda estão minimalistas. Pendente refinamento.
-- **E-mails operacionais**: hoje o backend dispara e-mails apenas para "doação registrada" e "mudança de status de doação" (`api/src/shared/operational-emails.ts`). Outros eventos não geram e-mail.
+- **Gamificação**: curva de níveis no frontend (`web/lib/gamification.ts`) sincronizada com os thresholds oficiais do backend. As regras de badges e pontos no backend mantêm-se em sua estrutura atual.
 - **Página `/pontos`**: redireciona para `/mapa`, mantida apenas por compatibilidade.
 
 ### Planejadas / pendentes
@@ -142,7 +143,6 @@ O VestGO foi desenvolvido no contexto da faculdade (Facens) como projeto full-st
 ## Limitações conhecidas
 
 - Não existe suíte de testes automatizados.
-- O fluxo de recuperação de senha ainda depende de rotas backend que não estão implementadas (`/auth/request-password-reset` e `/auth/reset-password`).
 - Notificações dependem de polling/refetch — não há WebSocket nem push.
 - O rastreio do doador compartilha lógica com a fila operacional; ainda não tem timeline própria.
 - Gamificação é estrutural, mas as regras de pontuação são limitadas.
@@ -152,7 +152,6 @@ O VestGO foi desenvolvido no contexto da faculdade (Facens) como projeto full-st
 
 ## Pendências
 
-- Implementar `POST /auth/request-password-reset` e `POST /auth/reset-password` em `api/src/modules/auth/auth.ts` e ligar ao template `passwordResetTemplate` que já existe.
 - Definir e documentar uma rotina oficial de backup do PostgreSQL e do MinIO.
 - Adicionar testes mínimos em backend e frontend.
 - Decidir se o provider de geocoding padrão será Mapbox (atual) ou Nominatim em produção e ajustar `.env`.

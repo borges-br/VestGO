@@ -17,6 +17,7 @@ import {
   toErrorResponse,
 } from '../../shared/errors';
 import { createNotifications } from '../../shared/notifications';
+import { sendOperationalBatchStatusOperationalEmail } from '../../shared/operational-emails';
 import {
   donationSelect,
   getAllowedNextStatuses,
@@ -688,6 +689,17 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         select: operationalBatchSelect,
       });
 
+      try {
+        await sendOperationalBatchStatusOperationalEmail(fastify, {
+          userId: updatedBatch.ngoId,
+          batchCode: updatedBatch.code,
+          statusLabel: 'Lote pronto para despacho',
+          statusMessage: `O lote operacional "${updatedBatch.name || updatedBatch.code}" foi marcado como pronto pelo ponto de coleta "${updatedBatch.collectionPoint.organizationName ?? updatedBatch.collectionPoint.name}" e está aguardando despacho.`,
+        });
+      } catch (smtpErr) {
+        fastify.log.warn({ err: smtpErr, batchId: updatedBatch.id }, 'Falha ao enviar e-mail de lote pronto');
+      }
+
       return reply.send(mapBatch(updatedBatch, request.user));
     } catch (err) {
       if (err instanceof AppError) {
@@ -719,6 +731,17 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
           dispatchedBy: { connect: { id: request.user.id } },
         },
       );
+
+      try {
+        await sendOperationalBatchStatusOperationalEmail(fastify, {
+          userId: result.batch.ngoId,
+          batchCode: result.batch.code,
+          statusLabel: 'Lote despachado',
+          statusMessage: `O lote operacional "${result.batch.name || result.batch.code}" saiu do ponto de coleta "${result.batch.collectionPoint.organizationName ?? result.batch.collectionPoint.name}" e está em trânsito para a sua ONG.`,
+        });
+      } catch (smtpErr) {
+        fastify.log.warn({ err: smtpErr, batchId: result.batch.id }, 'Falha ao enviar e-mail de lote despachado');
+      }
 
       return reply.send(mapBatch(result.batch, request.user, result.operationSummary));
     } catch (err) {
@@ -752,6 +775,17 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         },
       );
 
+      try {
+        await sendOperationalBatchStatusOperationalEmail(fastify, {
+          userId: result.batch.collectionPointId,
+          batchCode: result.batch.code,
+          statusLabel: 'Lote entregue',
+          statusMessage: `O lote operacional "${result.batch.name || result.batch.code}" que você preparou foi recebido com sucesso pela ONG "${result.batch.ngo.organizationName ?? result.batch.ngo.name}".`,
+        });
+      } catch (smtpErr) {
+        fastify.log.warn({ err: smtpErr, batchId: result.batch.id }, 'Falha ao enviar e-mail de lote entregue');
+      }
+
       return reply.send(mapBatch(result.batch, request.user, result.operationSummary));
     } catch (err) {
       if (err instanceof AppError) {
@@ -780,6 +814,17 @@ export default async function operationalBatchRoutes(fastify: FastifyInstance) {
         },
         select: operationalBatchSelect,
       });
+
+      try {
+        await sendOperationalBatchStatusOperationalEmail(fastify, {
+          userId: updatedBatch.collectionPointId,
+          batchCode: updatedBatch.code,
+          statusLabel: 'Lote finalizado',
+          statusMessage: `O lote operacional "${updatedBatch.name || updatedBatch.code}" teve o processamento e a triagem concluídos pela ONG "${updatedBatch.ngo.organizationName ?? updatedBatch.ngo.name}" e agora está fechado.`,
+        });
+      } catch (smtpErr) {
+        fastify.log.warn({ err: smtpErr, batchId: updatedBatch.id }, 'Falha ao enviar e-mail de lote fechado');
+      }
 
       return reply.send(mapBatch(updatedBatch, request.user));
     } catch (err) {

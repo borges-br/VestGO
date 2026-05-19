@@ -15,6 +15,10 @@ import {
 } from '../../shared/errors';
 import { formatShortDateInAppTimezone } from '../../shared/date-time';
 import { createNotifications } from '../../shared/notifications';
+import {
+  sendPickupRequestCreatedOperationalEmail,
+  sendPickupRequestStatusOperationalEmail,
+} from '../../shared/operational-emails';
 
 const pickupPartnerSelect = {
   id: true,
@@ -316,6 +320,20 @@ export default async function pickupRequestRoutes(fastify: FastifyInstance) {
         },
       ]);
 
+      try {
+        await sendPickupRequestCreatedOperationalEmail(fastify, {
+          collectionPointUserId: pickupRequest.collectionPoint.id,
+          ngoUserId: pickupRequest.ngo.id,
+          ngoName: pickupRequest.ngo.organizationName ?? pickupRequest.ngo.name,
+          pickupCode: pickupRequest.id.substring(0, 8).toUpperCase(),
+        });
+      } catch (smtpErr) {
+        fastify.log.warn(
+          { err: smtpErr, pickupRequestId: pickupRequest.id },
+          'Falha no envio de e-mail de solicitacao de retirada',
+        );
+      }
+
       return reply.code(201).send(mapPickupRequest(pickupRequest));
     } catch (err) {
       if (err instanceof AppError) {
@@ -401,6 +419,22 @@ export default async function pickupRequestRoutes(fastify: FastifyInstance) {
           },
         },
       ]);
+
+      try {
+        await sendPickupRequestStatusOperationalEmail(fastify, {
+          ngoUserId: updated.ngo.id,
+          collectionPointUserId: updated.collectionPoint.id,
+          collectionPointName:
+            updated.collectionPoint.organizationName ?? updated.collectionPoint.name,
+          pickupCode: updated.id.substring(0, 8).toUpperCase(),
+          status: updated.status === PickupRequestStatus.APPROVED ? 'ACCEPTED' : 'REJECTED',
+        });
+      } catch (smtpErr) {
+        fastify.log.warn(
+          { err: smtpErr, pickupRequestId: updated.id },
+          'Falha no envio de e-mail de status de retirada',
+        );
+      }
 
       return reply.send(mapPickupRequest(updated));
     } catch (err) {

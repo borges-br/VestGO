@@ -14,6 +14,8 @@ import {
   accountDeletedTemplate,
   accountDeletionRequestTemplate,
   emailVerificationTemplate,
+  passwordResetTemplate,
+  passwordChangedTemplate,
 } from '../../shared/email-templates';
 import { getWebPublicUrl, sendEmail } from '../../shared/email';
 import { normalizeBrazilianPhone } from '../../shared/phone';
@@ -191,6 +193,15 @@ const emailVerificationSchema = z.object({
   token: z.string().trim().min(1, 'Link invalido'),
 });
 
+const requestPasswordResetSchema = z.object({
+  email: z.string().email('E-mail invalido'),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1, 'Token e obrigatorio'),
+  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+});
+
 async function consumeRecoveryCode(
   fastify: FastifyInstance,
   twoFactorId: string,
@@ -323,8 +334,24 @@ function getAccountDeletionExpiresMinutes() {
   return Math.min(Math.floor(parsed), 7 * 24 * 60);
 }
 
+function getPasswordResetExpiresMinutes() {
+  const parsed = Number(process.env.PASSWORD_RESET_EXPIRES_MINUTES ?? 60);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 60;
+  }
+
+  return Math.min(Math.floor(parsed), 24 * 60);
+}
+
 function buildAccountDeletionUrl(token: string) {
   const url = new URL('/encerrar-conta', getWebPublicUrl());
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+function buildPasswordResetUrl(token: string) {
+  const url = new URL('/redefinir-senha', getWebPublicUrl());
   url.searchParams.set('token', token);
   return url.toString();
 }
@@ -951,6 +978,153 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
 
       return reply.code(200).send({ user: safeUser(user) });
+    } catch (err) {
+      return handleErrors(reply, err);
+    }
+  });
+
+  fastify.post('/request-password-reset', async (request, reply) => {
+    try {
+      const ipAllowed = await rateLimit(fastify, request, 'request-password-reset-ip', 5, 60);
+      if (!ipAllowed) return tooManyAttempts(reply);
+
+      const body = requestPasswordResetSchema.parse(request.body);
+
+      const emailAllowed = await rateLimitByKey(
+        fastify,
+        'request-password-reset-email',
+        body.email,
+        3,
+        60,
+      );
+      if (!emailAllowed) return tooManyAttempts(reply);
+
+      const user = await fastify.prisma.user.findUnique({
+        where: { email: body.email },
+      });
+
+      const genericMessage =
+        'Se o e-mail estiver cadastrado, enviaremos instruções para redefinir sua senha.';
+
+      if (!user || user.anonymizedAt !== null) {
+        return reply.code(200).send({ message: genericMessage });
+      }
+
+      const { token } = await createUserToken({
+        prisma: fastify.prisma,
+        userId: user.id,
+        type: UserTokenType.PASSWORD_RESET,
+        expiresInMinutes: getPasswordResetExpiresMinutes(),
+      });
+
+      const actionUrl = buildPasswordResetUrl(token);
+
+      try {
+        const template = passwordResetTemplate({
+          name: user.name,
+          actionUrl,
+        });
+
+        await sendEmail({
+          to: user.email,
+          subject: template.subject,
+          html: template.html,
+          text: template.text,
+        });
+      } catch (smtpErr) {
+        fastify.log.error(
+          { err: smtpErr, userId: user.id, email: user.email },
+          'Falha no envio de e-mail de redefinicao de senha. Revogando token.',
+        );
+
+        await fastify.prisma.userToken.updateMany({
+          where: {
+            userId: user.id,
+            type: UserTokenType.PASSWORD_RESET,
+            usedAt: null,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+          },
+        });
+
+        return reply.code(503).send({
+          error: 'EMAIL_DELIVERY_UNAVAILABLE',
+          message: genericMessage,
+          statusCode: 503,
+        });
+      }
+
+      return reply.code(200).send({ message: genericMessage });
+    } catch (err) {
+      return handleErrors(reply, err);
+    }
+  });
+
+  fastify.post('/reset-password', async (request, reply) => {
+    try {
+      const body = resetPasswordSchema.parse(request.body);
+
+      const consumed = await consumeUserTokenWithDiagnostics({
+        prisma: fastify.prisma,
+        type: UserTokenType.PASSWORD_RESET,
+        token: body.token,
+      });
+
+      if (!consumed.ok) {
+        throw new UnauthorizedError('Token inválido, expirado ou já utilizado.');
+      }
+
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: consumed.userId },
+      });
+
+      ensureActiveUser(user);
+
+      const passwordHash = await bcrypt.hash(body.password, 12);
+
+      await fastify.prisma.$transaction([
+        fastify.prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash },
+        }),
+        fastify.prisma.userToken.updateMany({
+          where: {
+            userId: user.id,
+            type: UserTokenType.PASSWORD_RESET,
+            usedAt: null,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+          },
+        }),
+      ]);
+
+      await revokeAllUserSessions(fastify, user.id);
+
+      try {
+        const template = passwordChangedTemplate({
+          name: user.name,
+        });
+
+        await sendEmail({
+          to: user.email,
+          subject: template.subject,
+          html: template.html,
+          text: template.text,
+        });
+      } catch (smtpErr) {
+        fastify.log.error(
+          { err: smtpErr, userId: user.id },
+          'Falha ao enviar e-mail de aviso de senha alterada',
+        );
+      }
+
+      return reply.code(200).send({
+        message: 'Senha redefinida com sucesso. Faça login novamente.',
+      });
     } catch (err) {
       return handleErrors(reply, err);
     }
