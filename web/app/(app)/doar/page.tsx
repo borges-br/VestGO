@@ -27,7 +27,6 @@ import {
   categoryLabels,
   clampItemQuantity,
   clampPackageQuantity,
-  estimatePackagesFromItems,
   getPointAvailability,
   isCondition,
   isItemCategory,
@@ -40,6 +39,7 @@ import {
   type PackageMode,
   type StepConfig,
 } from '@/components/donations/new-donation-flow';
+import { estimatePackagesFromItems } from '@/lib/donation-package-estimator';
 
 const steps: StepConfig[] = [
   {
@@ -782,7 +782,7 @@ export default function DoarPage() {
               </div>
             )}
 
-            <div className="sticky bottom-0 z-20 -mx-6 mt-8 border-t border-gray-100 bg-white/95 px-6 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-5 backdrop-blur dark:border-white/10 dark:bg-surface-inkSoft/95 lg:static lg:-mx-8 lg:px-8 lg:pb-0">
+            <div className="sticky bottom-[calc(var(--mobile-bottom-nav-offset)+env(safe-area-inset-bottom))] z-20 -mx-6 mt-8 border-t border-gray-100 bg-white/95 px-6 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-5 backdrop-blur dark:border-white/10 dark:bg-surface-inkSoft/95 lg:static lg:-mx-8 lg:px-8 lg:pb-0">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <DonationButton
                   variant="secondary"

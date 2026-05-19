@@ -82,6 +82,12 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      setHiddenOnMobile(false);
+      return;
+    }
+
     const SCROLL_THRESHOLD = 12;
     const REVEAL_AT_TOP = 40;
     let ticking = false;
@@ -118,7 +124,7 @@ export function TopBar({ onMenuOpen, unreadCount, notifPreview, onNotifRead, onM
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl transition-transform duration-300 ease-out dark:border-white/10 dark:bg-[#0b2326]/95 dark:shadow-none md:translate-y-0 ${
+      className={`fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/95 shadow-nav backdrop-blur-xl transition-transform duration-300 ease-out dark:border-white/10 dark:bg-[#0b2326]/95 dark:shadow-none md:translate-y-0 motion-reduce:transition-none ${
         hiddenOnMobile ? '-translate-y-full' : 'translate-y-0'
       }`}
     >

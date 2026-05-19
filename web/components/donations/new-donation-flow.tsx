@@ -1189,7 +1189,7 @@ export function PackagingStep({
             <div>
               <p className="font-semibold">Ajustado manualmente</p>
               <p className="mt-1 leading-6">
-                Você alterou a sugestão automática.
+                Você alterou a sugestão automática. Pode voltar para a sugestão quando quiser.
               </p>
             </div>
           </div>

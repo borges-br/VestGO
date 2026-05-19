@@ -8,7 +8,9 @@
   :root {
     color-scheme: light;
     --topbar-height: 4.5rem;
-    --mobile-nav-height: 5.25rem;
+    --mobile-bottom-nav-height: 4.5rem;
+    --mobile-nav-height: var(--mobile-bottom-nav-height);
+    --mobile-bottom-nav-offset: var(--mobile-bottom-nav-height);
 
     /* dark-mode tokens (used via the .dark class) */
     --vg-bg: #f2f4f5;
@@ -56,7 +58,9 @@
   @media (min-width: 768px) {
     :root {
       --topbar-height: 5rem;
+      --mobile-bottom-nav-height: 0rem;
       --mobile-nav-height: 0rem;
+      --mobile-bottom-nav-offset: 0rem;
     }
   }
 }
