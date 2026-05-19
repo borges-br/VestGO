@@ -268,7 +268,7 @@ export default function DoarPage() {
 
     if (selectionApplied) {
       setSelectionFeedback(
-        cameFromPointProfile ? null : 'Ponto selecionado. Você poderá revisar antes de finalizar.',
+        cameFromPointProfile ? null : 'Ponto selecionado. Voce podera revisar antes de finalizar.',
       );
     }
 
@@ -655,7 +655,7 @@ export default function DoarPage() {
       <div className="mx-auto max-w-shell space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doação</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doacao</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper dark:text-white sm:text-4xl">
               Registrar uma nova doação
             </h1>
@@ -678,7 +678,13 @@ export default function DoarPage() {
           <section className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
             {showPreselectedPointNotice && currentStep < 2 && (
               <div className="mb-5 rounded-[1.5rem] border border-primary/15 bg-primary-light/45 px-4 py-3 text-sm text-primary-deeper dark:border-primary/30 dark:bg-primary/10 dark:text-primary-muted">
-                Ponto selecionado{selectedPointLabel ? `: ${selectedPointLabel}` : ''}. Agora informe os itens da doação.
+                Ponto selecionado{selectedPointLabel ? `: ${selectedPointLabel}` : ''}. Agora informe os itens da doacao.
+              </div>
+            )}
+
+            {selectionFeedback && currentStep === 2 && (
+              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+                {selectionFeedback}
               </div>
             )}
 
