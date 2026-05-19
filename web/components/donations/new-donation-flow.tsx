@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Apple,
@@ -16,7 +16,7 @@ import {
   Info,
   Layers,
   Loader2,
-  Map,
+  Map as MapIcon,
   MapPin,
   Minus,
   Package,
@@ -26,7 +26,6 @@ import {
   ShoppingBag,
   Sparkles,
   Trash2,
-  Truck,
   type LucideIcon,
 } from 'lucide-react';
 import type {
@@ -84,7 +83,7 @@ export const categoryOptions: CategoryOption[] = [
   {
     id: 'CLOTHING',
     label: 'Roupas',
-    hint: 'Camisetas, calcas, casacos e pecas infantis',
+    hint: 'Camisetas, calças, casacos e peças infantis',
     icon: Shirt,
     tone: {
       iconBg: 'bg-primary-light',
@@ -95,8 +94,8 @@ export const categoryOptions: CategoryOption[] = [
   },
   {
     id: 'SHOES',
-    label: 'Calcados',
-    hint: 'Tenis, sapatos e chinelos em pares',
+    label: 'Calçados',
+    hint: 'Tênis, sapatos e chinelos em pares',
     icon: Footprints,
     tone: {
       iconBg: 'bg-accent-oliveSoft',
@@ -107,8 +106,8 @@ export const categoryOptions: CategoryOption[] = [
   },
   {
     id: 'ACCESSORIES',
-    label: 'Acessorios',
-    hint: 'Cintos, lencos, gorros e cachecois',
+    label: 'Acessórios',
+    hint: 'Cintos, lenços, gorros e cachecóis',
     icon: Sparkles,
     tone: {
       iconBg: 'bg-violet-50',
@@ -120,7 +119,7 @@ export const categoryOptions: CategoryOption[] = [
   {
     id: 'BAGS',
     label: 'Bolsas',
-    hint: 'Mochilas, bolsas e necessaires',
+    hint: 'Mochilas, bolsas e nécessaires',
     icon: ShoppingBag,
     tone: {
       iconBg: 'bg-orange-50',
@@ -144,7 +143,7 @@ export const categoryOptions: CategoryOption[] = [
   {
     id: 'FOOD',
     label: 'Alimentos',
-    hint: 'Nao pereciveis dentro da validade',
+    hint: 'Não perecíveis dentro da validade',
     icon: Apple,
     tone: {
       iconBg: 'bg-yellow-50',
@@ -169,8 +168,8 @@ export const categoryOptions: CategoryOption[] = [
 
 export const categoryLabels: Record<ItemCategory, string> = {
   CLOTHING: 'Roupas',
-  SHOES: 'Calcados',
-  ACCESSORIES: 'Acessorios',
+  SHOES: 'Calçados',
+  ACCESSORIES: 'Acessórios',
   BAGS: 'Bolsas',
   TOYS: 'Brinquedos',
   FOOD: 'Alimentos',
@@ -184,7 +183,7 @@ export const conditionOptions: Array<{
 }> = [
   {
     id: 'EXCELLENT',
-    label: 'Em otimo estado',
+    label: 'Em ótimo estado',
     description: 'Prontas para uso imediato.',
   },
   {
@@ -200,22 +199,20 @@ export const packageTypeOptions: Array<{ id: DonationPackageType; label: string;
 ];
 
 export const packageSizeOptions: Array<{ id: DonationPackageSize; label: string; hint: string }> = [
-  { id: 'SMALL', label: 'Pequena', hint: 'ate 8 itens leves' },
-  { id: 'MEDIUM', label: 'Media', hint: '9 a 20 itens' },
+  { id: 'SMALL', label: 'Pequena', hint: 'até 8 itens leves' },
+  { id: 'MEDIUM', label: 'Média', hint: '9 a 20 itens' },
   { id: 'LARGE', label: 'Grande', hint: '21 a 40 itens' },
 ];
 
 const categoryVolumeFactor: Record<ItemCategory, number> = {
   CLOTHING: 1,
-  SHOES: 1.8,
-  ACCESSORIES: 0.4,
-  BAGS: 1.4,
-  TOYS: 1.6,
-  FOOD: 1.2,
-  OTHER: 1.2,
+  SHOES: 2.4,
+  ACCESSORIES: 0.35,
+  BAGS: 1.8,
+  TOYS: 2,
+  FOOD: 1.5,
+  OTHER: 1.4,
 };
-
-const rigidCategories = new Set<ItemCategory>(['SHOES', 'BAGS', 'TOYS', 'FOOD', 'OTHER']);
 
 export type PackageEstimate = {
   packages: DonationPackageDraft[];
@@ -266,7 +263,7 @@ export function formatCategoryList(categories: ItemCategory[]) {
 
 export function describeItem(item: DonationItemDraft) {
   const categoryLabel = categoryLabels[item.category] ?? item.category;
-  const conditionLabel = item.condition === 'EXCELLENT' ? 'otimo estado' : 'bom estado';
+  const conditionLabel = item.condition === 'EXCELLENT' ? 'ótimo estado' : 'bom estado';
   return `${item.quantity} ${categoryLabel.toLocaleLowerCase('pt-BR')} (${conditionLabel})`;
 }
 
@@ -281,68 +278,266 @@ export function describePackages(packages: DonationPackageDraft[]) {
   return packages.map(describePackage).join(' + ');
 }
 
-function makeAutoPackage(
-  type: DonationPackageType,
-  size: DonationPackageSize,
-  quantity: number,
-  index: number,
-): DonationPackageDraft {
+type PackingGroup = 'SOFT' | 'SHOES' | 'TOYS' | 'FOOD' | 'OTHER';
+
+type PackageKey =
+  | 'BAG_SMALL'
+  | 'BAG_MEDIUM'
+  | 'BAG_LARGE'
+  | 'BOX_SMALL'
+  | 'BOX_MEDIUM'
+  | 'BOX_LARGE';
+
+type PackageSuggestion = {
+  key: PackageKey;
+  type: DonationPackageType;
+  size: DonationPackageSize;
+  quantity: number;
+};
+
+type PackingGroupInput = {
+  group: PackingGroup;
+  categories: ItemCategory[];
+  quantity: number;
+  units: number;
+};
+
+const packingGroupOrder: PackingGroup[] = ['SOFT', 'SHOES', 'TOYS', 'FOOD', 'OTHER'];
+
+const packageKeyOrder: PackageKey[] = [
+  'BAG_SMALL',
+  'BAG_MEDIUM',
+  'BAG_LARGE',
+  'BOX_SMALL',
+  'BOX_MEDIUM',
+  'BOX_LARGE',
+];
+
+const packageCapacity: Record<PackageKey, number> = {
+  BAG_SMALL: 6,
+  BAG_MEDIUM: 14,
+  BAG_LARGE: 28,
+  BOX_SMALL: 8,
+  BOX_MEDIUM: 20,
+  BOX_LARGE: 36,
+};
+
+const packageMeta: Record<PackageKey, { type: DonationPackageType; size: DonationPackageSize }> = {
+  BAG_SMALL: { type: 'BAG', size: 'SMALL' },
+  BAG_MEDIUM: { type: 'BAG', size: 'MEDIUM' },
+  BAG_LARGE: { type: 'BAG', size: 'LARGE' },
+  BOX_SMALL: { type: 'BOX', size: 'SMALL' },
+  BOX_MEDIUM: { type: 'BOX', size: 'MEDIUM' },
+  BOX_LARGE: { type: 'BOX', size: 'LARGE' },
+};
+
+function getPackingGroup(category: ItemCategory): PackingGroup {
+  if (category === 'CLOTHING' || category === 'ACCESSORIES' || category === 'BAGS') return 'SOFT';
+  if (category === 'SHOES') return 'SHOES';
+  if (category === 'TOYS') return 'TOYS';
+  if (category === 'FOOD') return 'FOOD';
+  return 'OTHER';
+}
+
+function buildPackingGroups(items: DonationItemDraft[]): PackingGroupInput[] {
+  const groups = new Map<PackingGroup, PackingGroupInput>();
+
+  items.forEach((item) => {
+    const group = getPackingGroup(item.category);
+    const current = groups.get(group) ?? {
+      group,
+      categories: [],
+      quantity: 0,
+      units: 0,
+    };
+
+    if (!current.categories.includes(item.category)) {
+      current.categories.push(item.category);
+    }
+
+    current.quantity += item.quantity;
+    current.units += item.quantity * categoryVolumeFactor[item.category];
+    groups.set(group, current);
+  });
+
+  return packingGroupOrder.flatMap((group) => {
+    const input = groups.get(group);
+    return input ? [input] : [];
+  });
+}
+
+function makeSuggestion(key: PackageKey, quantity = 1): PackageSuggestion {
   return {
-    id: `auto-${index}-${type}-${size}`,
-    type,
-    size,
+    key,
+    ...packageMeta[key],
     quantity,
   };
 }
 
+function mergeEqualPackages(suggestions: PackageSuggestion[]): PackageSuggestion[] {
+  const merged = new Map<PackageKey, PackageSuggestion>();
+
+  suggestions.forEach((suggestion) => {
+    const current = merged.get(suggestion.key);
+    if (current) {
+      current.quantity += suggestion.quantity;
+      return;
+    }
+
+    merged.set(suggestion.key, { ...suggestion });
+  });
+
+  return packageKeyOrder.flatMap((key) => {
+    const suggestion = merged.get(key);
+    return suggestion ? [suggestion] : [];
+  });
+}
+
+function findSmallestPackageKey(units: number, keys: PackageKey[]) {
+  return [...keys]
+    .sort((left, right) => packageCapacity[left] - packageCapacity[right])
+    .find((key) => units <= packageCapacity[key]) ?? keys[0];
+}
+
+function packGreedy(units: number, keys: PackageKey[]): PackageSuggestion[] {
+  let remaining = Math.max(0, Math.ceil(units));
+  const suggestions: PackageSuggestion[] = [];
+  const sortedKeys = [...keys].sort((left, right) => packageCapacity[right] - packageCapacity[left]);
+
+  sortedKeys.forEach((key) => {
+    const capacity = packageCapacity[key];
+    const quantity = Math.floor(remaining / capacity);
+
+    if (quantity <= 0) return;
+
+    suggestions.push(makeSuggestion(key, quantity));
+    remaining -= quantity * capacity;
+  });
+
+  if (remaining > 0) {
+    suggestions.push(makeSuggestion(findSmallestPackageKey(remaining, keys)));
+  }
+
+  return mergeEqualPackages(suggestions);
+}
+
+function packByCount(count: number, capacities: Array<{ key: PackageKey; capacity: number }>): PackageSuggestion[] {
+  let remaining = Math.max(0, count);
+  const suggestions: PackageSuggestion[] = [];
+
+  capacities.forEach(({ key, capacity }) => {
+    const quantity = Math.floor(remaining / capacity);
+    if (quantity <= 0) return;
+
+    suggestions.push(makeSuggestion(key, quantity));
+    remaining -= quantity * capacity;
+  });
+
+  if (remaining > 0) {
+    const smallest = [...capacities]
+      .sort((left, right) => left.capacity - right.capacity)
+      .find(({ capacity }) => remaining <= capacity) ?? capacities[capacities.length - 1];
+    suggestions.push(makeSuggestion(smallest.key));
+  }
+
+  return mergeEqualPackages(suggestions);
+}
+
+function estimateGroupPackages(group: PackingGroupInput): PackageSuggestion[] {
+  const units = Math.max(1, Math.ceil(group.units));
+
+  if (group.group === 'SOFT') {
+    if (units <= 6) return [makeSuggestion('BAG_SMALL')];
+    if (units <= 14) return [makeSuggestion('BAG_MEDIUM')];
+    if (units <= 28) return [makeSuggestion('BAG_LARGE')];
+    return packGreedy(units, ['BAG_LARGE', 'BAG_MEDIUM', 'BAG_SMALL']);
+  }
+
+  if (group.group === 'SHOES') {
+    if (group.quantity <= 2) return [makeSuggestion('BOX_SMALL')];
+    if (group.quantity <= 6) return [makeSuggestion('BOX_MEDIUM')];
+    if (group.quantity <= 10) return [makeSuggestion('BOX_LARGE')];
+    return packByCount(group.quantity, [
+      { key: 'BOX_LARGE', capacity: 10 },
+      { key: 'BOX_MEDIUM', capacity: 6 },
+      { key: 'BOX_SMALL', capacity: 2 },
+    ]);
+  }
+
+  if (group.group === 'TOYS') {
+    if (group.quantity <= 4) return [makeSuggestion('BOX_SMALL')];
+    if (group.quantity <= 10) return [makeSuggestion('BOX_MEDIUM')];
+    return packGreedy(units, ['BOX_LARGE', 'BOX_MEDIUM', 'BOX_SMALL']);
+  }
+
+  if (group.group === 'FOOD') {
+    if (units <= 6) return [makeSuggestion('BOX_SMALL')];
+    if (units <= 16) return [makeSuggestion('BOX_MEDIUM')];
+    return packGreedy(units, ['BOX_LARGE', 'BOX_MEDIUM', 'BOX_SMALL']);
+  }
+
+  if (units <= 8) return [makeSuggestion('BOX_SMALL')];
+  if (units <= 20) return [makeSuggestion('BOX_MEDIUM')];
+  return packGreedy(units, ['BOX_LARGE', 'BOX_MEDIUM', 'BOX_SMALL']);
+}
+
+function toDonationPackageDraft(suggestion: PackageSuggestion, index: number): DonationPackageDraft {
+  return {
+    id: `auto-${index}-${suggestion.type}-${suggestion.size}`,
+    type: suggestion.type,
+    size: suggestion.size,
+    quantity: suggestion.quantity,
+  };
+}
+
+function buildPackagingExplanation(groups: PackingGroupInput[]) {
+  if (groups.length === 0) return 'Escolha os itens para receber uma sugestão.';
+
+  const groupSet = new Set(groups.map((group) => group.group));
+  const notes: string[] = [];
+
+  if (groupSet.has('FOOD') && groups.length > 1) {
+    notes.push('Alimentos vão separados dos demais itens.');
+  }
+
+  if (groupSet.has('SHOES') && groupSet.has('SOFT')) {
+    notes.push('Separamos calçados das roupas para facilitar a entrega e a triagem.');
+  } else if (groupSet.has('SHOES')) {
+    notes.push('Calçados seguem em caixa para facilitar a organização por pares.');
+  }
+
+  if (groupSet.has('TOYS') && groups.length > 1) {
+    notes.push('Brinquedos seguem em caixa separada para proteger os itens.');
+  }
+
+  if (notes.length > 0) return notes.join(' ');
+
+  return groupSet.has('SOFT')
+    ? 'Itens flexíveis costumam ficar bem acomodados em sacolas.'
+    : 'Sugerimos caixas para proteger melhor estes itens.';
+}
+
 export function estimatePackagesFromItems(items: DonationItemDraft[]): PackageEstimate {
+  const groups = buildPackingGroups(items);
   const estimatedUnits = items.reduce(
     (sum, item) => sum + item.quantity * categoryVolumeFactor[item.category],
     0,
   );
-  const rigidUnits = items.reduce(
-    (sum, item) => sum + (rigidCategories.has(item.category) ? item.quantity * categoryVolumeFactor[item.category] : 0),
-    0,
-  );
   const roundedUnits = Math.max(1, Math.ceil(estimatedUnits));
-  const prefersBox = rigidUnits >= estimatedUnits / 2 || items.some((item) => rigidCategories.has(item.category) && item.quantity >= 3);
-
-  let packages: DonationPackageDraft[];
-
-  if (roundedUnits <= 8) {
-    packages = [makeAutoPackage(prefersBox ? 'BOX' : 'BAG', 'SMALL', 1, 0)];
-  } else if (roundedUnits <= 20) {
-    packages = [makeAutoPackage(prefersBox ? 'BOX' : 'BAG', prefersBox ? 'SMALL' : 'MEDIUM', 1, 0)];
-  } else if (roundedUnits <= 40) {
-    packages = [makeAutoPackage('BOX', 'MEDIUM', 1, 0)];
-  } else {
-    const largeBoxes = Math.floor(roundedUnits / 60);
-    const remainder = roundedUnits % 60;
-    packages = [];
-
-    if (largeBoxes > 0) {
-      packages.push(makeAutoPackage('BOX', 'LARGE', largeBoxes, packages.length));
-    }
-
-    if (remainder > 40) {
-      packages.push(makeAutoPackage('BOX', 'LARGE', 1, packages.length));
-    } else if (remainder > 20) {
-      packages.push(makeAutoPackage('BOX', 'MEDIUM', 1, packages.length));
-    } else if (remainder > 8) {
-      packages.push(makeAutoPackage('BOX', 'SMALL', 1, packages.length));
-    } else if (remainder > 0 && packages.length === 0) {
-      packages.push(makeAutoPackage(prefersBox ? 'BOX' : 'BAG', 'SMALL', 1, packages.length));
-    }
-  }
+  const suggestions =
+    groups.length > 0
+      ? mergeEqualPackages(groups.flatMap(estimateGroupPackages))
+      : [makeSuggestion('BAG_SMALL')];
+  const packages = suggestions.map(toDonationPackageDraft);
+  const boxCount = suggestions.reduce((sum, suggestion) => sum + (suggestion.type === 'BOX' ? suggestion.quantity : 0), 0);
+  const bagCount = suggestions.reduce((sum, suggestion) => sum + (suggestion.type === 'BAG' ? suggestion.quantity : 0), 0);
 
   return {
     packages,
     estimatedUnits,
     roundedUnits,
-    prefersBox,
-    explanation: prefersBox
-      ? 'Itens mais rigidos ou variados costumam chegar melhor em caixa.'
-      : 'Itens leves e flexiveis costumam caber bem em sacola.',
+    prefersBox: boxCount > bagCount,
+    explanation: buildPackagingExplanation(groups),
   };
 }
 
@@ -365,9 +560,9 @@ export function getPointAvailability(
   if (point.role !== 'COLLECTION_POINT') {
     return {
       canSelect: false,
-      label: 'Indisponivel',
+      label: 'Indisponível',
       tone: 'danger',
-      reason: 'Este local nao opera como ponto de coleta.',
+      reason: 'Este local não opera como ponto de coleta.',
       missingCategories: [],
     };
   }
@@ -379,7 +574,7 @@ export function getPointAvailability(
       tone: 'warning',
       reason:
         point.donationEligibility?.message ??
-        'Este ponto ainda nao possui ONG parceira ativa.',
+        'Este ponto ainda não possui ONG parceira ativa.',
       missingCategories: [],
     };
   }
@@ -393,19 +588,19 @@ export function getPointAvailability(
   if (missingCategories.length > 0) {
     return {
       canSelect: false,
-      label: 'Nao aceita todos os itens',
+      label: 'Não aceita todos os itens',
       tone: 'warning',
       reason:
         missingCategories.length === 1
-          ? `Este ponto nao recebe ${formatCategoryList(missingCategories)}.`
-          : `Este ponto nao recebe ${formatCategoryList(missingCategories)}.`,
+          ? `Este ponto não recebe ${formatCategoryList(missingCategories)}.`
+          : `Este ponto não recebe ${formatCategoryList(missingCategories)}.`,
       missingCategories,
     };
   }
 
   return {
     canSelect: true,
-    label: 'Compativel',
+    label: 'Compatível',
     tone: 'success',
     reason: null,
     missingCategories: [],
@@ -432,6 +627,50 @@ export function sortCollectionPointsForDonation(
 
     return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
   });
+}
+
+export type PointFilterKey = 'compatible' | 'history' | 'distance';
+
+export function filterAndSortCollectionPointsForDonation({
+  points,
+  selectedCategories,
+  usedPointIds,
+  activeFilters,
+}: {
+  points: CollectionPoint[];
+  selectedCategories: ItemCategory[];
+  usedPointIds: Set<string>;
+  activeFilters: PointFilterKey[];
+}) {
+  const filterSet = new Set(activeFilters);
+  const decorated = points.map((point) => ({
+    point,
+    availability: getPointAvailability(point, selectedCategories),
+    alreadyUsed: usedPointIds.has(point.id),
+    distance: point.distanceKm ?? Number.POSITIVE_INFINITY,
+  }));
+
+  const visible = decorated.filter(({ availability, alreadyUsed }) => {
+    if (filterSet.has('compatible') && !availability.canSelect) return false;
+    if (filterSet.has('history') && !alreadyUsed) return false;
+    return true;
+  });
+
+  visible.sort((left, right) => {
+    if (left.availability.canSelect !== right.availability.canSelect) {
+      return left.availability.canSelect ? -1 : 1;
+    }
+
+    if (filterSet.has('distance') && left.distance !== right.distance) {
+      return left.distance - right.distance;
+    }
+
+    if (left.alreadyUsed !== right.alreadyUsed) return left.alreadyUsed ? -1 : 1;
+
+    return left.distance - right.distance;
+  });
+
+  return visible.map(({ point }) => point);
 }
 
 type DonationButtonProps = {
@@ -474,7 +713,7 @@ export function DonationButton({
         variant === 'ghost' &&
           'bg-transparent text-primary hover:bg-primary-light/60 disabled:cursor-not-allowed disabled:text-gray-300 dark:hover:bg-primary/10',
         variant === 'warn' &&
-          'border border-accent-amber/45 bg-white text-accent-amber hover:bg-accent-amberSoft/30 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300 dark:bg-surface-inkSoft',
+          'border border-primary/25 bg-white text-primary hover:bg-primary-light/50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300 dark:bg-surface-inkSoft',
         variant === 'danger' &&
           'bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:cursor-not-allowed disabled:text-gray-300',
         (disabled || loading) && 'cursor-not-allowed',
@@ -604,8 +843,8 @@ export function DonationSummaryCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doacao</p>
-          <h2 className="mt-2 text-xl font-bold text-primary-deeper dark:text-white">O que ja foi definido</h2>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doação</p>
+          <h2 className="mt-2 text-xl font-bold text-primary-deeper dark:text-white">O que já foi definido</h2>
         </div>
         <BadgeCheck size={20} className="text-primary" />
       </div>
@@ -637,7 +876,7 @@ export function DonationSummaryCard({
             <>
               <p className="text-sm font-medium text-on-surface dark:text-gray-100">{describePackages(packages)}</p>
               <p className="mt-2 text-xs text-gray-400">
-                {packageMode === 'AUTO' ? 'Estimativa automatica' : 'Ajustado manualmente'}
+                {packageMode === 'AUTO' ? 'Estimativa automática' : 'Ajustado manualmente'}
               </p>
             </>
           )}
@@ -651,7 +890,7 @@ export function DonationSummaryCard({
               </p>
               <p className="mt-1 text-sm text-gray-400">
                 {formatDistance(selectedPoint.distanceKm)}
-                {formatAddressSummary(selectedPoint) ?? 'Endereco nao informado'}
+                {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
               </p>
             </div>
           ) : (
@@ -660,7 +899,7 @@ export function DonationSummaryCard({
         </SummarySection>
 
         {notes.trim() && (
-          <SummarySection icon={Info} title="Observacoes">
+          <SummarySection icon={Info} title="Observações">
             <p className="text-sm leading-6 text-gray-500">{notes.trim()}</p>
           </SummarySection>
         )}
@@ -761,7 +1000,7 @@ export function ItemsStep({
             <div>
               <p className="font-semibold text-primary-deeper dark:text-white">Comece por uma categoria.</p>
               <p className="mt-1 leading-6">
-                Depois ajuste a quantidade com os botoes de mais e menos. Voce revisa tudo antes de confirmar.
+                Depois ajuste a quantidade com os botões de mais e menos. Você revisa tudo antes de confirmar.
               </p>
             </div>
           </div>
@@ -787,20 +1026,6 @@ export function ItemsStep({
           ))}
         </div>
       )}
-
-      <div className="rounded-[1.75rem] bg-primary-deeper p-5 text-white">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-primary">
-            <Info size={18} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold">Categorias e quantidades sao suficientes para comecar.</p>
-            <p className="mt-2 text-sm leading-7 text-primary-muted">
-              Se precisar, descreva detalhes da entrega na etapa de embalagem. Fotos ficam para uma proxima versao.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -886,7 +1111,7 @@ function ItemQuantityCard({
               <Plus size={16} />
             </button>
           </div>
-          <p className="mt-2 text-xs text-gray-400">Minimo 1, maximo {MAX_ITEM_QUANTITY}.</p>
+          <p className="mt-2 text-xs text-gray-400">Mínimo 1, máximo {MAX_ITEM_QUANTITY}.</p>
         </div>
 
         <button
@@ -929,8 +1154,6 @@ export function PackagingStep({
   onRemovePackage,
   onNotesChange,
 }: PackagingStepProps) {
-  const effectivePackages = packageMode === 'AUTO' ? automaticEstimate.packages : packages;
-
   return (
     <div className="space-y-5">
       {packageMode === 'AUTO' ? (
@@ -941,32 +1164,32 @@ export function PackagingStep({
               <Badge tone="white" icon={<Check size={12} strokeWidth={3} />}>Calculado automaticamente</Badge>
             </div>
             <span className="text-xs font-semibold text-primary-deeper dark:text-primary-muted">
-              {automaticEstimate.roundedUnits} unidade(s) estimadas
+              Sugerido para estes itens
             </span>
           </div>
           <div className="grid gap-5 p-5 lg:grid-cols-[140px_minmax(0,1fr)] lg:items-center">
             <VolumeIllustration prefersBox={automaticEstimate.prefersBox} />
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Estimativa automatica</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Estimativa automática</p>
               <h3 className="mt-2 text-2xl font-bold text-primary-deeper dark:text-white">
                 {describePackages(automaticEstimate.packages)}
               </h3>
               <p className="mt-3 text-sm leading-7 text-gray-500">
-                Calculamos com base nas categorias e quantidades informadas. {automaticEstimate.explanation}
+                Sugerimos com base nas categorias e quantidades informadas. {automaticEstimate.explanation}
               </p>
             </div>
           </div>
         </div>
       ) : (
-        <div className="rounded-[1.75rem] border border-accent-amber/35 bg-accent-amberSoft/35 p-5 text-sm text-amber-900">
+        <div className="rounded-[1.75rem] border border-primary/20 bg-primary-light/45 p-5 text-sm text-primary-deeper dark:bg-primary/10 dark:text-primary-muted">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-accent-amber">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-primary dark:bg-surface-inkSoft">
               <Edit3 size={18} />
             </div>
             <div>
               <p className="font-semibold">Ajustado manualmente</p>
               <p className="mt-1 leading-6">
-                Use esta opcao quando a sugestao nao combina com a embalagem real que voce vai levar.
+                Você alterou a sugestão automática.
               </p>
             </div>
           </div>
@@ -980,7 +1203,7 @@ export function PackagingStep({
           </DonationButton>
         ) : (
           <DonationButton variant="ghost" leftIcon={<RotateCcw size={16} />} onClick={onUseAuto}>
-            Voltar a estimativa automatica
+            Voltar à estimativa automática
           </DonationButton>
         )}
       </div>
@@ -1012,25 +1235,16 @@ export function PackagingStep({
 
       <div>
         <label htmlFor="donation-notes" className="mb-2 block px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-          Observacoes
+          Observações
         </label>
         <textarea
           id="donation-notes"
           rows={4}
-          placeholder="Opcional: tamanhos, itens frageis ou contexto util para o ponto de coleta."
+          placeholder="Opcional: tamanhos, itens frágeis ou algum detalhe útil para o ponto de coleta."
           value={notes}
           onChange={(event) => onNotesChange(event.target.value)}
           className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none placeholder:text-gray-400 focus:border-primary focus:bg-white dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:bg-surface-inkSoft"
         />
-      </div>
-
-      <div className="rounded-[1.75rem] bg-primary-light/45 p-5 text-sm leading-7 text-primary-deeper dark:bg-primary/10 dark:text-primary-muted">
-        <div className="flex items-start gap-3">
-          <Info size={18} className="mt-1 flex-shrink-0 text-primary" />
-          <p>
-            A embalagem informada ajuda o parceiro a se preparar para receber. Voce pode continuar com a sugestao ou ajustar manualmente.
-          </p>
-        </div>
       </div>
     </div>
   );
@@ -1198,41 +1412,85 @@ export function CollectionPointStep({
   onRetry,
   onEditItems,
 }: CollectionPointStepProps) {
+  const [activePointFilters, setActivePointFilters] = useState<PointFilterKey[]>([]);
+  const filterSet = useMemo(() => new Set(activePointFilters), [activePointFilters]);
+  const filteredPoints = useMemo(
+    () =>
+      filterAndSortCollectionPointsForDonation({
+        points,
+        selectedCategories,
+        usedPointIds,
+        activeFilters: activePointFilters,
+      }),
+    [activePointFilters, points, selectedCategories, usedPointIds],
+  );
   const availableCount = points.filter((point) => getPointAvailability(point, selectedCategories).canSelect).length;
-  const notice =
-    pointsNotice ??
-    (!pointsLoading && !pointsError && points.length > 0 && availableCount === 0
-      ? 'Nenhum local da lista aceita todos os itens selecionados. Voce pode editar os itens ou abrir o mapa para procurar em outra area.'
-      : null);
+  const hiddenIncompatibleCount = filterSet.has('compatible') ? points.length - availableCount : 0;
+  const noCompatibleMessage =
+    !pointsLoading && !pointsError && points.length > 0 && availableCount === 0
+      ? 'Nenhum local da lista aceita todos os itens selecionados. Você pode editar os itens ou abrir o mapa para procurar em outra área.'
+      : null;
+
+  function toggleFilter(filter: PointFilterKey) {
+    setActivePointFilters((current) =>
+      current.includes(filter)
+        ? current.filter((item) => item !== filter)
+        : [...current, filter],
+    );
+  }
 
   return (
     <div className="space-y-5">
-      <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-primary-deeper dark:text-white">Escolha pela lista.</p>
-            <p className="mt-2 text-sm leading-7 text-gray-500">
-              Locais que nao aceitam todos os itens continuam visiveis com o motivo.
-            </p>
-          </div>
-          <Link
-            href={mapSelectionHref}
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-primary hover:border-primary/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:border-white/10 dark:bg-surface-inkSoft"
-          >
-            <Map size={16} />
-            Abrir mapa
-          </Link>
+      <div className="flex flex-col gap-3">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          <PointFilterChip
+            label="Todos"
+            active={activePointFilters.length === 0}
+            onClick={() => setActivePointFilters([])}
+          />
+          <PointFilterChip
+            label="Mais próximos"
+            active={filterSet.has('distance')}
+            onClick={() => toggleFilter('distance')}
+          />
+          <PointFilterChip
+            label="Compatíveis"
+            active={filterSet.has('compatible')}
+            onClick={() => toggleFilter('compatible')}
+          />
+          <PointFilterChip
+            label="Já doei aqui"
+            active={filterSet.has('history')}
+            onClick={() => toggleFilter('history')}
+          />
         </div>
+        <Link
+          href={mapSelectionHref}
+          className="inline-flex min-h-12 items-center justify-center gap-2 self-start rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-primary hover:border-primary/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:border-white/10 dark:bg-surface-inkSoft"
+        >
+          <MapIcon size={16} />
+          Abrir mapa
+        </Link>
       </div>
 
       {validationMessage && <InlineAlert tone="danger" title="Escolha um ponto de coleta" message={validationMessage} />}
-      {notice && <InlineAlert tone="warning" title="Atencao" message={notice} />}
+      {pointsNotice && <InlineAlert tone="warning" title="Atenção" message={pointsNotice} />}
+      {hiddenIncompatibleCount > 0 && (
+        <p className="px-1 text-xs leading-5 text-gray-500" aria-live="polite">
+          Alguns locais foram ocultados por não aceitarem estes itens.
+        </p>
+      )}
+      {noCompatibleMessage && (
+        <p className="rounded-[1.25rem] bg-surface px-4 py-3 text-sm leading-6 text-gray-500 dark:bg-surface-ink">
+          {noCompatibleMessage}
+        </p>
+      )}
 
       {pointsLoading ? (
         <div className="space-y-3" aria-live="polite">
           <div className="flex items-center gap-3 rounded-[1.75rem] bg-surface p-5 text-sm text-gray-500 dark:bg-surface-ink">
             <Loader2 size={18} className="animate-spin text-primary" />
-            Carregando pontos de coleta proximos...
+            Carregando pontos de coleta próximos...
           </div>
           {[0, 1, 2].map((item) => (
             <div key={item} className="rounded-[1.75rem] border border-gray-100 bg-white p-5 dark:border-white/10 dark:bg-surface-ink">
@@ -1252,7 +1510,7 @@ export function CollectionPointStep({
           <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="mt-1 flex-shrink-0" />
             <div>
-              <p className="font-semibold">Nao foi possivel carregar a lista.</p>
+              <p className="font-semibold">Não foi possível carregar a lista.</p>
               <p className="mt-1 leading-6">{pointsError}</p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <DonationButton variant="secondary" onClick={onRetry}>
@@ -1276,7 +1534,7 @@ export function CollectionPointStep({
           </div>
           <h3 className="mt-4 text-lg font-bold text-primary-deeper dark:text-white">Nenhum ponto de coleta encontrado</h3>
           <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-gray-500">
-            Tente abrir o mapa para buscar em outra area ou volte para revisar as categorias.
+            Tente abrir o mapa para buscar em outra área ou volte para revisar as categorias.
           </p>
           <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
             <DonationButton variant="secondary" leftIcon={<ChevronLeft size={16} />} onClick={onEditItems}>
@@ -1291,9 +1549,24 @@ export function CollectionPointStep({
             </Link>
           </div>
         </div>
+      ) : filteredPoints.length === 0 ? (
+        <div className="rounded-[1.75rem] border border-gray-100 bg-white p-6 text-center shadow-sm dark:border-white/10 dark:bg-surface-ink">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-primary-light text-primary">
+            <MapPin size={23} />
+          </div>
+          <h3 className="mt-4 text-base font-bold text-primary-deeper dark:text-white">Nenhum ponto com esses filtros</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-gray-500">
+            Limpe os filtros ou abra o mapa para ver outras opções.
+          </p>
+          <div className="mt-5 flex justify-center">
+            <DonationButton variant="secondary" onClick={() => setActivePointFilters([])}>
+              Ver todos
+            </DonationButton>
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
-          {points.map((point) => (
+          {filteredPoints.map((point) => (
             <CollectionPointCard
               key={point.id}
               point={point}
@@ -1306,6 +1579,33 @@ export function CollectionPointStep({
         </div>
       )}
     </div>
+  );
+}
+
+function PointFilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'inline-flex min-h-10 flex-shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        active
+          ? 'border-primary bg-primary text-white'
+          : 'border-gray-200 bg-white text-gray-500 hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-surface-inkSoft',
+      )}
+    >
+      {active && <Check size={14} strokeWidth={3} />}
+      {label}
+    </button>
   );
 }
 
@@ -1366,10 +1666,10 @@ function CollectionPointCard({
                   {point.distanceKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km
                 </span>
               )}
-              {alreadyUsed && <Badge tone="primary">Ja doei aqui</Badge>}
+              {alreadyUsed && <Badge tone="primary">Já doei aqui</Badge>}
             </div>
             <p className="mt-2 text-sm text-gray-500">
-              {formatAddressSummary(point) ?? 'Endereco nao informado'}
+              {formatAddressSummary(point) ?? 'Endereço não informado'}
             </p>
             {(point.neighborhood || point.city || point.state) && (
               <p className="mt-1 text-sm text-gray-400">
@@ -1448,20 +1748,6 @@ export function ReviewStep({
 }: ReviewStepProps) {
   return (
     <div className="space-y-5">
-      <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-primary dark:bg-surface-inkSoft">
-            <Heart size={18} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-primary-deeper dark:text-white">Quase la.</p>
-            <p className="mt-1 text-sm leading-7 text-gray-500">
-              Confira as informacoes principais. Voce pode editar qualquer parte antes de confirmar.
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-2">
         <ReviewCard
           icon={Shirt}
@@ -1480,7 +1766,7 @@ export function ReviewStep({
           onEdit={() => onEditStep(1)}
           lines={[
             describePackages(packages),
-            packageMode === 'AUTO' ? 'Estimativa automatica' : 'Ajustado manualmente',
+            packageMode === 'AUTO' ? 'Estimativa automática' : 'Ajustado manualmente',
           ]}
         />
         <ReviewCard
@@ -1492,14 +1778,14 @@ export function ReviewStep({
           lines={[
             selectedPoint?.organizationName ?? selectedPoint?.name ?? 'Nenhum ponto escolhido',
             selectedPoint
-              ? `${formatDistance(selectedPoint.distanceKm)}${formatAddressSummary(selectedPoint) ?? 'Endereco nao informado'}`
+              ? `${formatDistance(selectedPoint.distanceKm)}${formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}`
               : 'Escolha um local para continuar',
           ]}
         />
         {notes.trim() && (
           <ReviewCard
             icon={Info}
-            title="Observacoes"
+            title="Observações"
             actionLabel="Editar"
             onEdit={() => onEditStep(1)}
             className="lg:col-span-2"
@@ -1518,7 +1804,7 @@ export function ReviewStep({
           className="mt-1 h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
         />
         <span className="text-sm leading-7 text-gray-500">
-          Confirmo que os itens estao limpos, em bom estado e prontos para seguir para o ponto selecionado.
+          Confirmo que os itens estão limpos, em bom estado e prontos para seguir para o ponto selecionado.
         </span>
       </label>
     </div>
@@ -1582,69 +1868,67 @@ type SuccessPanelProps = {
 };
 
 export function DonationSuccessPanel({ selectedPointName, onContinue, onViewDonations }: SuccessPanelProps) {
+  const totalSeconds = 7;
+  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
+  const elapsedPercent = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
+
+  useEffect(() => {
+    const timeout = window.setTimeout(onContinue, totalSeconds * 1000);
+    const interval = window.setInterval(() => {
+      setSecondsLeft((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, [onContinue]);
+
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-shell items-center gap-6 overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-panel lg:grid-cols-[minmax(0,1fr)_420px] lg:p-10">
-        <div>
-          <Badge tone="white" icon={<Check size={12} strokeWidth={3} />}>Doacao registrada</Badge>
-          <h1 className="mt-5 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
-            Sua doacao foi registrada com sucesso.
+      <div className="mx-auto max-w-2xl overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-panel sm:p-8">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white text-primary-deeper shadow-card">
+            <Package size={34} />
+          </div>
+          <div className="mt-5">
+            <Badge tone="white" icon={<Check size={12} strokeWidth={3} />}>Doação registrada</Badge>
+          </div>
+          <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">
+            Doação registrada com sucesso.
           </h1>
-          <p className="mt-4 max-w-xl text-base leading-8 text-primary-muted">
-            Voce acabou de transformar itens parados em ajuda real. Agora e so acompanhar a proxima etapa.
+          <p className="mt-3 text-sm leading-7 text-primary-muted">
+            Redirecionando para o rastreio em {secondsLeft} segundo{secondsLeft === 1 ? '' : 's'}...
           </p>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center gap-2 text-primary-glow">
-                <MapPin size={17} />
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em]">Destino</p>
-              </div>
-              <p className="mt-2 text-sm font-semibold">{selectedPointName ?? 'Ponto de coleta escolhido'}</p>
-            </div>
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center gap-2 text-primary-glow">
-                <Truck size={17} />
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em]">Proximo passo</p>
-              </div>
-              <p className="mt-2 text-sm font-semibold">Acompanhar o rastreio</p>
-            </div>
+          <div className="mt-6 w-full overflow-hidden rounded-full bg-white/10" aria-hidden="true">
+            <div
+              className="h-2 rounded-full bg-primary-glow transition-all duration-1000"
+              style={{ width: `${elapsedPercent}%` }}
+            />
           </div>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-6 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
             <DonationButton
               variant="primary"
               onClick={onContinue}
               rightIcon={<ChevronRight size={16} />}
               className="bg-primary-glow text-primary-deeper hover:bg-primary-muted"
             >
-              Continuar
+              Continuar agora
             </DonationButton>
             <DonationButton
               variant="secondary"
               onClick={onViewDonations}
               className="border-white/20 bg-transparent text-white hover:border-primary-muted hover:text-primary-muted dark:bg-transparent"
             >
-              Ver minhas doacoes
+              Ver minhas doações
             </DonationButton>
           </div>
-        </div>
 
-        <div className="relative min-h-[300px] overflow-hidden rounded-[1.75rem] bg-primary-dark p-6">
-          <div className="absolute left-1/2 top-1/2 h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary-muted/30 motion-safe:animate-pulse-ring" />
-          <div className="absolute left-8 top-8 text-primary-glow motion-safe:animate-float-slow">
-            <Heart size={28} fill="currentColor" />
-          </div>
-          <div className="absolute bottom-10 right-10 text-primary-muted motion-safe:animate-float-slow">
-            <Sparkles size={34} />
-          </div>
-          <div className="relative z-10 flex min-h-[252px] flex-col items-center justify-center text-center">
-            <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white text-primary-deeper shadow-card motion-safe:animate-float-slow">
-              <Package size={42} />
-            </div>
-            <p className="mt-5 max-w-xs text-sm leading-7 text-primary-muted">
-              Obrigado por fazer parte dessa corrente. O VestGO ja preparou o acompanhamento da sua entrega.
-            </p>
+          <div className="mt-5 flex items-center justify-center gap-2 text-xs text-primary-muted">
+            <MapPin size={14} />
+            <span>{selectedPointName ?? 'Ponto de coleta escolhido'}</span>
           </div>
         </div>
       </div>
@@ -1671,9 +1955,9 @@ export function NonDonorState() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
             Fluxo exclusivo para doadores
           </p>
-          <h1 className="mt-3 text-3xl font-bold text-primary-deeper dark:text-white">Seu perfil nao cria doacoes</h1>
+          <h1 className="mt-3 text-3xl font-bold text-primary-deeper dark:text-white">Seu perfil não cria doações</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-500">
-            Perfis de ponto de coleta, ONG e administracao acompanham ou operam doacoes, mas nao iniciam uma nova entrega como doadores.
+            Perfis de ponto de coleta, ONG e administração acompanham ou operam doações, mas não iniciam uma nova entrega como doadores.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
@@ -1686,7 +1970,7 @@ export function NonDonorState() {
               href="/operacoes"
               className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:border-white/10 dark:text-gray-300"
             >
-              Abrir operacoes
+              Abrir operações
             </Link>
           </div>
         </div>

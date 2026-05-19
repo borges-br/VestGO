@@ -45,26 +45,26 @@ const steps: StepConfig[] = [
   {
     eyebrow: 'Etapa 1',
     short: 'Itens',
-    title: 'O que voce quer doar?',
-    description: 'Selecione as categorias e informe quantidades seguras para cada grupo.',
+    title: 'O que você quer doar?',
+    description: 'Escolha as categorias e ajuste as quantidades. Você poderá revisar tudo antes de confirmar.',
   },
   {
     eyebrow: 'Etapa 2',
     short: 'Embalagem',
-    title: 'Como sua doacao esta embalada?',
-    description: 'Revise a estimativa automatica ou ajuste manualmente o volume que voce vai levar.',
+    title: 'Como você vai levar a doação?',
+    description: 'Sugerimos uma embalagem com base nos itens. Se precisar, você pode ajustar.',
   },
   {
     eyebrow: 'Etapa 3',
     short: 'Ponto',
     title: 'Escolha o ponto de coleta',
-    description: 'Use a lista como caminho principal. O mapa fica disponivel como apoio.',
+    description: 'Escolha um ponto próximo que receba os itens da sua doação.',
   },
   {
     eyebrow: 'Etapa 4',
-    short: 'Revisao',
-    title: 'Revisao da doacao',
-    description: 'Confira os dados principais e confirme quando estiver tudo certo.',
+    short: 'Revisão',
+    title: 'Revisão da doação',
+    description: 'Confira rapidamente e confirme para registrar sua doação.',
   },
 ];
 
@@ -227,6 +227,7 @@ export default function DoarPage() {
   const [selectionFeedback, setSelectionFeedback] = useState<string | null>(null);
   const [showPreselectedPointNotice, setShowPreselectedPointNotice] = useState(false);
   const [createdDonationId, setCreatedDonationId] = useState<string | null>(null);
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<number>>(() => new Set());
 
   useEffect(() => {
     if (status === 'authenticated' && !isDonor) {
@@ -370,7 +371,7 @@ export default function DoarPage() {
         setPointsError('Nenhum ponto de coleta foi encontrado agora.');
       }
     } catch {
-      setPointsError('Nao conseguimos carregar os pontos de coleta no momento. Tente novamente em instantes.');
+      setPointsError('Não conseguimos carregar os pontos de coleta no momento. Tente novamente em instantes.');
     } finally {
       setPointsLoading(false);
     }
@@ -397,14 +398,14 @@ export default function DoarPage() {
           setPointId('');
           setConfirmed(false);
           setShowPreselectedPointNotice(false);
-          setPointsNotice(availability.reason ?? 'Este ponto nao pode receber os itens selecionados.');
+          setPointsNotice(availability.reason ?? 'Este ponto não pode receber os itens selecionados.');
         }
       } catch {
         if (!cancelled) {
           setPointId('');
           setConfirmed(false);
           setShowPreselectedPointNotice(false);
-          setPointsNotice('O ponto escolhido anteriormente nao esta mais disponivel. Escolha outro para seguir.');
+          setPointsNotice('O ponto escolhido anteriormente não está mais disponível. Escolha outro para seguir.');
         }
       }
     }
@@ -425,7 +426,7 @@ export default function DoarPage() {
     setPointId('');
     setConfirmed(false);
     setShowPreselectedPointNotice(false);
-    setPointsNotice(availability.reason ?? 'O ponto escolhido nao pode receber os itens selecionados.');
+    setPointsNotice(availability.reason ?? 'O ponto escolhido não pode receber os itens selecionados.');
   }, [pointId, selectedCategories, selectedPoint]);
 
   const stepValidation = getStepValidation({
@@ -439,13 +440,13 @@ export default function DoarPage() {
     confirmed,
   });
 
-  const canContinue = !stepValidation && !loading;
+  const visibleValidationMessage = attemptedSteps.has(currentStep) ? stepValidation : null;
   const step = steps[currentStep];
 
   if (status === 'loading' || !draftReady) {
     return (
       <LoadingDonationState
-        label={status === 'loading' ? 'Carregando permissao de acesso...' : 'Recuperando seu rascunho da doacao...'}
+        label={status === 'loading' ? 'Carregando permissão de acesso...' : 'Recuperando seu rascunho da doação...'}
       />
     );
   }
@@ -481,8 +482,15 @@ export default function DoarPage() {
     setTimeout(scrollToStepTop, 50);
   }
 
+  function markStepAttempted(stepIndex: number) {
+    setAttemptedSteps((current) => new Set(current).add(stepIndex));
+  }
+
   function handleNext() {
-    if (stepValidation || currentStep === steps.length - 1) return;
+    if (stepValidation || currentStep === steps.length - 1) {
+      markStepAttempted(currentStep);
+      return;
+    }
     goToStep(currentStep + 1);
   }
 
@@ -572,7 +580,7 @@ export default function DoarPage() {
   function selectPoint(point: CollectionPoint) {
     const availability = getPointAvailability(point, selectedCategories);
     if (!availability.canSelect) {
-      setPointsNotice(availability.reason ?? 'Este ponto nao pode receber os itens selecionados.');
+      setPointsNotice(availability.reason ?? 'Este ponto não pode receber os itens selecionados.');
       return;
     }
 
@@ -580,7 +588,7 @@ export default function DoarPage() {
     setConfirmed(false);
     setPointsNotice(null);
     setPointsError(null);
-    setSelectionFeedback('Ponto selecionado. Voce podera trocar antes de confirmar.');
+    setSelectionFeedback('Ponto selecionado. Você poderá trocar antes de confirmar.');
     setShowPreselectedPointNotice(false);
   }
 
@@ -597,12 +605,13 @@ export default function DoarPage() {
     });
 
     if (reviewValidation) {
-      setSubmitError(reviewValidation);
+      markStepAttempted(3);
+      setSubmitError(null);
       return;
     }
 
     if (!session?.user?.accessToken || !selectedPoint) {
-      setSubmitError('Sua sessao expirou. Entre novamente para confirmar a doacao.');
+      setSubmitError('Sua sessão expirou. Entre novamente para confirmar a doação.');
       return;
     }
 
@@ -635,7 +644,7 @@ export default function DoarPage() {
 
       setCreatedDonationId(donation.id);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Nao foi possivel registrar a doacao.');
+      setSubmitError(error instanceof Error ? error.message : 'Não foi possível registrar a doação.');
     } finally {
       setLoading(false);
     }
@@ -648,10 +657,10 @@ export default function DoarPage() {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doacao</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper dark:text-white sm:text-4xl">
-              Registrar uma nova doacao
+              Registrar uma nova doação
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
-              Um fluxo simples para organizar itens, embalagem e ponto de coleta com dados reais.
+              Vamos te ajudar a preparar sua doação e escolher onde entregar.
             </p>
           </div>
         </div>
@@ -679,6 +688,12 @@ export default function DoarPage() {
               </div>
             )}
 
+            {selectionFeedback && currentStep === 2 && (
+              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+                {selectionFeedback}
+              </div>
+            )}
+
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{step.eyebrow}</p>
@@ -696,7 +711,7 @@ export default function DoarPage() {
                 items={items}
                 totalItems={totalItems}
                 uniqueCategories={uniqueCategories}
-                validationMessage={stepValidation}
+                validationMessage={visibleValidationMessage}
                 onToggleCategory={toggleCategory}
                 onUpdateItem={updateItem}
                 onRemoveItem={removeItem}
@@ -709,7 +724,7 @@ export default function DoarPage() {
                 automaticEstimate={automaticEstimate}
                 packages={packages}
                 notes={notes}
-                validationMessage={stepValidation}
+                validationMessage={visibleValidationMessage}
                 onUseAuto={useAutomaticPackaging}
                 onStartManual={startManualPackaging}
                 onUpdatePackage={updatePackage}
@@ -729,7 +744,7 @@ export default function DoarPage() {
                 selectedCategories={selectedCategories}
                 usedPointIds={usedPointIds}
                 mapSelectionHref={mapSelectionHref}
-                validationMessage={stepValidation}
+                validationMessage={visibleValidationMessage}
                 onSelectPoint={selectPoint}
                 onRetry={loadDonationContext}
                 onEditItems={() => goToStep(0)}
@@ -746,7 +761,7 @@ export default function DoarPage() {
                 totalItems={totalItems}
                 uniqueCategories={uniqueCategories}
                 confirmed={confirmed}
-                validationMessage={stepValidation}
+                validationMessage={visibleValidationMessage}
                 onEditStep={goToStep}
                 onConfirmedChange={setConfirmed}
               />
@@ -762,20 +777,7 @@ export default function DoarPage() {
             )}
 
             <div className="sticky bottom-0 z-20 -mx-6 mt-8 border-t border-gray-100 bg-white/95 px-6 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-5 backdrop-blur dark:border-white/10 dark:bg-surface-inkSoft/95 lg:static lg:-mx-8 lg:px-8 lg:pb-0">
-              <div className="xl:hidden">
-                <DonationSummaryCard
-                  items={items}
-                  packages={effectivePackages}
-                  notes={notes}
-                  selectedPoint={selectedPoint}
-                  packageMode={packageMode}
-                  totalItems={totalItems}
-                  uniqueCategories={uniqueCategories}
-                  compact
-                />
-              </div>
-
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <DonationButton
                   variant="secondary"
                   leftIcon={currentStep === 0 ? undefined : <ChevronLeft size={16} />}
@@ -786,15 +788,15 @@ export default function DoarPage() {
                 </DonationButton>
 
                 <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                  {stepValidation && (
+                  {visibleValidationMessage && (
                     <p className="max-w-md text-xs leading-5 text-gray-500" aria-live="polite">
-                      {stepValidation}
+                      {visibleValidationMessage}
                     </p>
                   )}
                   {currentStep < steps.length - 1 ? (
                     <DonationButton
                       onClick={handleNext}
-                      disabled={!canContinue}
+                      disabled={loading}
                       rightIcon={<ChevronRight size={16} />}
                       full
                       className="sm:w-auto"
@@ -804,13 +806,13 @@ export default function DoarPage() {
                   ) : (
                     <DonationButton
                       onClick={handleConfirm}
-                      disabled={!canContinue || !session?.user?.accessToken}
+                      disabled={loading || !session?.user?.accessToken}
                       loading={loading}
                       rightIcon={<ChevronRight size={16} />}
                       full
                       className="sm:w-auto"
                     >
-                      {loading ? 'Registrando doacao...' : 'Confirmar doacao'}
+                      {loading ? 'Registrando doação...' : 'Confirmar doação'}
                     </DonationButton>
                   )}
                 </div>
@@ -886,12 +888,12 @@ function getStepValidation({
     }
 
     if (selectedPointAvailability?.canSelect !== true) {
-      return selectedPointAvailability?.reason ?? 'Escolha um ponto compativel com os itens selecionados.';
+      return selectedPointAvailability?.reason ?? 'Escolha um ponto compatível com os itens selecionados.';
     }
   }
 
   if (currentStep >= 3 && !confirmed) {
-    return 'Confirme que os itens estao prontos para seguir ao ponto selecionado.';
+    return 'Confirme que os itens estão prontos para seguir ao ponto selecionado.';
   }
 
   return null;
