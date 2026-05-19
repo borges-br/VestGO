@@ -855,6 +855,15 @@ export function OperationalBatchesPanel({
         )}
       </div>
       </section>
+
+      <button
+        type="button"
+        onClick={() => setScannerOpen(true)}
+        aria-label="Escanear etiqueta operacional"
+        className="fixed bottom-24 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-primary-deeper text-white shadow-fab transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 md:bottom-7 md:right-7 md:h-12 md:w-12"
+      >
+        <ScanLine size={22} aria-hidden />
+      </button>
     </>
   );
 }

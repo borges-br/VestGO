@@ -4,6 +4,11 @@ import { getWebPublicUrl, sendEmail } from './email';
 import {
   donationRegisteredTemplate,
   donationStatusTemplate,
+  partnershipRequestTemplate,
+  partnershipStatusTemplate,
+  pickupRequestCreatedTemplate,
+  pickupRequestStatusTemplate,
+  operationalBatchStatusTemplate,
   type EmailTemplate,
 } from './email-templates';
 
@@ -170,6 +175,173 @@ export async function sendDonationStatusOperationalEmail(
       actionUrl: buildTrackingUrl(input.donationId),
       pointsLabel,
       ...content,
+    }),
+  });
+}
+
+export async function sendPartnershipRequestOperationalEmail(
+  fastify: FastifyInstance,
+  input: {
+    ngoUserId: string;
+    collectionPointUserId: string;
+    collectionPointName: string;
+  },
+) {
+  if (input.ngoUserId === input.collectionPointUserId) {
+    return;
+  }
+
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: input.ngoUserId },
+    select: { name: true },
+  });
+
+  if (!user) return;
+
+  const actionUrl = new URL('/parcerias', getWebPublicUrl()).toString();
+
+  await sendOperationalEmail(fastify, {
+    userId: input.ngoUserId,
+    templateType: 'partnership_request',
+    template: partnershipRequestTemplate({
+      ngoName: user.name,
+      collectionPointName: input.collectionPointName,
+      actionUrl,
+    }),
+  });
+}
+
+export async function sendPartnershipStatusOperationalEmail(
+  fastify: FastifyInstance,
+  input: {
+    collectionPointUserId: string;
+    ngoUserId: string;
+    ngoName: string;
+    status: 'APPROVED' | 'REJECTED';
+  },
+) {
+  if (input.ngoUserId === input.collectionPointUserId) {
+    return;
+  }
+
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: input.collectionPointUserId },
+    select: { name: true },
+  });
+
+  if (!user) return;
+
+  const actionUrl = new URL('/parcerias', getWebPublicUrl()).toString();
+
+  await sendOperationalEmail(fastify, {
+    userId: input.collectionPointUserId,
+    templateType: `partnership_status_${input.status.toLowerCase()}`,
+    template: partnershipStatusTemplate({
+      collectionPointName: user.name,
+      ngoName: input.ngoName,
+      status: input.status,
+      actionUrl,
+    }),
+  });
+}
+
+export async function sendPickupRequestCreatedOperationalEmail(
+  fastify: FastifyInstance,
+  input: {
+    collectionPointUserId: string;
+    ngoUserId: string;
+    ngoName: string;
+    pickupCode: string;
+  },
+) {
+  if (input.ngoUserId === input.collectionPointUserId) {
+    return;
+  }
+
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: input.collectionPointUserId },
+    select: { name: true },
+  });
+
+  if (!user) return;
+
+  const actionUrl = new URL('/retiradas', getWebPublicUrl()).toString();
+
+  await sendOperationalEmail(fastify, {
+    userId: input.collectionPointUserId,
+    templateType: 'pickup_request_created',
+    template: pickupRequestCreatedTemplate({
+      collectionPointName: user.name,
+      ngoName: input.ngoName,
+      pickupCode: input.pickupCode,
+      actionUrl,
+    }),
+  });
+}
+
+export async function sendPickupRequestStatusOperationalEmail(
+  fastify: FastifyInstance,
+  input: {
+    ngoUserId: string;
+    collectionPointUserId: string;
+    collectionPointName: string;
+    pickupCode: string;
+    status: 'ACCEPTED' | 'REJECTED';
+  },
+) {
+  if (input.ngoUserId === input.collectionPointUserId) {
+    return;
+  }
+
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: input.ngoUserId },
+    select: { name: true },
+  });
+
+  if (!user) return;
+
+  const actionUrl = new URL('/retiradas', getWebPublicUrl()).toString();
+
+  await sendOperationalEmail(fastify, {
+    userId: input.ngoUserId,
+    templateType: `pickup_request_status_${input.status.toLowerCase()}`,
+    template: pickupRequestStatusTemplate({
+      ngoName: user.name,
+      collectionPointName: input.collectionPointName,
+      pickupCode: input.pickupCode,
+      status: input.status,
+      actionUrl,
+    }),
+  });
+}
+
+export async function sendOperationalBatchStatusOperationalEmail(
+  fastify: FastifyInstance,
+  input: {
+    userId: string;
+    batchCode: string;
+    statusLabel: string;
+    statusMessage: string;
+  },
+) {
+  const user = await fastify.prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { name: true },
+  });
+
+  if (!user) return;
+
+  const actionUrl = new URL('/lotes', getWebPublicUrl()).toString();
+
+  await sendOperationalEmail(fastify, {
+    userId: input.userId,
+    templateType: 'operational_batch_status',
+    template: operationalBatchStatusTemplate({
+      name: user.name,
+      batchCode: input.batchCode,
+      statusLabel: input.statusLabel,
+      statusMessage: input.statusMessage,
+      actionUrl,
     }),
   });
 }

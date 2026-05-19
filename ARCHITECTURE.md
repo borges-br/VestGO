@@ -242,7 +242,7 @@ Lista derivada diretamente do código (`grep` em `api/src/modules`).
 - `POST /auth/account-deletion/confirm`
 - `POST /auth/request-account-deletion` (autenticado, alias mantido para compatibilidade)
 
-> **Pendentes (chamados pelo frontend, mas ainda sem rota no backend)**: `POST /auth/request-password-reset` e `POST /auth/reset-password`. O template `passwordResetTemplate` já existe em `api/src/shared/email-templates.ts` e o utilitário `UserToken` (tipo `PASSWORD_RESET`) também — o que falta é criar as duas rotas e disparar o e-mail.
+> **Implementado**: `POST /auth/request-password-reset` e `POST /auth/reset-password` no backend em `api/src/modules/auth/auth.ts`, conectados aos templates de e-mail e tratamento seguro de SMTP com revogação de tokens e sessões.
 
 **Profiles**
 
@@ -328,7 +328,7 @@ Lista derivada diretamente do código (`grep` em `api/src/modules`).
 - `api/src/shared/notifications.ts` — criação de notificações in-app.
 - `api/src/shared/email.ts` + `email-templates.ts` + `operational-emails.ts` — SMTP via nodemailer.
 - `api/src/shared/rate-limit.ts` — utilitários para limitar por IP / chave.
-- `api/src/shared/user-tokens.ts` — geração e consumo seguro de `UserToken` (tipos `EMAIL_VERIFICATION`, `PASSWORD_RESET`, `ACCOUNT_DELETION`). Já consumido pelas rotas de verificação de e-mail e encerramento de conta. Pendente plug-in nas rotas de redefinição de senha.
+- `api/src/shared/user-tokens.ts` — geração e consumo seguro de `UserToken` (tipos `EMAIL_VERIFICATION`, `PASSWORD_RESET`, `ACCOUNT_DELETION`). Consumido pelas rotas de verificação de e-mail, encerramento de conta e redefinição de senha.
 - `api/src/shared/cpf.ts` — validação de CPF.
 - `api/src/shared/phone.ts` — normalização e validação de telefone brasileiro.
 - `api/src/shared/brazil-locations.ts` — lista de estados e cidades brasileiras usada por autocompletes.
@@ -445,7 +445,7 @@ Todas as variáveis abaixo aparecem em `.env.example`, `docker-compose.yml`, `do
 
 - `EMAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`.
 - `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_NAME`, `SMTP_FROM_ADDRESS`.
-- `EMAIL_VERIFICATION_EXPIRES_MINUTES`, `PASSWORD_RESET_EXPIRES_MINUTES`, `ACCOUNT_DELETION_EXPIRES_MINUTES` — TTLs já listados em `.env.example`, mas só serão consumidos quando as rotas pendentes forem implementadas.
+- `EMAIL_VERIFICATION_EXPIRES_MINUTES`, `PASSWORD_RESET_EXPIRES_MINUTES`, `ACCOUNT_DELETION_EXPIRES_MINUTES` — TTLs listados em `.env.example`, consumidos no fluxo de tokens correspondente.
 
 ### Geocoding
 
@@ -540,7 +540,7 @@ Todas as variáveis abaixo aparecem em `.env.example`, `docker-compose.yml`, `do
 
 - **Verificação de e-mail (implementado)**: `POST /auth/request-email-verification` cria um `UserToken` `EMAIL_VERIFICATION`, envia o e-mail com `emailVerificationTemplate` e dispara `POST /auth/verify-email` na confirmação. A tela `/confirmar-email` consome esse fluxo.
 - **Encerramento de conta (implementado)**: `POST /auth/account-deletion/request` envia o link de confirmação; `POST /auth/account-deletion/confirm` consome o token e anonimiza o usuário (`User.anonymizedAt`). Mantido alias `POST /auth/request-account-deletion` para compatibilidade. Tela `/encerrar-conta`.
-- **Redefinição de senha (pendente)**: `web/lib/api.ts` chama `/auth/request-password-reset` e `/auth/reset-password` e a tela `/esqueci-senha` / `/redefinir-senha` existe; o template `passwordResetTemplate` está pronto, mas as rotas no backend ainda não foram criadas.
+- **Redefinição de senha (implementado)**: `web/lib/api.ts` chama `/auth/request-password-reset` e `/auth/reset-password` e a tela `/esqueci-senha` / `/redefinir-senha` está totalmente operacional, integrada com as rotas backend e templates de e-mail.
 
 ---
 
@@ -590,19 +590,19 @@ Todas as variáveis abaixo aparecem em `.env.example`, `docker-compose.yml`, `do
 | QR de doação | OK (zxing + react-qr-code) | OK (códigos persistidos) | Implementado |
 | Verificação de e-mail | OK | OK | Implementado |
 | Encerramento de conta | OK | OK | Implementado |
-| Recuperação de senha | OK | **Faltando rotas** | Parcial |
-| E-mail transacional de eventos não-doação | — | Apenas templates | Pendente |
+| Recuperação de senha | OK | OK | Implementado |
+| E-mail transacional de eventos não-doação | OK | OK | Implementado |
 | Push notifications / WebSocket | — | — | Planejado |
 
 ---
 
 ## 12. Débitos técnicos identificados
 
-- Implementar `POST /auth/request-password-reset` e `POST /auth/reset-password` (frontend já assume que existem).
+- Cobertura de testes unitários nas rotas backend críticas (pendente).
 - Cobertura de testes inexistente (nenhum framework configurado em `package.json`).
 - `pontos/` mantido como redirecionamento; pode ser removido em fase futura.
 - Tipos do `next-auth` ainda em beta (v5 beta.30); upgrade pode exigir ajustes.
-- `gamification.ts` no frontend tem regras locais que não são autoritativas — ainda não há fonte única no backend para badges/pontos.
+- `gamification.ts` no frontend sincronizado com os thresholds oficiais do backend, usando `/gamification/me` como a fonte de verdade oficial e a curva local estritamente como fallback visual.
 - `prisma migrate deploy` roda no startup do container — em produção é correto, mas torna o restart mais lento; aceitar como decisão consciente.
 - Não há `.env.production.example` separado do `.env.example`.
 

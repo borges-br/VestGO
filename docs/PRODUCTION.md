@@ -192,7 +192,7 @@ Lista derivada de `.env.example`, `docker-compose.prod.yml` e do código. Em pro
 | `SMTP_FROM_NAME`, `SMTP_FROM_ADDRESS` | Nome e e-mail do remetente. |
 | `EMAIL_VERIFICATION_EXPIRES_MINUTES` | TTL do token de verificação de e-mail. Default 1440 (24h). Já consumido pelas rotas `/auth/request-email-verification` e `/auth/verify-email`. |
 | `ACCOUNT_DELETION_EXPIRES_MINUTES` | TTL do token de encerramento de conta. Default 60. Já consumido pelas rotas `/auth/account-deletion/request` e `/auth/account-deletion/confirm`. |
-| `PASSWORD_RESET_EXPIRES_MINUTES` | Default 60. Hoje **não** é consumido — as rotas `/auth/request-password-reset` e `/auth/reset-password` ainda não foram implementadas (ver `ARCHITECTURE.md`, seção 9.11). Manter definida é seguro. |
+| `PASSWORD_RESET_EXPIRES_MINUTES` | Default 60. TTL do token de redefinição de senha. Totalmente consumido pelas rotas `/auth/request-password-reset` e `/auth/reset-password`. |
 
 ### Geocoding
 
@@ -481,9 +481,9 @@ Antes de considerar o ambiente "no ar":
 - Logs: `docker compose -f docker-compose.prod.yml logs vestgo-api --tail=200`.
 - Problemas comuns: env mal formatada, banco indisponível, segredo JWT ausente.
 
-### Erro 404 em fluxos de redefinição de senha
+### Erro de envio de e-mail (SMTP) na redefinição de senha
 
-- Esperado hoje: as rotas `/auth/request-password-reset` e `/auth/reset-password` ainda não foram implementadas no backend (ver `ARCHITECTURE.md`, seção 9.11). Verificação de e-mail e encerramento de conta já funcionam.
+- Se o SMTP falhar ao disparar o e-mail de redefinição de senha, o backend retornará `503 Service Unavailable` com `EMAIL_DELIVERY_UNAVAILABLE` de forma segura, revogando o token recém-criado para manter a integridade do sistema. Verifique a configuração do seu provedor SMTP no arquivo `.env`.
 
 ### Domínio não aponta
 
@@ -502,7 +502,7 @@ Antes de considerar o ambiente "no ar":
 - **Sem CI/CD para staging separado** — só há deploy direto para produção via Portainer.
 - **Sem monitoramento centralizado** — apenas logs de container.
 - **Sem WAF/IDS** dedicado — depende do que estiver na frente do NPM.
-- **Fluxo de redefinição de senha não funciona por completo** — UI e cliente HTTP existem, mas as rotas `/auth/request-password-reset` e `/auth/reset-password` ainda não foram criadas no backend.
+- **Notificações por e-mail transacionais operacionais**: as rotas operacionais falharem em disparar e-mails não afeta a mutação no banco de dados, devido ao encapsulamento em blocos `try/catch` independentes.
 
 ---
 

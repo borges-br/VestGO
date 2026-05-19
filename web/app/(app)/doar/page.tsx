@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
@@ -126,9 +125,7 @@ function makeId() {
 }
 
 function defaultItems(): DonationItemDraft[] {
-  return [
-    { id: makeId(), category: 'CLOTHING', quantity: 5, condition: 'GOOD' },
-  ];
+  return [];
 }
 
 function defaultPackages(): DonationPackageDraft[] {
@@ -147,71 +144,64 @@ function defaultDraft(): DonationDraft {
   };
 }
 
-function isItemCategory(value: unknown): value is ItemCategory {
-  return categoryOptions.some((entry) => entry.id === value);
+function sanitizeItems(value: unknown): DonationItemDraft[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter(
+      (entry): entry is DonationItemDraft =>
+        !!entry &&
+        isItemCategory((entry as DonationItemDraft).category) &&
+        typeof (entry as DonationItemDraft).quantity === 'number' &&
+        (entry as DonationItemDraft).quantity > 0 &&
+        isCondition((entry as DonationItemDraft).condition),
+    )
+    .map((entry) => ({
+      id: typeof entry.id === 'string' && entry.id ? entry.id : makeId(),
+      category: entry.category,
+      quantity: clampItemQuantity(entry.quantity),
+      condition: entry.condition,
+    }));
 }
 
-function isCondition(value: unknown): value is DonationItemCondition {
-  return value === 'EXCELLENT' || value === 'GOOD';
-}
+function sanitizePackages(value: unknown): DonationPackageDraft[] {
+  if (!Array.isArray(value)) return [];
 
-function isPackageType(value: unknown): value is DonationPackageType {
-  return value === 'BAG' || value === 'BOX';
-}
-
-function isPackageSize(value: unknown): value is DonationPackageSize {
-  return value === 'SMALL' || value === 'MEDIUM' || value === 'LARGE';
+  return value
+    .filter(
+      (entry): entry is DonationPackageDraft =>
+        !!entry &&
+        isPackageType((entry as DonationPackageDraft).type) &&
+        isPackageSize((entry as DonationPackageDraft).size) &&
+        typeof (entry as DonationPackageDraft).quantity === 'number' &&
+        (entry as DonationPackageDraft).quantity > 0,
+    )
+    .map((entry) => ({
+      id: typeof entry.id === 'string' && entry.id ? entry.id : makeId(),
+      type: entry.type,
+      size: entry.size,
+      quantity: clampPackageQuantity(entry.quantity),
+    }));
 }
 
 function readDonationDraft(): DonationDraft {
   if (typeof window === 'undefined') return defaultDraft();
+
   const raw = window.sessionStorage.getItem(DONATION_DRAFT_STORAGE_KEY);
+
   if (!raw) return defaultDraft();
 
   try {
     const parsed = JSON.parse(raw) as Partial<DonationDraft>;
-    const items = Array.isArray(parsed.items)
-      ? parsed.items
-          .filter(
-            (entry): entry is DonationItemDraft =>
-              !!entry &&
-              isItemCategory((entry as DonationItemDraft).category) &&
-              typeof (entry as DonationItemDraft).quantity === 'number' &&
-              (entry as DonationItemDraft).quantity > 0 &&
-              isCondition((entry as DonationItemDraft).condition),
-          )
-          .map((entry) => ({
-            id: typeof entry.id === 'string' && entry.id ? entry.id : makeId(),
-            category: entry.category,
-            quantity: Math.max(1, Math.min(200, Math.floor(entry.quantity))),
-            condition: entry.condition,
-          }))
-      : [];
-
-    const packages = Array.isArray(parsed.packages)
-      ? parsed.packages
-          .filter(
-            (entry): entry is DonationPackageDraft =>
-              !!entry &&
-              isPackageType((entry as DonationPackageDraft).type) &&
-              isPackageSize((entry as DonationPackageDraft).size) &&
-              typeof (entry as DonationPackageDraft).quantity === 'number' &&
-              (entry as DonationPackageDraft).quantity > 0,
-          )
-          .map((entry) => ({
-            id: typeof entry.id === 'string' && entry.id ? entry.id : makeId(),
-            type: entry.type,
-            size: entry.size,
-            quantity: Math.max(1, Math.min(50, Math.floor(entry.quantity))),
-          }))
-      : [];
+    const items = sanitizeItems(parsed.items);
+    const packages = sanitizePackages(parsed.packages);
 
     return {
       currentStep:
         typeof parsed.currentStep === 'number'
           ? Math.min(Math.max(parsed.currentStep, 0), steps.length - 1)
           : 0,
-      items: items.length > 0 ? items : defaultItems(),
+      items,
       packages: packages.length > 0 ? packages : defaultPackages(),
       packageMode: parsed.packageMode === 'MANUAL' ? 'MANUAL' : 'AUTO',
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
@@ -235,6 +225,7 @@ function getCurrentPosition() {
   if (typeof window === 'undefined' || !window.navigator.geolocation) {
     return Promise.resolve(DEFAULT_DISCOVERY_CENTER);
   }
+
   return new Promise<{ lat: number; lng: number }>((resolve) => {
     window.navigator.geolocation.getCurrentPosition(
       ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
@@ -398,10 +389,13 @@ export default function DoarPage() {
   const [points, setPoints] = useState<CollectionPoint[]>([]);
   const [pointsLoading, setPointsLoading] = useState(true);
   const [pointsError, setPointsError] = useState<string | null>(null);
+  const [pointsNotice, setPointsNotice] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftReady, setDraftReady] = useState(false);
   const [selectionFeedback, setSelectionFeedback] = useState<string | null>(null);
   const [showPreselectedPointNotice, setShowPreselectedPointNotice] = useState(false);
+  const [createdDonationId, setCreatedDonationId] = useState<string | null>(null);
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<number>>(() => new Set());
 
   useEffect(() => {
     if (status === 'authenticated' && !isDonor) {
@@ -446,12 +440,13 @@ export default function DoarPage() {
     if (selectedPointId) {
       setPointId(selectedPointId);
       setConfirmed(false);
+      setPointsNotice(null);
       setShowPreselectedPointNotice(cameFromPointProfile);
     }
 
     if (selectionApplied) {
       setSelectionFeedback(
-        cameFromPointProfile ? null : 'Ponto selecionado. Você poderá revisar antes de finalizar.',
+        cameFromPointProfile ? null : 'Ponto selecionado. Voce podera revisar antes de finalizar.',
       );
     }
 
@@ -471,7 +466,8 @@ export default function DoarPage() {
   }, [draftReady, pathname, router, searchParams]);
 
   useEffect(() => {
-    if (!draftReady || !isDonor || typeof window === 'undefined') return;
+    if (!draftReady || !isDonor || typeof window === 'undefined' || createdDonationId) return;
+
     window.sessionStorage.setItem(
       DONATION_DRAFT_STORAGE_KEY,
       JSON.stringify({
@@ -487,7 +483,7 @@ export default function DoarPage() {
   }, [confirmed, currentStep, draftReady, isDonor, items, notes, packageMode, packages, pointId]);
 
   useEffect(() => {
-    if (!draftReady || !pointId || points.some((item) => item.id === pointId)) return;
+    if (!draftReady || !pointId || points.some((point) => point.id === pointId)) return;
 
     let cancelled = false;
 
@@ -495,22 +491,22 @@ export default function DoarPage() {
       try {
         const point = await getCollectionPoint(pointId, { forDonation: true });
         if (cancelled || point.role !== 'COLLECTION_POINT') return;
+
         setPoints((current) => mergeCollectionPoints([point], current));
 
-        if (!isDonationEligiblePoint(point)) {
+        const availability = getPointAvailability(point, selectedCategories);
+        if (!availability.canSelect) {
           setPointId('');
           setConfirmed(false);
           setShowPreselectedPointNotice(false);
-          setPointsError(point.donationEligibility?.message ?? 'Este ponto ainda não pode finalizar doações.');
-        } else {
-          setPointsError(null);
+          setPointsNotice(availability.reason ?? 'Este ponto não pode receber os itens selecionados.');
         }
       } catch {
         if (!cancelled) {
           setPointId('');
           setConfirmed(false);
           setShowPreselectedPointNotice(false);
-          setPointsError('O ponto escolhido anteriormente não está mais disponível. Escolha outro para seguir.');
+          setPointsNotice('O ponto escolhido anteriormente não está mais disponível. Escolha outro para seguir.');
         }
       }
     }
@@ -520,11 +516,10 @@ export default function DoarPage() {
     return () => {
       cancelled = true;
     };
-  }, [draftReady, pointId, points]);
+  }, [draftReady, pointId, points, selectedCategories]);
 
   useEffect(() => {
-    async function loadContext() {
-      if (status === 'loading' || !isDonor || !draftReady) return;
+    if (!pointId || !selectedPoint) return;
 
       setPointsLoading(true);
       setPointsError(null);
@@ -588,43 +583,23 @@ export default function DoarPage() {
 
   if (status === 'loading' || !draftReady) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center px-4 py-10">
-        <div className="rounded-[1.75rem] bg-white px-5 py-4 text-sm text-gray-500 shadow-card dark:bg-surface-inkSoft dark:text-gray-400 dark:shadow-none">
-          {status === 'loading' ? 'Carregando permissão de acesso...' : 'Recuperando seu rascunho da doação...'}
-        </div>
-      </div>
+      <LoadingDonationState
+        label={status === 'loading' ? 'Carregando permissão de acesso...' : 'Recuperando seu rascunho da doação...'}
+      />
     );
   }
 
   if (!isDonor) {
+    return <NonDonorState />;
+  }
+
+  if (createdDonationId) {
     return (
-      <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-shell">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Fluxo exclusivo para doadores
-            </p>
-            <h1 className="mt-3 text-3xl font-bold text-primary-deeper dark:text-white">Seu perfil não cria doações</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-500">
-              Perfis de ponto de coleta, ONG e administração acompanham ou operam doações, mas não podem iniciar uma nova entrega como doadores.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href="/inicio"
-                className="inline-flex items-center justify-center rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-              >
-                Ir para meu painel
-              </Link>
-              <Link
-                href="/operacoes"
-                className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:text-gray-300"
-              >
-                Abrir operações
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DonationSuccessPanel
+        selectedPointName={selectedPointLabel}
+        onContinue={() => router.push(`/rastreio/${createdDonationId}?celebrate=registered`)}
+        onViewDonations={() => router.push('/rastreio')}
+      />
     );
   }
 
@@ -640,30 +615,68 @@ export default function DoarPage() {
     returnStep: '2',
   });
 
-  if (pointId) mapSelectionParams.set('selectedPointId', pointId);
-  const mapSelectionHref = `/mapa?${mapSelectionParams.toString()}`;
-  const canContinue =
-    currentStep === 0
-      ? totalItems > 0
-      : currentStep === 1
-        ? totalPackagesCount > 0
-        : currentStep === 2
-          ? isDonationEligiblePoint(selectedPoint)
-          : confirmed && isDonationEligiblePoint(selectedPoint);
-
-  function updateItem(id: string, patch: Partial<DonationItemDraft>) {
-    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    const topbarHeight = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--topbar-height') || '64',
+      10,
+    );
+    const rect = stepCardRef.current.getBoundingClientRect();
+    window.scrollBy({ top: rect.top - topbarHeight - 12, behavior: 'smooth' });
   }
 
-  function addItem() {
-    setItems((current) => [
-      ...current,
-      { id: makeId(), category: 'CLOTHING', quantity: 1, condition: 'GOOD' },
-    ]);
+  function goToStep(nextStep: number) {
+    setCurrentStep(Math.min(Math.max(nextStep, 0), steps.length - 1));
+    setSubmitError(null);
+    setTimeout(scrollToStepTop, 50);
+  }
+
+  function markStepAttempted(stepIndex: number) {
+    setAttemptedSteps((current) => new Set(current).add(stepIndex));
+  }
+
+  function handleNext() {
+    if (stepValidation || currentStep === steps.length - 1) {
+      markStepAttempted(currentStep);
+      return;
+    }
+    goToStep(currentStep + 1);
+  }
+
+  function handleBack() {
+    if (loading) return;
+    if (currentStep === 0) {
+      router.push('/inicio');
+      return;
+    }
+    goToStep(currentStep - 1);
+  }
+
+  function updateItem(id: string, patch: Partial<DonationItemDraft>) {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...patch,
+              quantity: patch.quantity == null ? item.quantity : clampItemQuantity(patch.quantity),
+            }
+          : item,
+      ),
+    );
+    setConfirmed(false);
+  }
+
+  function toggleCategory(category: ItemCategory) {
+    setItems((current) => {
+      const existing = current.find((item) => item.category === category);
+      if (existing) return current.filter((item) => item.id !== existing.id);
+      return [...current, { id: makeId(), category, quantity: 1, condition: 'GOOD' }];
+    });
+    setConfirmed(false);
   }
 
   function removeItem(id: string) {
-    setItems((current) => (current.length === 1 ? current : current.filter((item) => item.id !== id)));
+    setItems((current) => current.filter((item) => item.id !== id));
+    setConfirmed(false);
   }
 
   function updatePackage(id: string, patch: Partial<DonationPackageDraft>) {
@@ -677,6 +690,8 @@ export default function DoarPage() {
       ...current,
       { id: makeId(), type: 'BAG', size: 'MEDIUM', quantity: 1 },
     ]);
+    setPackageMode('MANUAL');
+    setConfirmed(false);
   }
 
   function removePackage(id: string) {
@@ -700,16 +715,24 @@ export default function DoarPage() {
     }
   }
 
-  function handleNext() {
-    if (!canContinue || currentStep === steps.length - 1) return;
-    setCurrentStep((value) => value + 1);
-    setTimeout(scrollToStepTop, 50);
+  function useAutomaticPackaging() {
+    setPackageMode('AUTO');
+    setConfirmed(false);
   }
 
-  function handleBack() {
-    if (currentStep === 0) return;
-    setCurrentStep((value) => value - 1);
-    setTimeout(scrollToStepTop, 50);
+  function selectPoint(point: CollectionPoint) {
+    const availability = getPointAvailability(point, selectedCategories);
+    if (!availability.canSelect) {
+      setPointsNotice(availability.reason ?? 'Este ponto não pode receber os itens selecionados.');
+      return;
+    }
+
+    setPointId(point.id);
+    setConfirmed(false);
+    setPointsNotice(null);
+    setPointsError(null);
+    setSelectionFeedback('Ponto selecionado. Você poderá trocar antes de confirmar.');
+    setShowPreselectedPointNotice(false);
   }
 
   function handleCancel() {
@@ -717,38 +740,59 @@ export default function DoarPage() {
   }
 
   async function handleConfirm() {
-    if (!confirmed || !session?.user?.accessToken || !selectedPoint) return;
+    const reviewValidation = getStepValidation({
+      currentStep: 3,
+      items,
+      totalItems,
+      effectivePackages,
+      totalPackagesCount,
+      selectedPoint,
+      selectedPointAvailability,
+      confirmed,
+    });
 
-    const donationInput = {
-      collectionPointId: selectedPoint.id,
-      notes: notes ? notes.trim() : undefined,
-      items: items.map((item) => {
-        const categoryLabel = categoryLabels[item.category] ?? item.category;
-        return {
-          name: categoryLabel,
-          category: item.category,
-          quantity: item.quantity,
-          condition: item.condition,
-        };
-      }),
-      packages: packages.map((pkg) => ({
-        type: pkg.type,
-        size: pkg.size,
-        quantity: pkg.quantity,
-      })),
-    };
+    if (reviewValidation) {
+      markStepAttempted(3);
+      setSubmitError(null);
+      return;
+    }
+
+    if (!session?.user?.accessToken || !selectedPoint) {
+      setSubmitError('Sua sessão expirou. Entre novamente para confirmar a doação.');
+      return;
+    }
 
     setLoading(true);
     setSubmitError(null);
 
     try {
-      const donation = await createDonation(donationInput, session.user.accessToken);
+      const donation = await createDonation(
+        {
+          collectionPointId: selectedPoint.id,
+          notes: notes.trim() ? notes.trim() : undefined,
+          items: items.map((item) => ({
+            name: categoryLabels[item.category] ?? item.category,
+            category: item.category,
+            quantity: item.quantity,
+            condition: item.condition,
+          })),
+          packages: effectivePackages.map((pkg) => ({
+            type: pkg.type,
+            size: pkg.size,
+            quantity: pkg.quantity,
+          })),
+        },
+        session.user.accessToken,
+      );
+
       if (typeof window !== 'undefined') {
         window.sessionStorage.removeItem(DONATION_DRAFT_STORAGE_KEY);
       }
-      router.push(`/rastreio/${donation.id}?celebrate=registered`);
+
+      setCreatedDonationId(donation.id);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Não foi possível registrar a doação.');
+    } finally {
       setLoading(false);
     }
   }
@@ -768,79 +812,38 @@ export default function DoarPage() {
           </div>
         </div>
 
-        <div ref={stepCardRef} className="rounded-[2rem] bg-white p-4 shadow-card dark:bg-surface-inkSoft dark:shadow-none sm:p-5 lg:p-6">
-          <div className="flex items-center gap-3 lg:hidden">
-            <div className="flex-1">
-              <div className="h-2 overflow-hidden rounded-full bg-surface dark:bg-surface-ink">
-                <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-            <span className="flex-shrink-0 rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold text-primary dark:bg-primary/20">
-              {currentStep + 1}/{steps.length} · {step.short}
-            </span>
-          </div>
-
-          <div className="hidden lg:block">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Fluxo guiado</p>
-                <p className="mt-1 text-sm text-gray-500">Etapa {currentStep + 1} de {steps.length}</p>
-              </div>
-              <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary dark:bg-primary/20">
-                {step.short}
-              </span>
-            </div>
-
-            <div className="mt-4 h-2 rounded-full bg-surface dark:bg-surface-ink">
-              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
-            </div>
-
-            <div className="mt-5 grid gap-2 grid-cols-4">
-              {steps.map((item, index) => {
-                const isCurrent = index === currentStep;
-                const isPast = index < currentStep;
-                return (
-                  <button
-                    key={item.title}
-                    type="button"
-                    onClick={() => index <= currentStep && setCurrentStep(index)}
-                    disabled={index > currentStep}
-                    className={cn(
-                      'flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
-                      isCurrent && 'bg-primary-deeper text-white',
-                      isPast && 'bg-primary-light text-primary-deeper dark:bg-primary/20 dark:text-primary-muted',
-                      !isCurrent && !isPast && 'bg-surface text-gray-400 dark:bg-surface-ink',
-                      index > currentStep && 'cursor-not-allowed opacity-70',
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold',
-                        isCurrent && 'bg-white/15 text-white',
-                        isPast && 'bg-white text-primary dark:bg-surface-ink',
-                        !isCurrent && !isPast && 'bg-white text-gray-400 dark:bg-surface-inkSoft',
-                      )}
-                    >
-                      {isPast ? <Check size={16} /> : index + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{item.short}</p>
-                      <p className={cn('mt-0.5 text-xs', isCurrent ? 'text-white/75' : 'text-gray-400')}>
-                        {item.eyebrow}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        <div ref={stepCardRef}>
+          <DonationStepper
+            steps={steps}
+            currentStep={currentStep}
+            canVisitStep={(index) => index <= currentStep}
+            onStepClick={goToStep}
+          />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_360px]">
           <section className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
             {showPreselectedPointNotice && currentStep < 2 && (
               <div className="mb-5 rounded-[1.5rem] border border-primary/15 bg-primary-light/45 px-4 py-3 text-sm text-primary-deeper dark:border-primary/30 dark:bg-primary/10 dark:text-primary-muted">
-                Ponto selecionado{selectedPointLabel ? `: ${selectedPointLabel}` : ''}. Agora informe os itens da doação.
+                Ponto selecionado{selectedPointLabel ? `: ${selectedPointLabel}` : ''}. Agora informe os itens da doacao.
+              </div>
+            )}
+
+            {selectionFeedback && currentStep === 2 && (
+              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+                {selectionFeedback}
+              </div>
+            )}
+
+            {selectionFeedback && currentStep === 2 && (
+              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+                {selectionFeedback}
+              </div>
+            )}
+
+            {selectionFeedback && currentStep === 2 && (
+              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+                {selectionFeedback}
               </div>
             )}
 
@@ -1162,123 +1165,20 @@ export default function DoarPage() {
             )}
 
             {currentStep === 2 && (
-              <div className="space-y-5">
-                <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-primary-deeper dark:text-white">Escolha um ponto parceiro.</p>
-                      <p className="mt-2 text-sm leading-7 text-gray-500">
-                        Só pontos de coleta com ONG ativa podem finalizar a doação. Pontos ainda em estruturação continuam visíveis como indisponíveis.
-                      </p>
-                    </div>
-                    <Link href={mapSelectionHref} className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
-                      Explorar no mapa
-                      <ChevronRight size={15} />
-                    </Link>
-                  </div>
-                </div>
-
-                {selectionFeedback && (
-                  <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-400">
-                    {selectionFeedback}
-                  </div>
-                )}
-
-                {pointsLoading ? (
-                  <div className="flex items-center gap-3 rounded-[1.75rem] bg-surface p-5 text-sm text-gray-500 dark:bg-surface-ink">
-                    <Loader2 size={18} className="animate-spin text-primary" />
-                    Carregando pontos de coleta próximos...
-                  </div>
-                ) : pointsError ? (
-                  <div className="rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-400">
-                    {pointsError}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {points.map((point) => {
-                      const isSelected = point.id === pointId;
-                      const canDonateHere = isDonationEligiblePoint(point);
-                      return (
-                        <button
-                          key={point.id}
-                          type="button"
-                          onClick={() => {
-                            if (!canDonateHere) return;
-                            setPointId(point.id);
-                            setPointsError(null);
-                            setShowPreselectedPointNotice(false);
-                          }}
-                          disabled={!canDonateHere}
-                          className={cn(
-                            'w-full rounded-[1.75rem] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-lg',
-                            isSelected
-                              ? 'border-primary bg-primary-light/35 shadow-card dark:bg-primary/20'
-                              : canDonateHere
-                                ? 'border-gray-100 bg-white dark:border-white/10 dark:bg-surface-inkSoft'
-                                : 'border-amber-200 bg-amber-50/70 text-gray-500 opacity-95 dark:border-amber-800/50 dark:bg-amber-900/10',
-                            !canDonateHere && 'cursor-not-allowed hover:translate-y-0 hover:shadow-none',
-                          )}
-                        >
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="flex gap-4">
-                              <div className={cn('flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl', isSelected ? 'bg-primary text-white' : 'bg-surface text-gray-500 dark:bg-surface-ink')}>
-                                <MapPin size={20} />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{point.organizationName ?? point.name}</p>
-                                  {point.distanceKm != null && (
-                                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-ink">
-                                      {point.distanceKm} km
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="mt-2 text-sm text-gray-400">
-                                  {formatAddressSummary(point) ?? 'Endereço não informado'}
-                                </p>
-                                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
-                                  {point.acceptedCategories.map((item) => categoryLabels[item] ?? item).join(' - ')}
-                                </p>
-                                <p className="mt-2 text-sm leading-7 text-gray-500">
-                                  {point.city} {point.state ? `- ${point.state}` : ''}
-                                </p>
-                                {point.donationEligibility && (
-                                  <div
-                                    className={cn(
-                                      'mt-3 rounded-2xl px-3 py-2 text-xs leading-6',
-                                      canDonateHere
-                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
-                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400',
-                                    )}
-                                  >
-                                    <p className="font-semibold">{point.donationEligibility.label}</p>
-                                    <p>{point.donationEligibility.message}</p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div
-                              className={cn(
-                                'inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em]',
-                                isSelected
-                                  ? 'bg-primary-deeper text-white'
-                                  : canDonateHere
-                                    ? 'bg-surface text-gray-400 dark:bg-surface-ink'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400',
-                              )}
-                            >
-                              {isSelected
-                                ? 'Selecionado'
-                                : point.donationEligibility?.label ?? 'Disponível'}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <CollectionPointStep
+                points={sortedPoints}
+                pointsLoading={pointsLoading}
+                pointsError={pointsError}
+                pointsNotice={pointsNotice}
+                selectedPointId={pointId}
+                selectedCategories={selectedCategories}
+                usedPointIds={usedPointIds}
+                mapSelectionHref={mapSelectionHref}
+                validationMessage={visibleValidationMessage}
+                onSelectPoint={selectPoint}
+                onRetry={loadDonationContext}
+                onEditItems={() => goToStep(0)}
+              />
             )}
 
             {currentStep === 3 && (
@@ -1367,7 +1267,10 @@ export default function DoarPage() {
             )}
 
             {submitError && (
-              <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
+              <div
+                role="alert"
+                className="mt-6 rounded-[1.5rem] border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300"
+              >
                 {submitError}
               </div>
             )}
@@ -1401,60 +1304,49 @@ export default function DoarPage() {
                   {currentStep === 0 ? 'Cancelar' : 'Voltar'}
                 </button>
 
-                <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                  {visibleValidationMessage && (
+                    <p className="max-w-md text-xs leading-5 text-gray-500" aria-live="polite">
+                      {visibleValidationMessage}
+                    </p>
+                  )}
                   {currentStep < steps.length - 1 ? (
-                    <button
-                      type="button"
+                    <DonationButton
                       onClick={handleNext}
-                      disabled={!canContinue || loading}
-                      className={cn(
-                        'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
-                        canContinue && !loading ? 'bg-primary-deeper text-white hover:bg-primary-dark' : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
-                      )}
+                      disabled={loading}
+                      rightIcon={<ChevronRight size={16} />}
+                      full
+                      className="sm:w-auto"
                     >
                       Continuar
-                      <ChevronRight size={16} />
-                    </button>
+                    </DonationButton>
                   ) : (
-                    <button
-                      type="button"
+                    <DonationButton
                       onClick={handleConfirm}
-                      disabled={!canContinue || loading || !session?.user?.accessToken}
-                      className={cn(
-                        'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
-                        canContinue && !loading && session?.user?.accessToken
-                          ? 'bg-primary-deeper text-white hover:bg-primary-dark'
-                          : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
-                      )}
+                      disabled={loading || !session?.user?.accessToken}
+                      loading={loading}
+                      rightIcon={<ChevronRight size={16} />}
+                      full
+                      className="sm:w-auto"
                     >
-                      {loading ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" />
-                          Registrando doação...
-                        </>
-                      ) : (
-                        <>
-                          Confirmar doação
-                          <ChevronRight size={16} />
-                        </>
-                      )}
-                    </button>
+                      {loading ? 'Registrando doação...' : 'Confirmar doação'}
+                    </DonationButton>
                   )}
                 </div>
               </div>
 
               <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
                 <Clock3 size={14} />
-                Você pode voltar etapas anteriores sem perder o contexto preenchido.
+                Salvamos seu rascunho automaticamente neste dispositivo.
               </div>
             </div>
           </section>
 
           <aside className="hidden xl:block">
             <div className="sticky top-[calc(var(--topbar-height)+1rem)]">
-              <SummaryCard
+              <DonationSummaryCard
                 items={items}
-                packages={packages}
+                packages={effectivePackages}
                 notes={notes}
                 selectedPoint={selectedPoint}
                 totalItems={totalItems}
@@ -1529,4 +1421,59 @@ export default function DoarPage() {
       </div>
     </div>
   );
+}
+
+type StepValidationInput = {
+  currentStep: number;
+  items: DonationItemDraft[];
+  totalItems: number;
+  effectivePackages: DonationPackageDraft[];
+  totalPackagesCount: number;
+  selectedPoint: CollectionPoint | null;
+  selectedPointAvailability: ReturnType<typeof getPointAvailability> | null;
+  confirmed: boolean;
+};
+
+function getStepValidation({
+  currentStep,
+  items,
+  totalItems,
+  effectivePackages,
+  totalPackagesCount,
+  selectedPoint,
+  selectedPointAvailability,
+  confirmed,
+}: StepValidationInput) {
+  if (currentStep >= 0) {
+    if (items.length === 0 || totalItems <= 0) {
+      return 'Adicione pelo menos um item para seguir.';
+    }
+
+    const invalidItem = items.find((item) => item.quantity < 1 || item.quantity > 200);
+    if (invalidItem) {
+      return 'Revise as quantidades. Cada categoria precisa ter entre 1 e 200 itens.';
+    }
+  }
+
+  if (currentStep >= 1) {
+    if (effectivePackages.length === 0 || totalPackagesCount <= 0) {
+      return 'Informe ao menos um volume para continuar.';
+    }
+  }
+
+  if (currentStep >= 2) {
+    if (!selectedPoint) {
+      return 'Escolha um ponto de coleta para continuar.';
+    }
+
+    if (selectedPointAvailability?.canSelect !== true) {
+      return selectedPointAvailability?.reason ?? 'Escolha um ponto compatível com os itens selecionados.';
+    }
+  }
+
+  if (currentStep >= 3 && !confirmed) {
+    return 'Confirme que os itens estão prontos para seguir ao ponto selecionado.';
+  }
+
+  return null;
 }

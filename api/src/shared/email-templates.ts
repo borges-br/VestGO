@@ -282,3 +282,179 @@ export function donationStatusTemplate(
     ),
   };
 }
+
+export type PartnershipRequestEmailInput = {
+  ngoName: string;
+  collectionPointName: string;
+  actionUrl: string;
+};
+
+export type PartnershipStatusEmailInput = {
+  collectionPointName: string;
+  ngoName: string;
+  status: 'APPROVED' | 'REJECTED';
+  actionUrl: string;
+};
+
+export type PickupRequestCreatedEmailInput = {
+  collectionPointName: string;
+  ngoName: string;
+  pickupCode: string;
+  actionUrl: string;
+};
+
+export type PickupRequestStatusEmailInput = {
+  ngoName: string;
+  collectionPointName: string;
+  pickupCode: string;
+  status: 'ACCEPTED' | 'REJECTED';
+  actionUrl: string;
+};
+
+export type OperationalBatchStatusEmailInput = {
+  name: string;
+  batchCode: string;
+  statusLabel: string;
+  statusMessage: string;
+  actionUrl: string;
+};
+
+export function partnershipRequestTemplate(input: PartnershipRequestEmailInput): EmailTemplate {
+  const ngoName = input.ngoName.trim() || 'tudo bem';
+  const pointName = input.collectionPointName.trim();
+  return {
+    subject: `Nova solicitação de parceria no VestGO: ${pointName}`,
+    text: buildTextEmail(
+      [
+        `Olá, ${ngoName}.`,
+        '',
+        `O ponto de coleta "${pointName}" solicitou uma parceria com a sua ONG no VestGO.`,
+        'Acesse a plataforma para analisar os detalhes da solicitação e decidir sobre a aprovação.',
+      ],
+      input.actionUrl,
+    ),
+    html: buildLayout(
+      'Nova solicitação de parceria',
+      [
+        paragraph(`Olá, ${ngoName}.`),
+        paragraph(`O ponto de coleta "${pointName}" solicitou uma parceria com a sua ONG no VestGO.`),
+        paragraph('Acesse a plataforma para analisar os detalhes da solicitação e decidir sobre a aprovação.'),
+      ].join(''),
+      { label: 'Ver solicitação', url: input.actionUrl },
+    ),
+  };
+}
+
+export function partnershipStatusTemplate(input: PartnershipStatusEmailInput): EmailTemplate {
+  const pointName = input.collectionPointName.trim() || 'tudo bem';
+  const ngoName = input.ngoName.trim();
+  const isApproved = input.status === 'APPROVED';
+  const statusLabel = isApproved ? 'aprovada' : 'rejeitada';
+  const statusText = isApproved
+    ? `A ONG "${ngoName}" aceitou a sua solicitação de parceria! A partir de agora, vocês podem colaborar operacionalmente.`
+    : `A ONG "${ngoName}" rejeitou a sua solicitação de parceria no momento.`;
+
+  return {
+    subject: `Parceria ${statusLabel} no VestGO: ${ngoName}`,
+    text: buildTextEmail(
+      [
+        `Olá, ${pointName}.`,
+        '',
+        statusText,
+        'Acesse a plataforma para visualizar os detalhes.',
+      ],
+      input.actionUrl,
+    ),
+    html: buildLayout(
+      `Parceria ${statusLabel}`,
+      [
+        paragraph(`Olá, ${pointName}.`),
+        paragraph(statusText),
+        paragraph('Acesse a plataforma para visualizar os detalhes.'),
+      ].join(''),
+      { label: 'Ver parcerias', url: input.actionUrl },
+    ),
+  };
+}
+
+export function pickupRequestCreatedTemplate(input: PickupRequestCreatedEmailInput): EmailTemplate {
+  const pointName = input.collectionPointName.trim() || 'tudo bem';
+  const ngoName = input.ngoName.trim();
+  return {
+    subject: `Nova solicitação de retirada no VestGO: ${ngoName}`,
+    text: buildTextEmail(
+      [
+        `Olá, ${pointName}.`,
+        '',
+        `A ONG "${ngoName}" criou uma nova solicitação de retirada (Código: ${input.pickupCode}) direcionada ao seu ponto de coleta.`,
+        'Por favor, confirme se você pode atender a essa solicitação aceitando-a na plataforma.',
+      ],
+      input.actionUrl,
+    ),
+    html: buildLayout(
+      'Nova solicitação de retirada',
+      [
+        paragraph(`Olá, ${pointName}.`),
+        paragraph(`A ONG "${ngoName}" criou uma nova solicitação de retirada (Código: ${input.pickupCode}) direcionada ao seu ponto de coleta.`),
+        paragraph('Por favor, confirme se você pode atender a essa solicitação aceitando-a na plataforma.'),
+      ].join(''),
+      { label: 'Ver solicitação', url: input.actionUrl },
+    ),
+  };
+}
+
+export function pickupRequestStatusTemplate(input: PickupRequestStatusEmailInput): EmailTemplate {
+  const ngoName = input.ngoName.trim() || 'tudo bem';
+  const pointName = input.collectionPointName.trim();
+  const isAccepted = input.status === 'ACCEPTED';
+  const statusText = isAccepted
+    ? `O ponto de coleta "${pointName}" aceitou a sua solicitação de retirada ${input.pickupCode}. Eles estão prontos para receber ou processar a coleta.`
+    : `O ponto de coleta "${pointName}" rejeitou a sua solicitação de retirada ${input.pickupCode}.`;
+
+  return {
+    subject: `Solicitação de retirada ${isAccepted ? 'aceita' : 'rejeitada'} no VestGO: ${input.pickupCode}`,
+    text: buildTextEmail(
+      [
+        `Olá, ${ngoName}.`,
+        '',
+        statusText,
+        'Acesse a plataforma para acompanhar os detalhes.',
+      ],
+      input.actionUrl,
+    ),
+    html: buildLayout(
+      `Retirada ${isAccepted ? 'aceita' : 'rejeitada'}`,
+      [
+        paragraph(`Olá, ${ngoName}.`),
+        paragraph(statusText),
+        paragraph('Acesse a plataforma para acompanhar os detalhes.'),
+      ].join(''),
+      { label: 'Ver retiradas', url: input.actionUrl },
+    ),
+  };
+}
+
+export function operationalBatchStatusTemplate(input: OperationalBatchStatusEmailInput): EmailTemplate {
+  const name = input.name.trim() || 'tudo bem';
+  return {
+    subject: `${input.statusLabel} no VestGO: ${input.batchCode}`,
+    text: buildTextEmail(
+      [
+        `Olá, ${name}.`,
+        '',
+        input.statusMessage,
+        'Você pode acompanhar todos os detalhes do lote operacional pela plataforma.',
+      ],
+      input.actionUrl,
+    ),
+    html: buildLayout(
+      input.statusLabel,
+      [
+        paragraph(`Olá, ${name}.`),
+        paragraph(input.statusMessage),
+        paragraph('Você pode acompanhar todos os detalhes do lote operacional pela plataforma.'),
+      ].join(''),
+      { label: 'Ver lote', url: input.actionUrl },
+    ),
+  };
+}
