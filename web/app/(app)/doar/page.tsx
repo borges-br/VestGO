@@ -694,6 +694,12 @@ export default function DoarPage() {
               </div>
             )}
 
+            {selectionFeedback && currentStep === 2 && (
+              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+                {selectionFeedback}
+              </div>
+            )}
+
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{step.eyebrow}</p>
