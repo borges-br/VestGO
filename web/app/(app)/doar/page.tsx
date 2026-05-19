@@ -3,109 +3,70 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import {
-  Apple,
-  BadgeCheck,
-  Box,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  Edit3,
-  Footprints,
-  Gamepad2,
-  Info,
-  Layers,
-  Loader2,
-  MapPin,
-  Minus,
-  Package,
-  Plus as PlusIcon,
-  RefreshCcw,
-  Shirt,
-  ShoppingBag,
-  Sparkles,
-  Trash2,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3 } from 'lucide-react';
 import {
   createDonation,
   getCollectionPoint,
   getNearbyPoints,
+  getUserDonations,
   type CollectionPoint,
-  type DonationItemCondition,
-  type DonationPackageSize,
-  type DonationPackageType,
+  type DonationRecord,
   type ItemCategory,
 } from '@/lib/api';
-import { formatAddressSummary } from '@/lib/address';
+import {
+  DonationButton,
+  DonationStepper,
+  DonationSuccessPanel,
+  DonationSummaryCard,
+  CollectionPointStep,
+  ItemsStep,
+  LoadingDonationState,
+  NonDonorState,
+  PackagingStep,
+  ReviewStep,
+  categoryLabels,
+  clampItemQuantity,
+  clampPackageQuantity,
+  getPointAvailability,
+  isCondition,
+  isItemCategory,
+  isPackageMode,
+  isPackageSize,
+  isPackageType,
+  sortCollectionPointsForDonation,
+  type DonationItemDraft,
+  type DonationPackageDraft,
+  type PackageMode,
+  type StepConfig,
+} from '@/components/donations/new-donation-flow';
 import { estimatePackagesFromItems } from '@/lib/donation-package-estimator';
-import { cn } from '@/lib/utils';
 
-const steps = [
-  { eyebrow: 'Etapa 1', short: 'Itens', title: 'O que você vai doar?', description: 'Adicione os grupos de itens com categoria, quantidade e estado.' },
-  { eyebrow: 'Etapa 2', short: 'Embalagem', title: 'Como está embalado?', description: 'Informe quantas sacolas e caixas, com tamanhos, vão acompanhar a entrega.' },
-  { eyebrow: 'Etapa 3', short: 'Ponto', title: 'Escolha o ponto de coleta', description: 'Selecione um parceiro real para receber a doação.' },
-  { eyebrow: 'Etapa 4', short: 'Revisão', title: 'Revisão e confirmação', description: 'Confira os dados principais antes de concluir.' },
+const steps: StepConfig[] = [
+  {
+    eyebrow: 'Etapa 1',
+    short: 'Itens',
+    title: 'O que você quer doar?',
+    description: 'Escolha as categorias e ajuste as quantidades. Você poderá revisar tudo antes de confirmar.',
+  },
+  {
+    eyebrow: 'Etapa 2',
+    short: 'Embalagem',
+    title: 'Como você vai levar a doação?',
+    description: 'Sugerimos uma embalagem com base nos itens. Se precisar, você pode ajustar.',
+  },
+  {
+    eyebrow: 'Etapa 3',
+    short: 'Ponto',
+    title: 'Escolha o ponto de coleta',
+    description: 'Escolha um ponto próximo que receba os itens da sua doação.',
+  },
+  {
+    eyebrow: 'Etapa 4',
+    short: 'Revisão',
+    title: 'Revisão da doação',
+    description: 'Confira rapidamente e confirme para registrar sua doação.',
+  },
 ];
-
-type CategoryOption = {
-  id: ItemCategory;
-  label: string;
-  hint: string;
-  icon: typeof Shirt;
-};
-
-const categoryOptions: CategoryOption[] = [
-  { id: 'CLOTHING', label: 'Roupas', hint: 'Camisetas, calças, casacos, peças adultas e infantis', icon: Shirt },
-  { id: 'SHOES', label: 'Calçados', hint: 'Tênis, sapatos, chinelos em pares', icon: Footprints },
-  { id: 'ACCESSORIES', label: 'Acessórios', hint: 'Cintos, lenços, gorros, cachecóis', icon: Sparkles },
-  { id: 'BAGS', label: 'Bolsas', hint: 'Mochilas, bolsas e necessaires', icon: ShoppingBag },
-  { id: 'TOYS', label: 'Brinquedos', hint: 'Brinquedos limpos e completos', icon: Gamepad2 },
-  { id: 'FOOD', label: 'Alimentos', hint: 'Alimentos não perecíveis dentro da validade', icon: Apple },
-  { id: 'OTHER', label: 'Outros', hint: 'Cobertores, mantas e itens diversos', icon: Layers },
-];
-
-const conditionOptions: { id: DonationItemCondition; label: string; description: string }[] = [
-  { id: 'EXCELLENT', label: 'Em ótimo estado', description: 'Prontas para uso imediato.' },
-  { id: 'GOOD', label: 'Usadas, mas conservadas', description: 'Com bom potencial de reaproveitamento.' },
-];
-
-const packageTypeOptions: { id: DonationPackageType; label: string }[] = [
-  { id: 'BAG', label: 'Sacola' },
-  { id: 'BOX', label: 'Caixa' },
-];
-
-const packageSizeOptions: { id: DonationPackageSize; label: string; hint: string }[] = [
-  { id: 'SMALL', label: 'Pequena', hint: 'cerca de 3 a 8 peças' },
-  { id: 'MEDIUM', label: 'Média', hint: 'cerca de 9 a 20 peças' },
-  { id: 'LARGE', label: 'Grande', hint: 'cerca de 20 a 40 peças' },
-];
-
-const categoryLabels: Record<string, string> = {
-  CLOTHING: 'Roupas',
-  SHOES: 'Calçados',
-  ACCESSORIES: 'Acessórios',
-  BAGS: 'Bolsas',
-  TOYS: 'Brinquedos',
-  FOOD: 'Alimentos',
-  OTHER: 'Outros',
-};
-
-type DonationItemDraft = {
-  id: string;
-  category: ItemCategory;
-  quantity: number;
-  condition: DonationItemCondition;
-};
-
-type DonationPackageDraft = {
-  id: string;
-  type: DonationPackageType;
-  size: DonationPackageSize;
-  quantity: number;
-};
-
-type PackageMode = 'AUTO' | 'MANUAL';
 
 type DonationDraft = {
   currentStep: number;
@@ -203,7 +164,7 @@ function readDonationDraft(): DonationDraft {
           : 0,
       items,
       packages: packages.length > 0 ? packages : defaultPackages(),
-      packageMode: parsed.packageMode === 'MANUAL' ? 'MANUAL' : 'AUTO',
+      packageMode: isPackageMode(parsed.packageMode) ? parsed.packageMode : 'AUTO',
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
       pointId: typeof parsed.pointId === 'string' ? parsed.pointId : '',
       confirmed: parsed.confirmed === true,
@@ -235,138 +196,8 @@ function getCurrentPosition() {
   });
 }
 
-function isDonationEligiblePoint(point: CollectionPoint | null | undefined) {
-  return point?.role === 'COLLECTION_POINT' && point.donationEligibility?.canDonateHere === true;
-}
-
-function sortPointsForDonation(points: CollectionPoint[]) {
-  return [...points].sort((left, right) => {
-    const leftEligible = isDonationEligiblePoint(left) ? 1 : 0;
-    const rightEligible = isDonationEligiblePoint(right) ? 1 : 0;
-    if (leftEligible !== rightEligible) return rightEligible - leftEligible;
-    return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
-  });
-}
-
-function describePackage(pkg: DonationPackageDraft) {
-  const typeLabel = packageTypeOptions.find((option) => option.id === pkg.type)?.label ?? pkg.type;
-  const sizeLabel = packageSizeOptions.find((option) => option.id === pkg.size)?.label ?? pkg.size;
-  return `${pkg.quantity}x ${typeLabel.toLowerCase()} ${sizeLabel.toLowerCase()}`;
-}
-
-function describeItem(item: DonationItemDraft) {
-  const categoryLabel = categoryLabels[item.category] ?? item.category;
-  const conditionLabel = item.condition === 'EXCELLENT' ? 'ótimo estado' : 'bom estado';
-  return `${item.quantity} ${categoryLabel.toLowerCase()} (${conditionLabel})`;
-}
-
-type SummaryCardProps = {
-  items: DonationItemDraft[];
-  packages: DonationPackageDraft[];
-  notes: string;
-  selectedPoint: CollectionPoint | null;
-  totalItems: number;
-  uniqueCategories: number;
-  compact?: boolean;
-};
-
-function SummaryCard({
-  items,
-  packages,
-  notes,
-  selectedPoint,
-  totalItems,
-  uniqueCategories,
-  compact = false,
-}: SummaryCardProps) {
-  return (
-    <div
-      className={cn(
-        'rounded-[2rem] bg-white shadow-card dark:bg-surface-inkSoft dark:shadow-none',
-        compact ? 'p-5' : 'p-6 lg:p-7',
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Resumo da doação</p>
-          <h2 className="mt-2 text-xl font-bold text-primary-deeper dark:text-white">O que já foi definido</h2>
-        </div>
-        <BadgeCheck size={20} className="text-primary" />
-      </div>
-
-      <div className="mt-5 space-y-4">
-        <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Itens</p>
-          <ul className="mt-2 space-y-1">
-            {items.length === 0 ? (
-              <li className="text-sm text-gray-400">Nenhum item adicionado.</li>
-            ) : (
-              items.map((item) => (
-                <li key={item.id} className="text-sm font-medium text-on-surface dark:text-gray-100">
-                  · {describeItem(item)}
-                </li>
-              ))
-            )}
-          </ul>
-          <p className="mt-3 text-xs text-gray-400">
-            {totalItems} item(ns) · {uniqueCategories} categoria(s)
-          </p>
-        </div>
-
-        <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Embalagem</p>
-          {packages.length === 0 ? (
-            <p className="mt-2 text-sm text-gray-400">Sem embalagens declaradas.</p>
-          ) : (
-            <ul className="mt-2 space-y-1">
-              {packages.map((pkg) => (
-                <li key={pkg.id} className="text-sm font-medium text-on-surface dark:text-gray-100">
-                  · {describePackage(pkg)}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Ponto de coleta</p>
-          {selectedPoint ? (
-            <div className="mt-3">
-              <p className="text-sm font-semibold text-on-surface dark:text-gray-100">
-                {selectedPoint.organizationName ?? selectedPoint.name}
-              </p>
-              <p className="mt-1 text-sm text-gray-400">
-                {selectedPoint.distanceKm ? `${selectedPoint.distanceKm} km - ` : ''}
-                {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
-              </p>
-              {selectedPoint.donationEligibility && (
-                <div
-                  className={cn(
-                    'mt-3 rounded-2xl px-3 py-2 text-xs leading-6',
-                    selectedPoint.donationEligibility.canDonateHere
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
-                      : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
-                  )}
-                >
-                  <p className="font-semibold">{selectedPoint.donationEligibility.label}</p>
-                  <p>{selectedPoint.donationEligibility.message}</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-gray-400">Escolha do ponto ainda pendente.</p>
-          )}
-        </div>
-
-        {notes && (
-          <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Observações</p>
-            <p className="mt-2 text-sm leading-6 text-gray-500">{notes}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+function clonePackagesForManual(packages: DonationPackageDraft[]) {
+  return packages.map((pkg) => ({ ...pkg, id: makeId() }));
 }
 
 export default function DoarPage() {
@@ -387,6 +218,7 @@ export default function DoarPage() {
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [points, setPoints] = useState<CollectionPoint[]>([]);
+  const [existingDonations, setExistingDonations] = useState<DonationRecord[]>([]);
   const [pointsLoading, setPointsLoading] = useState(true);
   const [pointsError, setPointsError] = useState<string | null>(null);
   const [pointsNotice, setPointsNotice] = useState<string | null>(null);
@@ -414,16 +246,6 @@ export default function DoarPage() {
     setConfirmed(draft.confirmed);
     setDraftReady(true);
   }, []);
-
-  const packageEstimate = useMemo(
-    () => estimatePackagesFromItems(items, makeId),
-    [items],
-  );
-
-  useEffect(() => {
-    if (!draftReady || packageMode !== 'AUTO') return;
-    setPackages(packageEstimate.packages);
-  }, [draftReady, packageEstimate, packageMode]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -480,7 +302,84 @@ export default function DoarPage() {
         confirmed,
       } satisfies DonationDraft),
     );
-  }, [confirmed, currentStep, draftReady, isDonor, items, notes, packageMode, packages, pointId]);
+  }, [confirmed, createdDonationId, currentStep, draftReady, isDonor, items, notes, packageMode, packages, pointId]);
+
+  const selectedCategories = useMemo(() => items.map((item) => item.category), [items]);
+  const automaticEstimate = useMemo(() => estimatePackagesFromItems(items), [items]);
+  const effectivePackages = packageMode === 'AUTO' ? automaticEstimate.packages : packages;
+  const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
+  const uniqueCategories = useMemo(() => new Set(items.map((item) => item.category)).size, [items]);
+  const totalPackagesCount = useMemo(
+    () => effectivePackages.reduce((sum, pkg) => sum + pkg.quantity, 0),
+    [effectivePackages],
+  );
+  const usedPointIds = useMemo(() => {
+    const ids = existingDonations
+      .map((donation) => donation.collectionPoint?.id)
+      .filter((value): value is string => Boolean(value));
+    return new Set(ids);
+  }, [existingDonations]);
+  const sortedPoints = useMemo(
+    () => sortCollectionPointsForDonation(points, selectedCategories, usedPointIds),
+    [points, selectedCategories, usedPointIds],
+  );
+  const selectedPoint = points.find((point) => point.id === pointId) ?? null;
+  const selectedPointAvailability = selectedPoint
+    ? getPointAvailability(selectedPoint, selectedCategories)
+    : null;
+  const selectedPointLabel = selectedPoint?.organizationName ?? selectedPoint?.name ?? null;
+
+  const mapSelectionParams = new URLSearchParams({
+    mode: 'select-point',
+    returnTo: '/doar',
+    source: 'donation-flow',
+    returnStep: '2',
+  });
+
+  if (pointId) mapSelectionParams.set('selectedPointId', pointId);
+  const mapSelectionHref = `/mapa?${mapSelectionParams.toString()}`;
+
+  const loadDonationContext = useCallback(async () => {
+    if (status === 'loading' || !isDonor || !draftReady) return;
+
+    setPointsLoading(true);
+    setPointsError(null);
+    setPointsNotice(null);
+
+    try {
+      const location = await getCurrentPosition();
+      const nearbyPromise = getNearbyPoints({
+        lat: location.lat,
+        lng: location.lng,
+        radius: 15,
+        limit: 12,
+        forDonation: true,
+      });
+      const donationsPromise = session?.user?.accessToken
+        ? getUserDonations(session.user.accessToken, { limit: 50 })
+        : Promise.resolve(null);
+
+      const [nearby, donationsResponse] = await Promise.all([nearbyPromise, donationsPromise]);
+      const collectionPointsOnly = nearby.data.filter((point) => point.role === 'COLLECTION_POINT');
+      setPoints(collectionPointsOnly);
+
+      if (donationsResponse) {
+        setExistingDonations(donationsResponse.data);
+      }
+
+      if (collectionPointsOnly.length === 0) {
+        setPointsError('Nenhum ponto de coleta foi encontrado agora.');
+      }
+    } catch {
+      setPointsError('Não conseguimos carregar os pontos de coleta no momento. Tente novamente em instantes.');
+    } finally {
+      setPointsLoading(false);
+    }
+  }, [draftReady, isDonor, session?.user?.accessToken, status]);
+
+  useEffect(() => {
+    loadDonationContext();
+  }, [loadDonationContext]);
 
   useEffect(() => {
     if (!draftReady || !pointId || points.some((point) => point.id === pointId)) return;
@@ -521,65 +420,28 @@ export default function DoarPage() {
   useEffect(() => {
     if (!pointId || !selectedPoint) return;
 
-      setPointsLoading(true);
-      setPointsError(null);
-
-      try {
-        const location = await getCurrentPosition();
-        const nearbyPromise = getNearbyPoints({
-          lat: location.lat,
-          lng: location.lng,
-          radius: 15,
-          limit: 6,
-          forDonation: true,
-        });
-
-        const nearby = await nearbyPromise;
-        const collectionPointsOnly = sortPointsForDonation(
-          nearby.data.filter((point) => point.role === 'COLLECTION_POINT'),
-        );
-        setPoints(collectionPointsOnly);
-
-        const firstEligiblePoint = collectionPointsOnly.find((point) => isDonationEligiblePoint(point));
-        if (firstEligiblePoint) setPointId((current) => current || firstEligiblePoint.id);
-
-        if (collectionPointsOnly.length === 0) {
-          setPointsError('Nenhum ponto parceiro disponível agora.');
-        } else if (!firstEligiblePoint) {
-          setPointsError(
-            'Os pontos visíveis nesta área ainda aguardam ONG parceira ativa e, por isso, não podem finalizar doações.',
-          );
-        }
-      } catch {
-        setPointsError('Não foi possível carregar os pontos de coleta no momento.');
-      } finally {
-        setPointsLoading(false);
-      }
-    }
-
-    loadContext();
-  }, [draftReady, isDonor, session?.user?.accessToken, status]);
-
-  useEffect(() => {
-    if (!pointId) return;
-    const currentPoint = points.find((item) => item.id === pointId);
-    if (!currentPoint || isDonationEligiblePoint(currentPoint)) return;
+    const availability = getPointAvailability(selectedPoint, selectedCategories);
+    if (availability.canSelect) return;
 
     setPointId('');
     setConfirmed(false);
     setShowPreselectedPointNotice(false);
-    setPointsError(currentPoint.donationEligibility?.message ?? 'Este ponto ainda não pode finalizar doações.');
-  }, [pointId, points]);
+    setPointsNotice(availability.reason ?? 'O ponto escolhido não pode receber os itens selecionados.');
+  }, [pointId, selectedCategories, selectedPoint]);
 
-  const totalItems = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity, 0),
-    [items],
-  );
+  const stepValidation = getStepValidation({
+    currentStep,
+    items,
+    totalItems,
+    effectivePackages,
+    totalPackagesCount,
+    selectedPoint,
+    selectedPointAvailability,
+    confirmed,
+  });
 
-  const uniqueCategories = useMemo(
-    () => new Set(items.map((item) => item.category)).size,
-    [items],
-  );
+  const visibleValidationMessage = attemptedSteps.has(currentStep) ? stepValidation : null;
+  const step = steps[currentStep];
 
   if (status === 'loading' || !draftReady) {
     return (
@@ -603,17 +465,8 @@ export default function DoarPage() {
     );
   }
 
-  const selectedPoint = points.find((item) => item.id === pointId) ?? null;
-  const selectedPointLabel = selectedPoint?.organizationName ?? selectedPoint?.name ?? null;
-  const step = steps[currentStep];
-  const progress = ((currentStep + 1) / steps.length) * 100;
-  const totalPackagesCount = packages.reduce((sum, pkg) => sum + pkg.quantity, 0);
-  const mapSelectionParams = new URLSearchParams({
-    mode: 'select-point',
-    returnTo: '/doar',
-    source: 'donation-flow',
-    returnStep: '2',
-  });
+  function scrollToStepTop() {
+    if (typeof window === 'undefined' || window.innerWidth >= 1024 || !stepCardRef.current) return;
 
     const topbarHeight = parseInt(
       getComputedStyle(document.documentElement).getPropertyValue('--topbar-height') || '64',
@@ -680,12 +533,22 @@ export default function DoarPage() {
   }
 
   function updatePackage(id: string, patch: Partial<DonationPackageDraft>) {
+    setPackages((current) =>
+      current.map((pkg) =>
+        pkg.id === id
+          ? {
+              ...pkg,
+              ...patch,
+              quantity: patch.quantity == null ? pkg.quantity : clampPackageQuantity(patch.quantity),
+            }
+          : pkg,
+      ),
+    );
     setPackageMode('MANUAL');
-    setPackages((current) => current.map((pkg) => (pkg.id === id ? { ...pkg, ...patch } : pkg)));
+    setConfirmed(false);
   }
 
   function addPackage() {
-    setPackageMode('MANUAL');
     setPackages((current) => [
       ...current,
       { id: makeId(), type: 'BAG', size: 'MEDIUM', quantity: 1 },
@@ -695,24 +558,18 @@ export default function DoarPage() {
   }
 
   function removePackage(id: string) {
+    setPackages((current) => {
+      const next = current.filter((pkg) => pkg.id !== id);
+      return next.length > 0 ? next : current;
+    });
     setPackageMode('MANUAL');
-    setPackages((current) => (current.length === 1 ? current : current.filter((pkg) => pkg.id !== id)));
+    setConfirmed(false);
   }
 
-  function restorePackageSuggestion() {
-    setPackages(packageEstimate.packages);
-    setPackageMode('AUTO');
-  }
-
-  function scrollToStepTop() {
-    if (window.innerWidth < 1024 && stepCardRef.current) {
-      const topbarHeight = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--topbar-height') || '64',
-        10,
-      );
-      const rect = stepCardRef.current.getBoundingClientRect();
-      window.scrollBy({ top: rect.top - topbarHeight - 12, behavior: 'smooth' });
-    }
+  function startManualPackaging() {
+    setPackages(clonePackagesForManual(effectivePackages.length > 0 ? effectivePackages : defaultPackages()));
+    setPackageMode('MANUAL');
+    setConfirmed(false);
   }
 
   function useAutomaticPackaging() {
@@ -733,10 +590,6 @@ export default function DoarPage() {
     setPointsError(null);
     setSelectionFeedback('Ponto selecionado. Você poderá trocar antes de confirmar.');
     setShowPreselectedPointNotice(false);
-  }
-
-  function handleCancel() {
-    router.push('/inicio');
   }
 
   async function handleConfirm() {
@@ -798,16 +651,16 @@ export default function DoarPage() {
   }
 
   return (
-    <div className="px-4 pb-[calc(var(--mobile-bottom-nav-height)+8rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 md:pb-6 lg:px-8">
-      <div className="mx-auto max-w-shell space-y-3 sm:space-y-4">
+    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-shell space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doação</p>
-            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-primary-deeper dark:text-white sm:mt-2 sm:text-4xl">
-              Registrar doação
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doacao</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper dark:text-white sm:text-4xl">
+              Registrar uma nova doação
             </h1>
-            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-gray-500 sm:mt-2 sm:text-base sm:leading-7">
-              Vamos preparar sua entrega em poucos passos.
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
+              Vamos te ajudar a preparar sua doação e escolher onde entregar.
             </p>
           </div>
         </div>
@@ -860,308 +713,31 @@ export default function DoarPage() {
             </div>
 
             {currentStep === 0 && (
-              <div className="space-y-5">
-                <div className="space-y-3">
-                  {items.map((item, index) => {
-                    const Icon = categoryOptions.find((option) => option.id === item.category)?.icon ?? Package;
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-surface-ink"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-light text-primary dark:bg-primary/20">
-                              <Icon size={20} />
-                            </div>
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
-                                Grupo {index + 1}
-                              </p>
-                              <p className="mt-1 text-sm font-semibold text-primary-deeper dark:text-white">
-                                {categoryLabels[item.category] ?? item.category}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeItem(item.id)}
-                            disabled={items.length === 1}
-                            className={cn(
-                              'inline-flex h-9 w-9 items-center justify-center rounded-xl border text-gray-500 transition-colors',
-                              items.length === 1
-                                ? 'cursor-not-allowed border-gray-100 bg-surface opacity-60 dark:border-white/10 dark:bg-surface-inkSoft'
-                                : 'border-gray-200 hover:border-red-200 hover:text-red-500 dark:border-white/10',
-                            )}
-                            aria-label="Remover grupo"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                          <div className="sm:col-span-2">
-                            <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
-                              Categoria
-                            </label>
-                            <select
-                              value={item.category}
-                              onChange={(event) => updateItem(item.id, { category: event.target.value as ItemCategory })}
-                              className="mt-2 h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium text-on-surface dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
-                            >
-                              {categoryOptions.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                  {option.label} — {option.hint}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
-                              Quantidade
-                            </label>
-                            <div className="mt-2 flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })}
-                                className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
-                                aria-label="Diminuir"
-                              >
-                                <Minus size={16} />
-                              </button>
-                              <input
-                                type="number"
-                                min={1}
-                                max={200}
-                                value={item.quantity}
-                                onChange={(event) => {
-                                  const next = Math.max(1, Math.min(200, Number.parseInt(event.target.value, 10) || 1));
-                                  updateItem(item.id, { quantity: next });
-                                }}
-                                className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-center text-base font-bold text-primary-deeper dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => updateItem(item.id, { quantity: Math.min(200, item.quantity + 1) })}
-                                className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
-                                aria-label="Aumentar"
-                              >
-                                <PlusIcon size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Condição das peças</p>
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            {conditionOptions.map((option) => (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => updateItem(item.id, { condition: option.id })}
-                                className={cn(
-                                  'rounded-2xl border px-4 py-3 text-left text-sm transition-colors',
-                                  item.condition === option.id
-                                    ? 'border-primary bg-primary-light/40 text-primary-deeper dark:bg-primary/20 dark:text-white'
-                                    : 'border-gray-200 bg-white text-gray-500 hover:border-primary dark:border-white/10 dark:bg-surface-inkSoft',
-                                )}
-                              >
-                                <p className="font-semibold">{option.label}</p>
-                                <p className="mt-1 text-xs text-gray-500">{option.description}</p>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary-light/30 px-4 py-3 text-sm font-semibold text-primary hover:border-primary dark:bg-primary/10"
-                >
-                  <PlusIcon size={16} />
-                  Adicionar outro grupo (categoria + quantidade)
-                </button>
-
-                <div className="rounded-[1.75rem] bg-primary-deeper p-5 text-white">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-primary">
-                      <Info size={18} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">Separe os itens por tipo quando possível.</p>
-                      <p className="mt-2 text-sm leading-7 text-primary-muted">
-                        Calçados, alimentos e brinquedos seguem melhor protegidos quando não ficam misturados com roupas.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ItemsStep
+                items={items}
+                totalItems={totalItems}
+                uniqueCategories={uniqueCategories}
+                validationMessage={visibleValidationMessage}
+                onToggleCategory={toggleCategory}
+                onUpdateItem={updateItem}
+                onRemoveItem={removeItem}
+              />
             )}
 
             {currentStep === 1 && (
-              <div className="space-y-5">
-                <div className="rounded-[1.75rem] bg-primary-light/40 p-5 text-primary-deeper dark:bg-primary/15 dark:text-primary-muted">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex gap-3">
-                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-primary shadow-sm dark:bg-surface-ink">
-                        {packageMode === 'MANUAL' ? <Edit3 size={18} /> : <Check size={18} />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">
-                          {packageMode === 'MANUAL' ? 'Ajustado manualmente' : 'Sugestão automática aplicada'}
-                        </p>
-                        <p className="mt-2 text-sm leading-7 text-gray-600 dark:text-gray-300">
-                          {packageMode === 'MANUAL'
-                            ? 'Você alterou a sugestão automática. Pode voltar para a sugestão quando quiser.'
-                            : packageEstimate.explanation}
-                        </p>
-                      </div>
-                    </div>
-
-                    {packageMode === 'MANUAL' && (
-                      <button
-                        type="button"
-                        onClick={restorePackageSuggestion}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-primary-deeper shadow-sm transition-colors hover:bg-primary hover:text-white dark:bg-surface-ink dark:text-primary-muted dark:hover:bg-primary dark:hover:text-white"
-                      >
-                        <RefreshCcw size={15} />
-                        Voltar para sugestão
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {packages.map((pkg, index) => (
-                    <div
-                      key={pkg.id}
-                      className="rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-surface-ink"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-light text-primary dark:bg-primary/20">
-                            {pkg.type === 'BOX' ? <Box size={20} /> : <ShoppingBag size={20} />}
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
-                              Volume {index + 1}
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-primary-deeper dark:text-white">
-                              {describePackage(pkg)}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removePackage(pkg.id)}
-                          disabled={packages.length === 1}
-                          className={cn(
-                            'inline-flex h-9 w-9 items-center justify-center rounded-xl border text-gray-500 transition-colors',
-                            packages.length === 1
-                              ? 'cursor-not-allowed border-gray-100 bg-surface opacity-60 dark:border-white/10 dark:bg-surface-inkSoft'
-                              : 'border-gray-200 hover:border-red-200 hover:text-red-500 dark:border-white/10',
-                          )}
-                          aria-label="Remover volume"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                        <div>
-                          <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tipo</label>
-                          <select
-                            value={pkg.type}
-                            onChange={(event) =>
-                              updatePackage(pkg.id, { type: event.target.value as DonationPackageType })
-                            }
-                            className="mt-2 h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
-                          >
-                            {packageTypeOptions.map((option) => (
-                              <option key={option.id} value={option.id}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Tamanho</label>
-                          <select
-                            value={pkg.size}
-                            onChange={(event) =>
-                              updatePackage(pkg.id, { size: event.target.value as DonationPackageSize })
-                            }
-                            className="mt-2 h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100"
-                          >
-                            {packageSizeOptions.map((option) => (
-                              <option key={option.id} value={option.id}>
-                                {option.label} — {option.hint}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Quantos</label>
-                          <div className="mt-2 flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => updatePackage(pkg.id, { quantity: Math.max(1, pkg.quantity - 1) })}
-                              className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
-                              aria-label="Diminuir"
-                            >
-                              <Minus size={16} />
-                            </button>
-                            <input
-                              type="number"
-                              min={1}
-                              max={50}
-                              value={pkg.quantity}
-                              onChange={(event) => {
-                                const next = Math.max(1, Math.min(50, Number.parseInt(event.target.value, 10) || 1));
-                                updatePackage(pkg.id, { quantity: next });
-                              }}
-                              className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-center text-base font-bold text-primary-deeper dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updatePackage(pkg.id, { quantity: Math.min(50, pkg.quantity + 1) })}
-                              className="flex h-12 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:text-primary dark:border-white/10"
-                              aria-label="Aumentar"
-                            >
-                              <PlusIcon size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={addPackage}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary-light/30 px-4 py-3 text-sm font-semibold text-primary hover:border-primary dark:bg-primary/10"
-                >
-                  <PlusIcon size={16} />
-                  Adicionar outro volume
-                </button>
-
-                <div>
-                  <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">Observações</p>
-                  <textarea
-                    rows={4}
-                    placeholder="Opcional: tamanhos, peças mais sensíveis ou contexto útil para o ponto de coleta."
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    className="w-full resize-none rounded-[1.75rem] border border-gray-100 bg-surface px-5 py-4 text-sm text-on-surface outline-none placeholder:text-gray-400 focus:border-primary focus:bg-white dark:border-white/10 dark:bg-surface-ink dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:bg-surface-inkSoft"
-                  />
-                </div>
-              </div>
+              <PackagingStep
+                packageMode={packageMode}
+                automaticEstimate={automaticEstimate}
+                packages={packages}
+                notes={notes}
+                validationMessage={visibleValidationMessage}
+                onUseAuto={useAutomaticPackaging}
+                onStartManual={startManualPackaging}
+                onUpdatePackage={updatePackage}
+                onAddPackage={addPackage}
+                onRemovePackage={removePackage}
+                onNotesChange={setNotes}
+              />
             )}
 
             {currentStep === 2 && (
@@ -1182,88 +758,19 @@ export default function DoarPage() {
             )}
 
             {currentStep === 3 && (
-              <div className="space-y-5">
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Itens declarados</p>
-                    <ul className="mt-3 space-y-2">
-                      {items.map((item) => (
-                        <li key={item.id} className="text-sm text-on-surface dark:text-gray-100">
-                          · {describeItem(item)}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-3 text-xs text-gray-500">
-                      Total: {totalItems} item(ns) · {uniqueCategories} categoria(s)
-                    </p>
-                  </div>
-
-                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Embalagem</p>
-                    <ul className="mt-3 space-y-2">
-                      {packages.map((pkg) => (
-                        <li key={pkg.id} className="text-sm text-on-surface dark:text-gray-100">
-                          · {describePackage(pkg)}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="rounded-[1.75rem] bg-surface p-5 dark:bg-surface-ink lg:col-span-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Ponto escolhido</p>
-                    {selectedPoint && (
-                      <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-on-surface dark:text-gray-100">{selectedPoint.organizationName ?? selectedPoint.name}</p>
-                          <p className="mt-1 text-sm text-gray-400">
-                            {formatAddressSummary(selectedPoint) ?? 'Endereço não informado'}
-                          </p>
-                          {selectedPoint.donationEligibility && (
-                            <p className="mt-2 text-sm text-gray-500">
-                              {selectedPoint.donationEligibility.label}: {selectedPoint.donationEligibility.message}
-                            </p>
-                          )}
-                        </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary shadow-sm dark:bg-surface-inkSoft">
-                          {selectedPoint.acceptedCategories.slice(0, 3).map((item) => categoryLabels[item] ?? item).join(' - ')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-[1.75rem] bg-primary-light/45 p-5 dark:bg-primary/10 lg:col-span-2">
-                    <p className="text-sm font-semibold text-primary-deeper dark:text-white">Antes de confirmar</p>
-                    <div className="mt-4 space-y-3">
-                      {[
-                        'As peças estão limpas e prontas para reaproveitamento.',
-                        'O ponto escolhido está ativo e receberá sua doação.',
-                        'As embalagens declaradas acompanham o recebimento no ponto parceiro.',
-                        'Depois da confirmação, você acompanha o caminho da doação pelo rastreio.',
-                      ].map((entry) => (
-                        <div key={entry} className="flex items-start gap-3">
-                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-primary dark:bg-surface-inkSoft">
-                            <Check size={15} />
-                          </div>
-                          <p className="text-sm leading-7 text-gray-500">{entry}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <label className="flex cursor-pointer items-start gap-3 rounded-[1.75rem] border border-gray-100 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-surface-inkSoft">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmed((value) => !value)}
-                    className={cn('mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors', confirmed ? 'border-primary bg-primary text-white' : 'border-gray-300 bg-white text-transparent dark:border-white/20 dark:bg-surface-ink')}
-                  >
-                    <Check size={12} />
-                  </button>
-                  <span className="text-sm leading-7 text-gray-500">
-                    Confirmo que as peças estão limpas, em bom estado e prontas para seguir para o ponto selecionado.
-                  </span>
-                </label>
-              </div>
+              <ReviewStep
+                items={items}
+                packages={effectivePackages}
+                notes={notes}
+                selectedPoint={selectedPoint}
+                packageMode={packageMode}
+                totalItems={totalItems}
+                uniqueCategories={uniqueCategories}
+                confirmed={confirmed}
+                validationMessage={visibleValidationMessage}
+                onEditStep={goToStep}
+                onConfirmedChange={setConfirmed}
+              />
             )}
 
             {submitError && (
@@ -1275,34 +782,16 @@ export default function DoarPage() {
               </div>
             )}
 
-            <div className="mt-8 border-t border-gray-100 pt-5 dark:border-white/10">
-              <div className="xl:hidden">
-                <SummaryCard
-                  items={items}
-                  packages={packages}
-                  notes={notes}
-                  selectedPoint={selectedPoint}
-                  totalItems={totalItems}
-                  uniqueCategories={uniqueCategories}
-                  compact
-                />
-              </div>
-
-              <div className="mt-5 hidden flex-col gap-3 md:flex md:flex-row md:items-center md:justify-between">
-                <button
-                  type="button"
-                  onClick={currentStep === 0 ? handleCancel : handleBack}
+            <div className="sticky bottom-[calc(var(--mobile-bottom-nav-offset)+env(safe-area-inset-bottom))] z-20 -mx-6 mt-8 border-t border-gray-100 bg-white/95 px-6 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-5 backdrop-blur dark:border-white/10 dark:bg-surface-inkSoft/95 lg:static lg:-mx-8 lg:px-8 lg:pb-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <DonationButton
+                  variant="secondary"
+                  leftIcon={currentStep === 0 ? undefined : <ChevronLeft size={16} />}
+                  onClick={handleBack}
                   disabled={loading}
-                  className={cn(
-                    'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
-                    loading
-                      ? 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink'
-                      : 'border border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-300',
-                  )}
                 >
-                  {currentStep === 0 ? null : <ChevronLeft size={16} />}
                   {currentStep === 0 ? 'Cancelar' : 'Voltar'}
-                </button>
+                </DonationButton>
 
                 <div className="flex flex-col items-stretch gap-2 sm:items-end">
                   {visibleValidationMessage && (
@@ -1349,74 +838,12 @@ export default function DoarPage() {
                 packages={effectivePackages}
                 notes={notes}
                 selectedPoint={selectedPoint}
+                packageMode={packageMode}
                 totalItems={totalItems}
                 uniqueCategories={uniqueCategories}
               />
             </div>
           </aside>
-        </div>
-      </div>
-
-      <div
-        className="fixed inset-x-0 z-40 border-t border-gray-100 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-nav backdrop-blur-xl transition-[bottom] duration-300 ease-out dark:border-white/10 dark:bg-surface-inkSoft/95 md:hidden motion-reduce:transition-none"
-        style={{ bottom: 'calc(var(--mobile-bottom-nav-offset) + env(safe-area-inset-bottom))' }}
-      >
-        <div className="mx-auto flex max-w-[40rem] items-center gap-3">
-          <button
-            type="button"
-            onClick={currentStep === 0 ? handleCancel : handleBack}
-            disabled={loading}
-            className={cn(
-              'inline-flex h-12 min-w-[7rem] items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-colors',
-              loading
-                ? 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink'
-                : 'border border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-300',
-            )}
-          >
-            {currentStep === 0 ? null : <ChevronLeft size={16} />}
-            {currentStep === 0 ? 'Cancelar' : 'Voltar'}
-          </button>
-
-          {currentStep < steps.length - 1 ? (
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={!canContinue || loading}
-              className={cn(
-                'inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-colors',
-                canContinue && !loading
-                  ? 'bg-primary-deeper text-white hover:bg-primary-dark'
-                  : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
-              )}
-            >
-              Continuar
-              <ChevronRight size={16} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={!canContinue || loading || !session?.user?.accessToken}
-              className={cn(
-                'inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-colors',
-                canContinue && !loading && session?.user?.accessToken
-                  ? 'bg-primary-deeper text-white hover:bg-primary-dark'
-                  : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
-              )}
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Registrando...
-                </>
-              ) : (
-                <>
-                  Confirmar
-                  <ChevronRight size={16} />
-                </>
-              )}
-            </button>
-          )}
         </div>
       </div>
     </div>
