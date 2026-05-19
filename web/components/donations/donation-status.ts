@@ -57,7 +57,7 @@ export const DONATION_STATUS_CONFIG: Record<
   },
   DISTRIBUTED: {
     label: 'Distribuida',
-    description: 'Doação distribuída para atendimento social. Obrigado por movimentar a solidariedade.',
+    description: 'Doacao distribuida para atendimento social. Obrigado por movimentar a solidariedade.',
     color: 'text-emerald-600',
     bg: 'bg-emerald-50',
     icon: CheckCircle,
@@ -80,19 +80,19 @@ export const DONATION_STATUS_ACTIONS: Record<
     description: 'A doacao foi registrada e ainda nao iniciou o fluxo operacional.',
   },
   AT_POINT: {
-    label: 'Confirmar recebimento',
+    label: 'Receber no ponto',
     description: 'Recebimento registrado no ponto parceiro.',
   },
   IN_TRANSIT: {
-    label: 'Enviar para ONG',
+    label: 'Vincular a carga & despachar',
     description: 'Envio para a ONG parceira confirmado.',
   },
   DELIVERED: {
-    label: 'Confirmar entrega na ONG',
+    label: 'Confirmar recebimento',
     description: 'Recebimento confirmado pela ONG parceira.',
   },
   DISTRIBUTED: {
-    label: 'Marcar distribuicao',
+    label: 'Marcar como distribuida',
     description: 'Distribuicao social concluida.',
   },
   CANCELLED: {
