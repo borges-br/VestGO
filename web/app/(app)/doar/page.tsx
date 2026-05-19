@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Edit3,
   Footprints,
   Gamepad2,
   Info,
@@ -21,30 +22,24 @@ import {
   Minus,
   Package,
   Plus as PlusIcon,
+  RefreshCcw,
   Shirt,
   ShoppingBag,
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { PostDonationRewardCard } from '@/components/gamification/impact-widgets';
 import {
   createDonation,
   getCollectionPoint,
   getNearbyPoints,
-  getUserDonations,
   type CollectionPoint,
   type DonationItemCondition,
   type DonationPackageSize,
   type DonationPackageType,
-  type DonationRecord,
   type ItemCategory,
 } from '@/lib/api';
 import { formatAddressSummary } from '@/lib/address';
-import { calculateDonationPointsBreakdown } from '@/lib/donation-points';
-import {
-  buildPostDonationRewardFromBreakdown,
-  type PostDonationReward,
-} from '@/lib/gamification';
+import { estimatePackagesFromItems } from '@/lib/donation-package-estimator';
 import { cn } from '@/lib/utils';
 
 const steps = [
@@ -72,7 +67,7 @@ const categoryOptions: CategoryOption[] = [
 ];
 
 const conditionOptions: { id: DonationItemCondition; label: string; description: string }[] = [
-  { id: 'EXCELLENT', label: 'Em ótimo estado', description: 'Prontas para uso imediato (rende +5 pts/item).' },
+  { id: 'EXCELLENT', label: 'Em ótimo estado', description: 'Prontas para uso imediato.' },
   { id: 'GOOD', label: 'Usadas, mas conservadas', description: 'Com bom potencial de reaproveitamento.' },
 ];
 
@@ -111,10 +106,13 @@ type DonationPackageDraft = {
   quantity: number;
 };
 
+type PackageMode = 'AUTO' | 'MANUAL';
+
 type DonationDraft = {
   currentStep: number;
   items: DonationItemDraft[];
   packages: DonationPackageDraft[];
+  packageMode: PackageMode;
   notes: string;
   pointId: string;
   confirmed: boolean;
@@ -142,6 +140,7 @@ function defaultDraft(): DonationDraft {
     currentStep: 0,
     items: defaultItems(),
     packages: defaultPackages(),
+    packageMode: 'AUTO',
     notes: '',
     pointId: '',
     confirmed: false,
@@ -214,6 +213,7 @@ function readDonationDraft(): DonationDraft {
           : 0,
       items: items.length > 0 ? items : defaultItems(),
       packages: packages.length > 0 ? packages : defaultPackages(),
+      packageMode: parsed.packageMode === 'MANUAL' ? 'MANUAL' : 'AUTO',
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
       pointId: typeof parsed.pointId === 'string' ? parsed.pointId : '',
       confirmed: parsed.confirmed === true,
@@ -274,10 +274,8 @@ type SummaryCardProps = {
   packages: DonationPackageDraft[];
   notes: string;
   selectedPoint: CollectionPoint | null;
-  reward: PostDonationReward;
   totalItems: number;
   uniqueCategories: number;
-  multiplierLabel: string;
   compact?: boolean;
 };
 
@@ -286,10 +284,8 @@ function SummaryCard({
   packages,
   notes,
   selectedPoint,
-  reward,
   totalItems,
   uniqueCategories,
-  multiplierLabel,
   compact = false,
 }: SummaryCardProps) {
   return (
@@ -322,7 +318,7 @@ function SummaryCard({
             )}
           </ul>
           <p className="mt-3 text-xs text-gray-400">
-            {totalItems} item(ns) · {uniqueCategories} categoria(s) · multiplicador {multiplierLabel}
+            {totalItems} item(ns) · {uniqueCategories} categoria(s)
           </p>
         </div>
 
@@ -371,15 +367,6 @@ function SummaryCard({
           )}
         </div>
 
-        <div className="rounded-3xl bg-primary-light/45 p-4 dark:bg-primary/10">
-          <p className="text-sm font-semibold text-primary-deeper dark:text-white">
-            Pontuação prevista: até +{reward.potentialPoints} pontos
-          </p>
-          <p className="mt-1 text-xs text-gray-500">{reward.confirmationLabel}</p>
-          <p className="mt-1 text-xs text-gray-500">{reward.distributionLabel}</p>
-          <p className="mt-2 text-xs leading-5 text-gray-500">{reward.pendingPointsLabel}</p>
-        </div>
-
         {notes && (
           <div className="rounded-3xl bg-surface p-4 dark:bg-surface-ink">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Observações</p>
@@ -403,12 +390,12 @@ export default function DoarPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [items, setItems] = useState<DonationItemDraft[]>(() => defaultItems());
   const [packages, setPackages] = useState<DonationPackageDraft[]>(() => defaultPackages());
+  const [packageMode, setPackageMode] = useState<PackageMode>('AUTO');
   const [notes, setNotes] = useState('');
   const [pointId, setPointId] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [points, setPoints] = useState<CollectionPoint[]>([]);
-  const [existingDonations, setExistingDonations] = useState<DonationRecord[]>([]);
   const [pointsLoading, setPointsLoading] = useState(true);
   const [pointsError, setPointsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -427,11 +414,22 @@ export default function DoarPage() {
     setCurrentStep(draft.currentStep);
     setItems(draft.items);
     setPackages(draft.packages);
+    setPackageMode(draft.packageMode);
     setNotes(draft.notes);
     setPointId(draft.pointId);
     setConfirmed(draft.confirmed);
     setDraftReady(true);
   }, []);
+
+  const packageEstimate = useMemo(
+    () => estimatePackagesFromItems(items, makeId),
+    [items],
+  );
+
+  useEffect(() => {
+    if (!draftReady || packageMode !== 'AUTO') return;
+    setPackages(packageEstimate.packages);
+  }, [draftReady, packageEstimate, packageMode]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -480,12 +478,13 @@ export default function DoarPage() {
         currentStep,
         items,
         packages,
+        packageMode,
         notes,
         pointId,
         confirmed,
       } satisfies DonationDraft),
     );
-  }, [confirmed, currentStep, draftReady, isDonor, items, notes, packages, pointId]);
+  }, [confirmed, currentStep, draftReady, isDonor, items, notes, packageMode, packages, pointId]);
 
   useEffect(() => {
     if (!draftReady || !pointId || points.some((item) => item.id === pointId)) return;
@@ -539,11 +538,8 @@ export default function DoarPage() {
           limit: 6,
           forDonation: true,
         });
-        const donationsPromise = session?.user?.accessToken
-          ? getUserDonations(session.user.accessToken, { limit: 50 })
-          : Promise.resolve(null);
 
-        const [nearby, donationsResponse] = await Promise.all([nearbyPromise, donationsPromise]);
+        const nearby = await nearbyPromise;
         const collectionPointsOnly = sortPointsForDonation(
           nearby.data.filter((point) => point.role === 'COLLECTION_POINT'),
         );
@@ -551,7 +547,6 @@ export default function DoarPage() {
 
         const firstEligiblePoint = collectionPointsOnly.find((point) => isDonationEligiblePoint(point));
         if (firstEligiblePoint) setPointId((current) => current || firstEligiblePoint.id);
-        if (donationsResponse) setExistingDonations(donationsResponse.data);
 
         if (collectionPointsOnly.length === 0) {
           setPointsError('Nenhum ponto parceiro disponível agora.');
@@ -581,40 +576,14 @@ export default function DoarPage() {
     setPointsError(currentPoint.donationEligibility?.message ?? 'Este ponto ainda não pode finalizar doações.');
   }, [pointId, points]);
 
-  const breakdown = useMemo(
-    () =>
-      calculateDonationPointsBreakdown({
-        items: items.map((item) => ({
-          category: item.category,
-          quantity: item.quantity,
-          condition: item.condition,
-        })),
-        status: 'PENDING',
-      }),
+  const totalItems = useMemo(
+    () => items.reduce((sum, item) => sum + item.quantity, 0),
     [items],
   );
 
-  const monthlyDonationCount = useMemo(() => {
-    const now = new Date();
-    const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-    return existingDonations.filter((donation) => {
-      const date = new Date(donation.createdAt);
-      const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-      return key === monthKey;
-    }).length;
-  }, [existingDonations]);
-
-  const rewardPreview = useMemo(
-    () =>
-      buildPostDonationRewardFromBreakdown({
-        items: items.map((item) => ({
-          category: item.category,
-          quantity: item.quantity,
-          condition: item.condition,
-        })),
-        monthlyGoalCurrent: monthlyDonationCount,
-      }),
-    [items, monthlyDonationCount],
+  const uniqueCategories = useMemo(
+    () => new Set(items.map((item) => item.category)).size,
+    [items],
   );
 
   if (status === 'loading' || !draftReady) {
@@ -663,9 +632,7 @@ export default function DoarPage() {
   const selectedPointLabel = selectedPoint?.organizationName ?? selectedPoint?.name ?? null;
   const step = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
-  const totalItems = breakdown.totalItems;
   const totalPackagesCount = packages.reduce((sum, pkg) => sum + pkg.quantity, 0);
-  const multiplierLabel = `${breakdown.categoryMultiplier.toFixed(1).replace('.', ',')}x`;
   const mapSelectionParams = new URLSearchParams({
     mode: 'select-point',
     returnTo: '/doar',
@@ -700,10 +667,12 @@ export default function DoarPage() {
   }
 
   function updatePackage(id: string, patch: Partial<DonationPackageDraft>) {
+    setPackageMode('MANUAL');
     setPackages((current) => current.map((pkg) => (pkg.id === id ? { ...pkg, ...patch } : pkg)));
   }
 
   function addPackage() {
+    setPackageMode('MANUAL');
     setPackages((current) => [
       ...current,
       { id: makeId(), type: 'BAG', size: 'MEDIUM', quantity: 1 },
@@ -711,7 +680,13 @@ export default function DoarPage() {
   }
 
   function removePackage(id: string) {
+    setPackageMode('MANUAL');
     setPackages((current) => (current.length === 1 ? current : current.filter((pkg) => pkg.id !== id)));
+  }
+
+  function restorePackageSuggestion() {
+    setPackages(packageEstimate.packages);
+    setPackageMode('AUTO');
   }
 
   function scrollToStepTop() {
@@ -735,6 +710,10 @@ export default function DoarPage() {
     if (currentStep === 0) return;
     setCurrentStep((value) => value - 1);
     setTimeout(scrollToStepTop, 50);
+  }
+
+  function handleCancel() {
+    router.push('/inicio');
   }
 
   async function handleConfirm() {
@@ -775,16 +754,16 @@ export default function DoarPage() {
   }
 
   return (
-    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-shell space-y-4">
+    <div className="px-4 pb-[calc(var(--mobile-bottom-nav-height)+8rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 md:pb-6 lg:px-8">
+      <div className="mx-auto max-w-shell space-y-3 sm:space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doação</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary-deeper dark:text-white sm:text-4xl">
-              Registrar doação em etapas
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-primary-deeper dark:text-white sm:mt-2 sm:text-4xl">
+              Registrar doação
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
-              Preencha cada passo para registrar sua doação com segurança. Os pontos só entram quando o ponto de coleta confirmar o recebimento.
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-gray-500 sm:mt-2 sm:text-base sm:leading-7">
+              Vamos preparar sua entrega em poucos passos.
             </p>
           </div>
         </div>
@@ -1011,9 +990,9 @@ export default function DoarPage() {
                       <Info size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">Pontos só entram após confirmação no ponto de coleta.</p>
+                      <p className="text-sm font-semibold">Separe os itens por tipo quando possível.</p>
                       <p className="mt-2 text-sm leading-7 text-primary-muted">
-                        Cada item vale 10 pontos quando o ponto confirmar o recebimento. Itens em ótimo estado adicionam +5 pontos cada. Mais categorias aumentam o multiplicador do reconhecimento.
+                        Calçados, alimentos e brinquedos seguem melhor protegidos quando não ficam misturados com roupas.
                       </p>
                     </div>
                   </div>
@@ -1023,6 +1002,37 @@ export default function DoarPage() {
 
             {currentStep === 1 && (
               <div className="space-y-5">
+                <div className="rounded-[1.75rem] bg-primary-light/40 p-5 text-primary-deeper dark:bg-primary/15 dark:text-primary-muted">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex gap-3">
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-primary shadow-sm dark:bg-surface-ink">
+                        {packageMode === 'MANUAL' ? <Edit3 size={18} /> : <Check size={18} />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">
+                          {packageMode === 'MANUAL' ? 'Ajustado manualmente' : 'Sugestão automática aplicada'}
+                        </p>
+                        <p className="mt-2 text-sm leading-7 text-gray-600 dark:text-gray-300">
+                          {packageMode === 'MANUAL'
+                            ? 'Você alterou a sugestão automática. Pode voltar para a sugestão quando quiser.'
+                            : packageEstimate.explanation}
+                        </p>
+                      </div>
+                    </div>
+
+                    {packageMode === 'MANUAL' && (
+                      <button
+                        type="button"
+                        onClick={restorePackageSuggestion}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-primary-deeper shadow-sm transition-colors hover:bg-primary hover:text-white dark:bg-surface-ink dark:text-primary-muted dark:hover:bg-primary dark:hover:text-white"
+                      >
+                        <RefreshCcw size={15} />
+                        Voltar para sugestão
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   {packages.map((pkg, index) => (
                     <div
@@ -1284,7 +1294,7 @@ export default function DoarPage() {
                       ))}
                     </ul>
                     <p className="mt-3 text-xs text-gray-500">
-                      Total: {totalItems} item(ns) · {breakdown.uniqueCategories} categoria(s) · multiplicador {multiplierLabel}
+                      Total: {totalItems} item(ns) · {uniqueCategories} categoria(s)
                     </p>
                   </div>
 
@@ -1327,8 +1337,8 @@ export default function DoarPage() {
                       {[
                         'As peças estão limpas e prontas para reaproveitamento.',
                         'O ponto escolhido está ativo e receberá sua doação.',
-                        'O cadastro inicial não credita pontos automaticamente — eles entram quando o ponto confirmar o recebimento.',
-                        'Após distribuição pela ONG você pode receber pontos adicionais.',
+                        'As embalagens declaradas acompanham o recebimento no ponto parceiro.',
+                        'Depois da confirmação, você acompanha o caminho da doação pelo rastreio.',
                       ].map((entry) => (
                         <div key={entry} className="flex items-start gap-3">
                           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-primary dark:bg-surface-inkSoft">
@@ -1339,8 +1349,6 @@ export default function DoarPage() {
                       ))}
                     </div>
                   </div>
-
-                  <PostDonationRewardCard className="lg:col-span-2" reward={rewardPreview} />
                 </div>
 
                 <label className="flex cursor-pointer items-start gap-3 rounded-[1.75rem] border border-gray-100 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-surface-inkSoft">
@@ -1371,28 +1379,26 @@ export default function DoarPage() {
                   packages={packages}
                   notes={notes}
                   selectedPoint={selectedPoint}
-                  reward={rewardPreview}
                   totalItems={totalItems}
-                  uniqueCategories={breakdown.uniqueCategories}
-                  multiplierLabel={multiplierLabel}
+                  uniqueCategories={uniqueCategories}
                   compact
                 />
               </div>
 
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-5 hidden flex-col gap-3 md:flex md:flex-row md:items-center md:justify-between">
                 <button
                   type="button"
-                  onClick={handleBack}
-                  disabled={currentStep === 0 || loading}
+                  onClick={currentStep === 0 ? handleCancel : handleBack}
+                  disabled={loading}
                   className={cn(
                     'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors',
-                    currentStep === 0 || loading
+                    loading
                       ? 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink'
                       : 'border border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-inkSoft dark:text-gray-300',
                   )}
                 >
-                  <ChevronLeft size={16} />
-                  Voltar
+                  {currentStep === 0 ? null : <ChevronLeft size={16} />}
+                  {currentStep === 0 ? 'Cancelar' : 'Voltar'}
                 </button>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
@@ -1451,13 +1457,74 @@ export default function DoarPage() {
                 packages={packages}
                 notes={notes}
                 selectedPoint={selectedPoint}
-                reward={rewardPreview}
                 totalItems={totalItems}
-                uniqueCategories={breakdown.uniqueCategories}
-                multiplierLabel={multiplierLabel}
+                uniqueCategories={uniqueCategories}
               />
             </div>
           </aside>
+        </div>
+      </div>
+
+      <div
+        className="fixed inset-x-0 z-40 border-t border-gray-100 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-nav backdrop-blur-xl transition-[bottom] duration-300 ease-out dark:border-white/10 dark:bg-surface-inkSoft/95 md:hidden motion-reduce:transition-none"
+        style={{ bottom: 'calc(var(--mobile-bottom-nav-offset) + env(safe-area-inset-bottom))' }}
+      >
+        <div className="mx-auto flex max-w-[40rem] items-center gap-3">
+          <button
+            type="button"
+            onClick={currentStep === 0 ? handleCancel : handleBack}
+            disabled={loading}
+            className={cn(
+              'inline-flex h-12 min-w-[7rem] items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-colors',
+              loading
+                ? 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink'
+                : 'border border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-surface-ink dark:text-gray-300',
+            )}
+          >
+            {currentStep === 0 ? null : <ChevronLeft size={16} />}
+            {currentStep === 0 ? 'Cancelar' : 'Voltar'}
+          </button>
+
+          {currentStep < steps.length - 1 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!canContinue || loading}
+              className={cn(
+                'inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-colors',
+                canContinue && !loading
+                  ? 'bg-primary-deeper text-white hover:bg-primary-dark'
+                  : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
+              )}
+            >
+              Continuar
+              <ChevronRight size={16} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={!canContinue || loading || !session?.user?.accessToken}
+              className={cn(
+                'inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-colors',
+                canContinue && !loading && session?.user?.accessToken
+                  ? 'bg-primary-deeper text-white hover:bg-primary-dark'
+                  : 'cursor-not-allowed bg-surface text-gray-300 dark:bg-surface-ink',
+              )}
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Registrando...
+                </>
+              ) : (
+                <>
+                  Confirmar
+                  <ChevronRight size={16} />
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
