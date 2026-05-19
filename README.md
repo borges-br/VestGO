@@ -80,7 +80,58 @@ O fluxo tradicional de doação de roupas frequentemente falha por falta de tran
 - **Pontos de Coleta** acumulam sacas e caixas de doação sem capacidade logística para destinar de forma ordenada.
 - **ONGs Parceiras** sofrem com oscilações de estoque, falta de previsibilidade de recebimento de materiais e ausência de trilha digital para triagem e auditoria.
 
-O VestGO resolve este gargalo ao **orquestrar o ciclo operacional em um fluxo digital rastreável**, estabelecendo uma governança simples e de fácil manuseio.
+## Funcionalidades
+
+A lista abaixo separa por estado real no código.
+
+### Implementadas
+
+- Cadastro e login com Auth.js + JWT/refresh token no backend
+- Refresh automático de access token e logout controlado quando o refresh falha
+- Bootstrap admin temporário via variáveis de ambiente
+- Papéis: `DONOR`, `COLLECTION_POINT`, `NGO`, `ADMIN`
+- Cadastro público bloqueando criação de `ADMIN`
+- Wizard de doação restrito a `DONOR`, com integração ao mapa para escolha do ponto
+- Mapa público (`/mapa`) com Leaflet, geolocalização automática e fallback para Sorocaba
+- Busca textual de parceiros + camada adicional de sugestão de endereço/lugar
+- Endereço estruturado (logradouro, número, complemento, bairro, CEP, cidade, estado, lat/long)
+- Autocomplete de endereço servido pelo backend (provider Mapbox ou Nominatim)
+- Geocoding no save do perfil operacional
+- Perfil operacional com checklist e estados públicos `DRAFT` / `PENDING` / `ACTIVE` / `VERIFIED`
+- Revisão pendente de alterações públicas críticas em perfis aprovados
+- Governança em `/admin/perfis` para aprovação inicial e revisões pendentes
+- Parceria operacional ponto → ONG com estados `PENDING` / `ACTIVE` / `REJECTED`
+- Solicitação de retirada (PickupRequest) entre ONG e ponto parceiro
+- Lotes operacionais (OperationalBatch) com fluxo `OPEN` → `READY_TO_SHIP` → `IN_TRANSIT` → `DELIVERED` → `CLOSED`
+- Notificações in-app persistidas no banco (sem websocket; refetch + polling)
+- Uploads via MinIO para avatar, capa e galeria pública (validação de MIME e magic bytes)
+- Leitura de QR de doação para o fluxo operacional (zxing-js no navegador)
+- 2FA TOTP no backend (setup/confirm/disable, códigos de recuperação)
+- Sessões ativas: listagem, revogação individual e "sair de outros dispositivos"
+- Rate limit por IP e por e-mail no login (Redis)
+- Verificação de e-mail (envio do link e confirmação)
+- Encerramento de conta com anonimização (`/auth/account-deletion/request` e `/auth/account-deletion/confirm`)
+- Redefinição de senha completa (endpoints `POST /auth/request-password-reset` e `POST /auth/reset-password` no backend, envio seguro de templates de e-mail com SMTP fallback, sem login automático pós-reset, revogação de sessões e tokens PASSWORD_RESET anteriores)
+- E-mails operacionais transacionais com layout HTML rico e e-mail em texto puro para todas as transações operacionais importantes (parcerias, retiradas de coleta, lote pronto/despachado/entregue/fechado), com desduplicação automática e respeito às preferências do usuário
+- Gamificação no frontend sincronizada com os thresholds do backend (`/gamification/me`)
+- Validação de CPF e telefone no backend e no frontend (`api/src/shared/cpf.ts`, `phone.ts`)
+- Lista de cidades/estados brasileiros para autocomplete (`brazil-locations.ts`)
+- Banner de consentimento de cookies (`cookie-consent-banner.tsx` + `cookie-consent.ts`)
+- Guarda de sessão de conta (`account-session-guard.tsx`) integrada ao shell autenticado
+- Layout responsivo, dark mode, navegação role-aware (sidebar, topbar e bottom nav)
+
+### Parcialmente implementadas
+
+- **Gamificação**: curva de níveis no frontend (`web/lib/gamification.ts`) sincronizada com os thresholds oficiais do backend. As regras de badges e pontos no backend mantêm-se em sua estrutura atual.
+- **Página `/pontos`**: redireciona para `/mapa`, mantida apenas por compatibilidade.
+
+### Planejadas / pendentes
+
+- Push notifications, e-mail transacional para todos os eventos e WebSocket
+- Sugestão de parceiros por proximidade operacional
+- Semântica operacional própria no rastreio (atualmente compartilha estados com a fila)
+- Métricas de impacto e dashboards mais ricos
+- Testes automatizados (não há suíte de testes no repositório)
 
 ---
 
@@ -172,9 +223,11 @@ Mapeamento honesto baseado na auditoria profunda conduzida diretamente sobre o c
 
 ## 🚫 Limitações Conhecidas
 
-1. **Ausência de Suite de Testes**: Garantia de integridade baseada em forte tipagem estática e testes manuais rigorosos.
-2. **Dependência de Polling**: Notificações in-app não utilizam WebSockets; atualizações ocorrem por re-focus de janela ou timers repetidos integrados ao React Query.
-3. **Senhas Não Recuperáveis**: Como as rotas de reset de senha no backend não existem, a alteração de senhas atualmente só é possível via painel logado (`POST /auth/change-password`) para usuários com sessões ativas conhecidas.
+- Não existe suíte de testes automatizados.
+- Notificações dependem de polling/refetch — não há WebSocket nem push.
+- O rastreio do doador compartilha lógica com a fila operacional; ainda não tem timeline própria.
+- Gamificação é estrutural, mas as regras de pontuação são limitadas.
+- Não há dashboards de métricas/impacto consolidados.
 
 ---
 
