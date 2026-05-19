@@ -1,14 +1,40 @@
-# VestGO — Contexto para outras IAs
+# VestGO — Contexto para Outras IAs
 
-Documento curto e direto para servir de briefing inicial a qualquer IA (ChatGPT, Claude, Gemini, Codex, etc.) que vá trabalhar neste repositório sem conhecimento prévio. Reflete o estado real do código no commit corrente — não promete o que ainda não existe.
+Documento conciso de briefing técnico estruturado para alimentar qualquer Inteligência Artificial (Gemini, Claude, GPT, etc.) que venha a trabalhar neste repositório. Este arquivo resume o estado real do código-fonte — sem prometer funcionalidades inexistentes.
 
 ---
 
-## 1. Resumo
+## 1. Resumo e Objetivo do Ecossistema
 
-VestGO é uma plataforma full-stack de doação solidária que liga doadores, pontos de coleta e ONGs parceiras. Cada doação tem uma trilha digital com status, parceria operacional e (quando aplicável) lote de retirada.
+O **VestGO** é uma plataforma solidária full-stack que orquestra e audita de ponta a ponta a cadeia física de doações de peças de vestuário. O objetivo é conectar doadores (`DONOR`), estabelecimentos físicos que funcionam como pontos de coleta (`COLLECTION_POINT`) e ONGs parceiras (`NGO`) que realizam a triagem e distribuição final útil. O sistema é regulado por perfis operacionais moderados por administradores (`ADMIN`).
 
-## 2. Objetivo
+---
+
+## 2. Visão Geral da Stack Técnica
+
+- **Monorepo Simples** (sem ferramentas complexas como Turborepo ou Lerna):
+  - **Frontend (`web/`)**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Auth.js (next-auth v5 beta), React Query, Framer Motion, Leaflet, e `@zxing/browser` para leitura rápida de QR Code pela câmera.
+  - **Backend (`api/`)**: Fastify ^4, TypeScript, Prisma ^5, `@fastify/cors`, `@fastify/jwt`, `bcrypt` (segurança de senha), `otplib` (desafios TOTP 2FA), e `nodemailer` para disparo de SMTP.
+  - **Banco de Dados**: PostgreSQL 16 com a extensão espacial **PostGIS** via imagem `postgis/postgis:16-3.4-alpine`.
+  - **Cache & Rate Limit**: Redis Server 7.
+  - **Storage de Mídia**: MinIO (compatível com S3).
+  - **Ambiente & Orquestração**: Docker e Docker Compose (`docker-compose.yml`, `docker-compose.dev.yml` e `docker-compose.prod.yml`).
+
+---
+
+## 3. Domínios Principais do Schema Prisma (`api/prisma/schema.prisma`)
+
+- **Usuários & Papéis (`User`, enum `UserRole`)**: Donos de contas sob os papéis `DONOR`, `COLLECTION_POINT`, `NGO` e `ADMIN`. Admins são provisionados exclusivamente via variáveis de ambiente (`BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD`).
+- **Autenticação & Sessões (`UserSession`)**: Tokens JWT rotacionados em banco e sessões ativas totalmente revogáveis de forma individual.
+- **Segurança de Conta (`UserTwoFactor` & `UserTwoFactorRecoveryCode`)**: Segundo fator TOTP criptografado com segredo AES e controle de códigos estáticos.
+- **Perfil Operacional**: Endereço estruturado e atributos de funcionamento ( checklist, CNPJ, lat/long e acessibilidade) persistidos no próprio registro `User`. Alterações públicas críticas geram um registro pendente em `pendingPublicRevision` para governança do Admin.
+- **Ciclo Logístico de Peças**:
+  - `Donation` + `DonationItem` + `DonationEvent`: A doação é criada pelo `DONOR` apontando para um `COLLECTION_POINT` ativo.
+  - `OperationalPartnership`: Vinculação formal entre Ponto de Coleta e ONG (`PENDING` / `ACTIVE` / `REJECTED`).
+  - `PickupRequest`: Solicitação de retirada emitida pela ONG com janela de horários.
+  - `OperationalBatch` + `OperationalBatchItem`: Lotes logísticos consolidando várias doações em sacas. Ciclo de vida: `OPEN` $\rightarrow$ `READY_TO_SHIP` $\rightarrow$ `IN_TRANSIT` $\rightarrow$ `DELIVERED` $\rightarrow$ `CLOSED`.
+- **Notificações (`Notification`)**: Sistema de alertas in-app baseado em banco e consumido por meio de timers de polling no frontend.
+- **Gamificação (`PointLedger` & `UserAchievement`)**: Ledger de pontos e controle de conquistas do doador.
 
 Organizar o ciclo de doação de roupas, calçados e acessórios em um fluxo digital simples, com rastreio para o doador, fila operacional para o ponto de coleta e operação posterior pela ONG parceira.
 
@@ -115,22 +141,12 @@ VestGO/
 
 ---
 
-## Regras para futuras IAs
+## 5. Diretrizes e Regras Cruciais para o Desenvolvimento de Código
 
-Antes de propor qualquer mudança, leia as regras abaixo. Elas existem para evitar drift entre documentação e código.
+Qualquer IA que venha a editar arquivos neste monorepo **deve** obedecer estritamente aos seguintes critérios:
 
-1. **Não invente funcionalidades.** Se não está no código, não está pronto.
-2. **Verifique o código antes de responder.** `grep` em `api/src/modules` para rotas reais e `web/app` para telas reais.
-3. **Mantenha a documentação fiel ao backend.** Se uma tela existe e chama um endpoint, valide se a rota realmente existe em `api/src/modules/...` antes de marcar a feature como implementada.
-4. **Respeite o escopo acadêmico.** O projeto é incremental e não precisa parecer pronto para produção em larga escala. Não infle o status.
-5. **Separe explicitamente "existe" de "sugestão futura".** Use as classificações: implementado, parcial, em desenvolvimento, planejado, pendente de integração, requer decisão técnica, não confirmado no código.
-6. **Não altere a arquitetura sem justificativa técnica clara.** Se uma decisão arquitetural existe (ex.: migrations como fonte de verdade, proxy frontend → backend), preserve-a salvo se houver problema concreto.
-7. **Não crie dados fictícios no README.** Sem métricas inventadas, badges falsos, número de usuários, parceiros nominais, prêmios.
-8. **Não documente endpoints inexistentes.** Confira `grep -nE "fastify\.(get|post|patch|put|delete)" api/src` antes de listar.
-9. **Não assuma que algo está pronto só porque há tela no frontend.** Tela sem rota correspondente é parcial.
-10. **Confira se a tela está realmente conectada ao backend** (chamada a `apiFetch`/`fetch` de fato em uso).
-11. **Não exponha segredos.** `.env` não é commitado. Os exemplos em `.env.example` são placeholders.
-12. **Não adicione dependências sem necessidade clara.** O projeto valoriza stack enxuta.
-13. **Em dúvida, registre como pendência ou incerteza.** É melhor um "não confirmado no código" honesto do que uma afirmação errada.
-14. **Mude um arquivo de cada vez quando estiver implementando.** Diffs grandes são difíceis de revisar.
-15. **Em PT-BR.** Documentação e mensagens de UI no projeto seguem português brasileiro.
+1. **Fidelidade Técnica Rígida**: Não invente funcionalidades na documentação. Se uma funcionalidade não existe codificada no backend, ela deve ser explicitamente classificada como "Parcial" ou "Pendente".
+2. **Preserve Comentários e Docstrings**: Nunca remova comentários explicativos ou docstrings úteis de arquivos que você estiver editando.
+3. **Não comite Segredos**: O `.env` está configurado no `.gitignore`. Exemplos de chaves e variáveis devem ser fornecidos estritamente como placeholders em `.env.example` ou guias como `PRODUCTION.md`.
+4. **Respeite o Padrão de Comunicação**: O frontend web conecta-se ao backend Fastify por meio do Proxy de rotas `/api/backend/[...path]`. No SSR, utilize a variável interna Docker `INTERNAL_API_URL` diretamente.
+5. **Idioma**: Todo o código visível ao usuário final (telas, labels, alertas e e-mails) e a documentação técnica devem seguir rigorosamente o padrão **Português Brasileiro (PT-BR)**.

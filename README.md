@@ -1,48 +1,84 @@
-<div align="center">
+<p align="center">
+  <img src="web/public/branding/vestgo-logo.svg" alt="Logotipo do VestGO" width="280" />
+</p>
 
-<img src="web/public/branding/vestgo-logo.svg" alt="Logotipo do VestGO" width="220" />
+<h1 align="center">VestGO</h1>
 
-# VestGO
+<p align="center">
+  <strong>Plataforma solidária full-stack que conecta e rastreia o ciclo de vida real da doação de peças de vestuário: do doador ao ponto de coleta e às ONGs operacionais parceiras.</strong>
+</p>
 
-Plataforma full-stack de doação solidária focada na jornada real da peça doada: cadastro, ponto de coleta, ONG parceira, operação e rastreio.
-
-</div>
-
----
-
-## Sobre o projeto
-
-O VestGO é uma plataforma web que conecta três atores principais ao redor da doação de roupas, calçados e acessórios:
-
-- pessoas que querem doar peças;
-- pontos de coleta que recebem essas doações;
-- ONGs parceiras que recebem o material e dão destino final.
-
-A ideia central é dar visibilidade a cada etapa: quem doou, onde a doação foi entregue, qual ONG ficou responsável e em que estado está o ciclo. O sistema não substitui o trabalho humano de coleta e distribuição — ele organiza esse trabalho em um fluxo digital simples.
-
-> **Status acadêmico**: o VestGO é um projeto desenvolvido em contexto universitário (Facens), em evolução incremental. Ele já tem partes funcionais e partes ainda em desenvolvimento. A documentação abaixo separa claramente o que está pronto, o que é parcial e o que ainda é planejado.
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/Fastify-000000?style=for-the-badge&logo=fastify&logoColor=white" alt="Fastify" />
+  <img src="https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white" alt="Prisma" />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <img src="https://img.shields.io/badge/MinIO-C72C48?style=for-the-badge&logo=minio&logoColor=white" alt="MinIO" />
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+</p>
 
 ---
 
-## Problema que o projeto busca resolver
+<p align="center">
+  <a href="#sobre-o-projeto">
+    <img src="https://img.shields.io/badge/%F0%9F%A7%A7-Sobre_o_Projeto-blue?style=for-the-badge" alt="Sobre o Projeto" />
+  </a>
+  <a href="#fluxo-técnico-principal">
+    <img src="https://img.shields.io/badge/%F0%9F%94%80-Fluxo_T%C3%A9cnico-teal?style=for-the-badge" alt="Fluxo Técnico" />
+  </a>
+  <a href="#matriz-de-funcionalidades">
+    <img src="https://img.shields.io/badge/%F0%9F%A7%AE-Funcionalidades-purple?style=for-the-badge" alt="Funcionalidades" />
+  </a>
+  <a href="#como-rodar-localmente">
+    <img src="https://img.shields.io/badge/%F0%9F%9A%80-Rodar_Localmente-green?style=for-the-badge" alt="Rodar Localmente" />
+  </a>
+</p>
 
-Doações de roupas frequentemente ficam soltas: a pessoa que doa não sabe para onde a peça foi, o ponto de coleta acumula material sem visibilidade, e a ONG parceira recebe sem rastreabilidade. O VestGO tenta:
-
-- dar uma trilha digital simples para cada doação;
-- aproximar pontos de coleta e ONGs por meio de parcerias formais;
-- permitir que doadores acompanhem a evolução da própria doação.
+<p align="center">
+  <a href="./ARCHITECTURE.md">
+    <img src="https://img.shields.io/badge/%F0%9F%94%8D-Ver_Arquitetura_T%C3%A9cnica-darkblue?style=for-the-badge" alt="Ver Arquitetura Técnica" />
+  </a>
+  <a href="./docs/PRODUCTION.md">
+    <img src="https://img.shields.io/badge/%F0%9F%92%BC-Guia_de_Produ%C3%A7%C3%A3o-orange?style=for-the-badge" alt="Guia de Produção" />
+  </a>
+</p>
 
 ---
 
-## Público-alvo
+## 📌 Sumário
 
-- **Doadores**: pessoas físicas que querem entregar peças em um ponto de coleta confiável.
-- **Pontos de coleta**: estabelecimentos ou voluntários que recebem doações e atualizam o status inicial.
-- **ONGs parceiras**: organizações que recebem as doações encaminhadas pelos pontos de coleta.
-- **Administradores**: pessoas responsáveis por moderar perfis operacionais e governança.
-- **Avaliadores e curiosos**: professores, colegas e visitantes que querem entender a proposta.
+- [Sobre o Projeto](#sobre-o-projeto)
+- [Problema que o Projeto Busca Resolver](#problema-que-o-projeto-busca-resolver)
+- [Público-Alvo](#público-alvo)
+- [Fluxo Técnico Principal](#fluxo-técnico-principal)
+- [Matriz de Funcionalidades](#matriz-de-funcionalidades)
+- [Limitações Conhecidas](#limitações-conhecidas)
+- [Como Rodar Localmente](#como-rodar-localmente)
+- [Documentação Complementar](#documentação-complementar)
 
 ---
+
+## 📖 Sobre o Projeto
+
+O **VestGO** é uma plataforma web full-stack monorepo projetada para digitalizar, organizar e auditar a jornada de doação de roupas, calçados e acessórios. Conectamos de forma transparente os três atores centrais do ciclo de doações:
+- **Doadores**: pessoas físicas que desejam destinar suas peças de forma estruturada.
+- **Pontos de Coleta**: estabelecimentos ou postos físicos que recebem as doações e gerenciam a triagem inicial.
+- **ONGs Parceiras**: organizações do terceiro setor encarregadas de coletar os materiais consolidados e dar a destinação final útil a quem precisa.
+
+A plataforma foca no rastreamento e na transparência: do registro inicial da doação ao momento em que a peça é integrada a um lote operacional, transportada e entregue à ONG parceira.
+
+> 🎓 **Status Acadêmico**: Desenvolvido em contexto universitário (Facens) como projeto de conclusão/trabalho integrador de curso. A plataforma adota uma abordagem incremental, declarando com extrema franqueza seu estado real de código e as limitações de produto em sua documentação.
+
+---
+
+## 🎯 Problema que o Projeto Busca Resolver
+
+O fluxo tradicional de doação de roupas frequentemente falha por falta de transparência e descentralização:
+- **Doadores** sentem desconfiança por não saber se suas peças de fato chegaram a quem precisa.
+- **Pontos de Coleta** acumulam sacas e caixas de doação sem capacidade logística para destinar de forma ordenada.
+- **ONGs Parceiras** sofrem com oscilações de estoque, falta de previsibilidade de recebimento de materiais e ausência de trilha digital para triagem e auditoria.
 
 ## Funcionalidades
 
@@ -99,48 +135,93 @@ A lista abaixo separa por estado real no código.
 
 ---
 
-## Fluxo básico para o usuário
+## 👥 Público-Alvo
 
-1. **Cadastro / login** em `/cadastro` ou `/login`.
-2. **Doador** abre `/doar` e segue o wizard: dados das peças, escolha do ponto de coleta no mapa, confirmação.
-3. **Ponto de coleta** recebe a doação fisicamente e atualiza o status na fila operacional.
-4. **ONG parceira** acompanha pela fila, abre solicitações de retirada e fecha lotes operacionais.
-5. **Doador** acompanha o ciclo em `/rastreio`.
-6. **Admin** aprova novos perfis operacionais e revisões públicas em `/admin/perfis`.
+- **Doadores (`DONOR`)**: Buscam facilidade para registrar suas doações, encontrar pontos de coleta convenientes por proximidade no mapa e acompanhar a evolução do rastreio.
+- **Pontos de Coleta (`COLLECTION_POINT`)**: Necessitam gerenciar sua fila de entrada, controlar as parcerias logísticas e emitir de forma organizada as solicitações de retirada de caixas ou sacas.
+- **ONGs Parceiras (`NGO`)**: Desejam formalizar convênios de recebimento com os pontos físicos, gerenciar rotas de retirada, consolidar lotes logísticos de transporte e registrar o encerramento do ciclo.
+- **Administradores (`ADMIN`)**: Responsáveis por moderar, aprovar ou auditar novos cadastros operacionais e controlar revisões públicas críticas do sistema.
 
 ---
 
-## Tecnologias usadas
+## 🔄 Fluxo Técnico Principal
 
-Resumo simples (versões reais nos `package.json`):
+O diagrama abaixo ilustra o ciclo operacional que rege a plataforma do início ao fim:
 
-| Camada | Tecnologia | O que faz |
-| --- | --- | --- |
-| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS | Renderiza a interface e organiza rotas públicas/privadas |
-| UI / efeitos | framer-motion, three.js / react-three-fiber, lucide-react | Animações, cena 3D na home e ícones |
-| Mapa | Leaflet + react-leaflet | Mostra parceiros no mapa público |
-| QR | @zxing/browser, react-qr-code | Geração e leitura de QR de doação |
-| Estado de servidor | @tanstack/react-query | Cache de chamadas à API |
-| Autenticação web | next-auth v5 (beta) | Sessão JWT no navegador |
-| Backend | Fastify + TypeScript | API HTTP em Node.js |
-| Banco de dados | PostgreSQL (imagem `postgis/postgis:16-3.4-alpine`) via Prisma | Persistência relacional |
-| Cache / sessão | Redis 7 | Rate limit, desafios de 2FA, setup TOTP |
-| Armazenamento de arquivos | MinIO (S3 compatível) | Avatar, capa e galeria pública |
-| E-mail | nodemailer (SMTP configurável) | Envio de e-mails operacionais |
-| 2FA | otplib | Geração e verificação de códigos TOTP |
-| Geocoding | Mapbox (padrão) ou Nominatim | Coordenadas a partir de endereço |
-| Infra local | Docker / Docker Compose | Orquestração de serviços |
-| CI/CD | GitHub Actions + GHCR + Portainer (webhook) | Lint, typecheck, build, publicação de imagens e deploy |
+```mermaid
+graph TD
+    %% Atores e Componentes
+    D[Doador]
+    PC[Ponto de Coleta]
+    ONG[ONG Parceira]
+    ADM[Administrador]
+    R[Tela de Rastreio do Doador]
+
+    %% 1. Cadastro & Moderação
+    PC -- 1a. Cadastra Perfil --> ADM
+    ONG -- 1b. Cadastra Perfil --> ADM
+    ADM -- 2. Valida & Aprova Perfis --> PC_ONG_Active[Perfis Ativos]
+
+    %% 2. Parceria Logística
+    PC -- 3. Solicita Parceria --> ONG
+    ONG -- 4. Aprova Parceria --> P_Ativa[Parceria Operacional Ativa]
+
+    %% 3. Ciclo da Doação
+    D -- 5. Registra Doação com Wizard --> R
+    D -- 6. Entrega Peças no Ponto --> PC
+    PC -- 7. Valida QR Code & Atualiza Fila --> PC_Fila[Fila de Coleta no Ponto]
+
+    %% 4. Consolidação e Transporte
+    ONG -- 8. Abre PickupRequest para o Ponto --> P_Ativa
+    PC -- 9. Aceita Retirada --> OB[OperationalBatch - Lote Aberto]
+    PC_Fila -- 10. Associa Doações ao Lote --> OB
+    OB -- 11. Despacha Lote (IN_TRANSIT) --> Transito[Lote em Transporte]
+    Transito -- 12. Recebido & Triagem (DELIVERED) --> ONG_Processa[Recebimento na ONG]
+    ONG_Processa -- 13. Encerra e Fecha Lote (CLOSED) --> R
+```
 
 ---
 
-## Contexto acadêmico
+## 📊 Matriz de Funcionalidades
 
-O VestGO foi desenvolvido no contexto da faculdade (Facens) como projeto full-stack ativo. A evolução é incremental: cada fase consolida algumas capacidades e deixa outras como pendência explícita. Por isso a documentação prioriza honestidade sobre status, em vez de prometer funcionalidades que ainda não estão prontas no código.
+Mapeamento honesto baseado na auditoria profunda conduzida diretamente sobre o código-fonte do monorepo:
+
+### ✅ Implementadas e Funcionais
+- **Autenticação Avançada**: Login e registro com Auth.js + token JWT e rotação de Refresh Token persistido e renovado de forma segura no backend.
+- **Proteção 2FA (TOTP)**: Segundo fator de autenticação nativo (setup, confirmação e revogação via códigos temporários e backup) com chaves de criptografia AES e Redis no backend.
+- **Rate Limiting**: Bloqueio de ataques de força bruta no login limitado de forma inteligente por IP e por e-mail no backend com Redis.
+- **Sessões Ativas**: Listagem de conexões, revogação cirúrgica individual e opção global de "Sair de todos os outros dispositivos".
+- **Encerramento de Conta com Anonimização**: Fluxo de conformidade que apaga dados pessoais de perfil e anonimiza o histórico operacional no banco de dados (`User.anonymizedAt`).
+- **Verificação de E-mail**: Rota nativa e tokens temporários seguros com envio de links e tela de confirmação (`/confirmar-email`).
+- **Wizard de Doação**: Fluxo guiado em etapas exclusivo para doadores com preenchimento estruturado, escolha intuitiva de pontos no mapa e geração instantânea de QR Code dinâmico.
+- **Mapa Interativo**: Mapa público robusto servido via Leaflet, com suporte a geolocalização nativa do navegador e fallback para Sorocaba-SP.
+- **Autocomplete de Endereço**: Autocomplete completo integrado e servido pelo backend (`/addresses/suggestions`), usando providers como Mapbox ou Nominatim.
+- **Geocoding Automático**: Conversão automática de endereço para coordenadas geográficas (lat/long) no salvamento de perfis no banco.
+- **Governança de Perfis**: Fluxo administrativo robusto para aprovação inicial de perfis e retenção temporária para auditoria de alterações públicas críticas em perfis já ativos (`pendingPublicRevision`).
+- **Parcerias Logísticas**: Sistema de vinculação ponto-ONG (`OperationalPartnership`) com controle rígido de status (`PENDING` / `ACTIVE` / `REJECTED`).
+- **Fluxo Logístico Completo**: Criação de solicitações de retirada (`PickupRequest`) e agrupamento de sacas em lotes (`OperationalBatch`) guiados pelas transições: `OPEN` $\rightarrow$ `READY_TO_SHIP` $\rightarrow$ `IN_TRANSIT` $\rightarrow$ `DELIVERED` $\rightarrow$ `CLOSED`.
+- **Notificações In-App**: Sistema de notificações in-app persistido em banco de dados com polling inteligente e controle de versões de requisição contra refetch fora de ordem no frontend.
+- **Uploads com Validação**: Armazenamento no MinIO de imagens de perfil, capa e galeria operacional, validando extensão, tamanho máximo (5MB), MIME types e magic bytes no backend.
+- **Leitura Nativa de QR Code**: Leitura de QR Codes integrada no frontend web em tempo real por meio da webcam usando `@zxing/browser`.
+- **Validações Padrão Brasil**: Rotinas completas de formatação e validação de CPF e telefone no backend e frontend.
+- **Gamificação Funcional no Backend**: Cálculo de pontos, 30 níveis (de *Primeiro Gesto* a *Herói Solidário Supremo*), ledger de pontos (`PointLedger`), persistência e sincronização de dados via API pelas rotas `/gamification/me` e `/gamification/me/sync`. A experiência visual e refinamentos de produto podem evoluir incrementalmente.
+  - **10 Conquistas Públicas** e **5 Conquistas Secretas Ruby** (`medal-hunter`, `community-ambassador`, `unstoppable`, `supreme-donor`, `supreme-solidarity-hero`).
+- **Acessibilidade e Usabilidade**: Layout moderno e vivo, Dark/Light Mode persistido, barra de navegação responsiva adaptada para telas móveis e desktop, e menu lateral customizado por papel de usuário (`DONOR`, `COLLECTION_POINT`, `NGO`, `ADMIN`).
+
+### ⚠️ Parcialmente Implementadas (Mistas)
+- **Redefinição de Senha**: Telas de solicitação (`/esqueci-senha`) e de redefinição (`/redefinir-senha`) prontas no frontend. Cliente HTTP e templates de e-mail preparados. No entanto, **as rotas `/auth/request-password-reset` e `/auth/reset-password` no backend ainda não foram criadas**.
+- **E-mails Operacionais**: Envio ativo apenas para "registro de doação" e "mudança de status de doação". Outros disparos logísticos ainda dependem de integrações futuras de templates.
+- **Página `/pontos`**: Mantida apenas por compatibilidade legado, redirecionando o usuário para o mapa interativo global `/mapa`.
+
+### 🛑 Planejadas / Pendentes (Fora do Escopo Atual)
+- **Mensageria em Tempo Real**: WebSocket nativo ou Push Notifications no navegador.
+- **Inteligência Logística**: Sugestões automáticas de pontos de coleta ou ONGs baseando-se em proximidade geográfica de lat/long ou capacidade operacional.
+- **Dashboards Ricos**: Painéis analíticos e relatórios agregados de métricas de impacto socioambiental.
+- **Testes Automatizados**: Atualmente o monorepo não possui nenhuma suíte de testes unitários ou de integração (Vitest, Jest ou Playwright).
 
 ---
 
-## Limitações conhecidas
+## 🚫 Limitações Conhecidas
 
 - Não existe suíte de testes automatizados.
 - Notificações dependem de polling/refetch — não há WebSocket nem push.
@@ -150,58 +231,35 @@ O VestGO foi desenvolvido no contexto da faculdade (Facens) como projeto full-st
 
 ---
 
-## Pendências
+## 🚀 Como Rodar Localmente
 
-- Definir e documentar uma rotina oficial de backup do PostgreSQL e do MinIO.
-- Adicionar testes mínimos em backend e frontend.
-- Decidir se o provider de geocoding padrão será Mapbox (atual) ou Nominatim em produção e ajustar `.env`.
+### Pré-requisitos
+- Docker & Docker Compose instalados no sistema host.
+- Node.js 20+ (opcional, apenas para desenvolvimento local fora dos containers).
 
----
+### 🛠️ Caminho Recomendado (Docker Compose)
 
-## Como rodar localmente
-
-Pré-requisitos: Docker, Docker Compose e Node.js 20+ (caso queira rodar fora do Docker).
-
-### Caminho recomendado: Docker Compose
+O Docker Compose sobe toda a stack, executa as migrações do banco automaticamente e provisiona a infraestrutura local em poucos instantes:
 
 ```bash
+# 1. Copie o arquivo de exemplo de variáveis de ambiente
 cp .env.example .env
+
+# 2. Suba todos os serviços orquestrados
 docker compose up -d --build
 ```
 
-Os serviços iniciam em:
-
-- Frontend: http://localhost:3000
-- Backend: http://localhost:3001
-- Postgres: porta `5433` no host (5432 dentro do compose)
-- MinIO: console em http://localhost:9001
-
-O serviço `vestgo-api` aplica `prisma migrate deploy` automaticamente antes de iniciar.
-
-### Caminho alternativo: Node direto
-
-```bash
-cd api
-npm install
-npm run prisma:generate
-npm run prisma:migrate:dev
-npm run dev
-
-# Em outro terminal
-cd web
-npm install
-npm run dev
-```
-
-### Bootstrap admin
-
-Se `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` estiverem definidos no `.env`, a API cria um admin no primeiro start (e ignora se já existir). Use apenas para provisionamento inicial.
+#### Endereços Locais
+- **Frontend Web**: [http://localhost:3000](http://localhost:3000)
+- **API Backend**: [http://localhost:3001](http://localhost:3001)
+- **MinIO Console**: [http://localhost:9001](http://localhost:9001) (acesso: `minioadmin` / `minioadmin` conforme `.env.example`)
+- **PostgreSQL**: Acessível na porta local `5433` no host (mapeado da porta interna `5432`).
 
 ---
 
-## Documentação complementar
+## 📚 Documentação Complementar
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — visão técnica detalhada
-- [CONTEXT.md](./CONTEXT.md) — resumo para alimentar outras IAs
-- [docs/PRODUCTION.md](./docs/PRODUCTION.md) — passo a passo para colocar em produção
-- [`.env.example`](./.env.example) — modelo das variáveis de ambiente
+- 📘 [ARCHITECTURE.md](./ARCHITECTURE.md): Documento de arquitetura com diagramas C4 e mapeamento de endpoints Fastify.
+- 📙 [docs/PRODUCTION.md](./docs/PRODUCTION.md): Manual passo a passo para deploy em ambientes reais e procedimentos manuais recomendados de backup.
+- 🤖 [CONTEXT.md](./CONTEXT.md): Briefing consolidado estruturado para leitura de agentes externos e outras IAs de desenvolvimento.
+- 📄 [.env.example](./.env.example): Modelo mapeado das variáveis de configuração da aplicação.
