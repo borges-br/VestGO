@@ -1442,7 +1442,7 @@ export function CollectionPointStep({
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3">
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div className="-mx-1 flex max-w-full gap-2 overflow-x-auto px-1 pb-1">
           <PointFilterChip
             label="Todos"
             active={activePointFilters.length === 0}
@@ -1633,7 +1633,7 @@ function CollectionPointCard({
       disabled={!availability.canSelect}
       aria-describedby={!availability.canSelect && availability.reason ? reasonId : undefined}
       className={cn(
-        'w-full rounded-[1.75rem] border p-5 text-left transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        'w-full min-w-0 rounded-[1.75rem] border p-5 text-left transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
         availability.canSelect && 'hover:-translate-y-0.5 hover:shadow-card-lg',
         isSelected
           ? 'border-primary bg-primary-light/35 shadow-card dark:bg-primary/20'

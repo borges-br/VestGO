@@ -651,8 +651,8 @@ export default function DoarPage() {
   }
 
   return (
-    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-shell space-y-4">
+    <div className="flex min-h-[calc(100svh-var(--topbar-height)-var(--mobile-nav-height)-1.5rem)] w-full items-center justify-center px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-panel sm:p-8">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doacao</p>
@@ -674,31 +674,20 @@ export default function DoarPage() {
           />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_360px]">
-          <section className="rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.12fr)_360px]">
+          <section className="min-w-0 rounded-[2rem] bg-white p-6 shadow-card dark:bg-surface-inkSoft dark:shadow-none lg:p-8">
             {showPreselectedPointNotice && currentStep < 2 && (
               <div className="mb-5 rounded-[1.5rem] border border-primary/15 bg-primary-light/45 px-4 py-3 text-sm text-primary-deeper dark:border-primary/30 dark:bg-primary/10 dark:text-primary-muted">
                 Ponto selecionado{selectedPointLabel ? `: ${selectedPointLabel}` : ''}. Agora informe os itens da doacao.
               </div>
             )}
 
-            {selectionFeedback && currentStep === 2 && (
-              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
-                {selectionFeedback}
+          {selectionFeedback && currentStep === 2 ? (
+            <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+              {selectionFeedback}
               </div>
-            )}
+            ) : null}
 
-            {selectionFeedback && currentStep === 2 && (
-              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
-                {selectionFeedback}
-              </div>
-            )}
-
-            {selectionFeedback && currentStep === 2 && (
-              <div className="mb-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
-                {selectionFeedback}
-              </div>
-            )}
 
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
