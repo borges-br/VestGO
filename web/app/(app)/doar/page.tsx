@@ -650,9 +650,9 @@ export default function DoarPage() {
     }
   }
 
-  return (
-    <div className="flex min-h-[calc(100svh-var(--topbar-height)-var(--mobile-nav-height)-1.5rem)] w-full items-center justify-center px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-panel sm:p-8">
+return (
+  <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-shell space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Nova doacao</p>

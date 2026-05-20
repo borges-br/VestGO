@@ -1884,9 +1884,9 @@ export function DonationSuccessPanel({ selectedPointName, onContinue, onViewDona
     };
   }, [onContinue]);
 
-  return (
-    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-2xl overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-panel sm:p-8">
+return (
+  <div className="flex min-h-[calc(100svh-var(--topbar-height)-var(--mobile-nav-height)-1.5rem)] w-full items-center justify-center px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+    <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-panel sm:p-8">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white text-primary-deeper shadow-card">
             <Package size={34} />
