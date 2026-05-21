@@ -49,11 +49,11 @@ export function VestgoHero({ signedIn = false }: VestgoHeroProps) {
       {/* Top frame / wordmark row */}
       <div className="relative z-10">
         <div className="mx-auto flex max-w-shell items-center justify-between px-4 pt-6 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3 text-white">
-            <VestgoMark className="h-11 w-11" />
+          <div className="flex items-center gap-2 text-white sm:gap-3">
+            <VestgoMark className="h-9 w-9 sm:h-11 sm:w-11" />
             <div className="leading-tight">
-              <p className="text-lg font-bold tracking-tight">VestGO</p>
-              <p className="text-[11px] uppercase tracking-[0.28em] text-primary-muted">
+              <p className="text-base font-bold tracking-tight sm:text-lg">VestGO</p>
+              <p className="hidden text-[11px] uppercase tracking-[0.28em] text-primary-muted sm:block">
                 Rede solidária rastreável
               </p>
             </div>
@@ -63,19 +63,19 @@ export function VestgoHero({ signedIn = false }: VestgoHeroProps) {
             <a href="#solidariedade" className="transition-colors hover:text-white">Solidariedade</a>
             <a href="#confianca" className="transition-colors hover:text-white">Confiança</a>
           </nav>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="hidden rounded-2xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/85 transition-colors hover:border-white/30 hover:bg-white/10 md:inline-flex"
-            >
-              Entrar
-            </Link>
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
               href="/cadastro"
-              className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-primary-deeper shadow-sm transition-transform hover:-translate-y-0.5"
+              className="hidden rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white/85 transition-colors hover:border-white/30 hover:bg-white/10 md:inline-flex sm:px-4 sm:py-2.5 sm:text-sm"
             >
-              Criar conta
-              <ArrowRight size={15} />
+              Cadastrar
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-primary-deeper shadow-sm transition-transform hover:-translate-y-0.5 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
+            >
+              Acessar plataforma
+              <ArrowRight size={14} className="sm:h-[15px] sm:w-[15px]" />
             </Link>
           </div>
         </div>

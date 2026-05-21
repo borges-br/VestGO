@@ -168,12 +168,7 @@ export function DonorHome({
                     : null
                 }
               />
-              <div
-                className="vg-card rounded-3xl"
-                style={{
-                  padding: donations.length === 0 ? 8 : '8px 8px 8px 0',
-                }}
-              >
+              <div className="mt-4">
                 <RecentActivity donations={donations} />
               </div>
             </div>

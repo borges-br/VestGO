@@ -139,6 +139,7 @@ interface OperationalBoardProps {
     sortBy: 'updatedAt' | 'createdAt';
     direction: 'asc' | 'desc';
   };
+  statusCounts: Partial<Record<DonationStatus, number>>;
   actionableCount: number;
   organizationName?: string | null;
   operatorName?: string | null;
@@ -698,11 +699,12 @@ interface GroupProps {
   group: GroupSpec;
   donations: DonationRecord[];
   role: string;
+  open: boolean;
+  onToggle: () => void;
   onUpdated: (donation: DonationRecord) => void;
 }
 
-function Group({ group, donations, role, onUpdated }: GroupProps) {
-  const [open, setOpen] = useState(group.defaultOpen ?? donations.length > 0);
+function Group({ group, donations, role, open, onToggle, onUpdated }: GroupProps) {
   const tone = TONE_CLASSES[group.tone];
   const actionable = donations.filter((donation) => donation.allowedNextStatuses.length > 0).length;
   const contentId = `operation-group-${group.key}`;
@@ -712,7 +714,7 @@ function Group({ group, donations, role, onUpdated }: GroupProps) {
       <button
         id={`${contentId}-heading`}
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={onToggle}
         aria-controls={contentId}
         aria-expanded={open}
         className="flex w-full items-center gap-3 border-b border-gray-200 px-1 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -816,6 +818,7 @@ export function OperationalBoard({
   availableCollectionPoints,
   availableNgos,
   initialFilters,
+  statusCounts: initialStatusCounts,
   actionableCount: initialActionableCount,
   organizationName,
   operatorName,
@@ -830,10 +833,32 @@ export function OperationalBoard({
   const [search, setSearch] = useState('');
   const [isNavigating, setIsNavigating] = useState(false);
 
+  const [statusCounts, setStatusCounts] = useState<Partial<Record<DonationStatus, number>>>(initialStatusCounts ?? {});
+  const [actionableCount, setActionableCount] = useState(initialActionableCount);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     setDonations(initialDonations);
     setIsNavigating(false);
   }, [initialDonations]);
+
+  useEffect(() => {
+    setStatusCounts(initialStatusCounts ?? {});
+  }, [initialStatusCounts]);
+
+  useEffect(() => {
+    setActionableCount(initialActionableCount);
+  }, [initialActionableCount]);
+
+  const toggleGroup = (groupKey: string, defaultOpen: boolean) => {
+    setOpenGroups((prev) => {
+      const currentVal = prev[groupKey] ?? defaultOpen;
+      return {
+        ...prev,
+        [groupKey]: !currentVal,
+      };
+    });
+  };
 
   const activeStatus = isDonationStatus(searchParams.get('status'))
     ? (searchParams.get('status') as DonationStatus)
@@ -851,21 +876,6 @@ export function OperationalBoard({
 
   const groups = useMemo(() => getGroupsForRole(role), [role]);
   const kpis = useMemo(() => getKpisForRole(role), [role]);
-
-  const counts = useMemo(() => {
-    const byStatus: Partial<Record<DonationStatus, number>> = {};
-
-    for (const donation of donations) {
-      byStatus[donation.status] = (byStatus[donation.status] ?? 0) + 1;
-    }
-
-    return byStatus;
-  }, [donations]);
-
-  const actionableCount = useMemo(
-    () => donations.filter((donation) => donation.allowedNextStatuses.length > 0).length,
-    [donations],
-  );
 
   const activeGroup = groups.find((group) => group.key === activeStatusGroup);
   const statusFilter = activeStatus
@@ -982,11 +992,31 @@ export function OperationalBoard({
   }
 
   function handleUpdated(updatedDonation: DonationRecord) {
+    const original = donations.find((d) => d.id === updatedDonation.id);
     setDonations((current) =>
       current.map((donation) =>
         donation.id === updatedDonation.id ? updatedDonation : donation,
       ),
     );
+
+    if (original) {
+      const originalActionable = original.allowedNextStatuses.length > 0;
+      const updatedActionable = updatedDonation.allowedNextStatuses.length > 0;
+      if (originalActionable !== updatedActionable) {
+        setActionableCount((prev) => Math.max(0, prev + (updatedActionable ? 1 : -1)));
+      }
+
+      if (original.status !== updatedDonation.status) {
+        setStatusCounts((prev) => {
+          const next = { ...prev };
+          if (original.status in next) {
+            next[original.status] = Math.max(0, (next[original.status] ?? 1) - 1);
+          }
+          next[updatedDonation.status] = (next[updatedDonation.status] ?? 0) + 1;
+          return next;
+        });
+      }
+    }
   }
 
   const showCollectionPointFilter = role === 'ADMIN' || role === 'NGO';
@@ -1045,7 +1075,7 @@ export function OperationalBoard({
           aria-label="Indicadores operacionais"
         >
           {kpis.map((kpi) => {
-            const value = kpi.statuses.reduce((sum, status) => sum + (counts[status] ?? 0), 0);
+            const value = kpi.statuses.reduce((sum, status) => sum + (statusCounts[status] ?? 0), 0);
             const tone = TONE_CLASSES[kpi.tone];
             const active =
               activeStatusGroup === kpi.key ||
@@ -1240,15 +1270,21 @@ export function OperationalBoard({
           <div className="grid gap-4">
             {groupedDonations
               .filter(({ donations: groupDonations }) => groupDonations.length > 0)
-              .map(({ group, donations: groupDonations }) => (
-                <Group
-                  key={group.key}
-                  group={group}
-                  donations={groupDonations}
-                  role={role}
-                  onUpdated={handleUpdated}
-                />
-              ))}
+              .map(({ group, donations: groupDonations }) => {
+                const defaultOpen = group.defaultOpen ?? (groupDonations.length > 0);
+                const open = openGroups[group.key] ?? defaultOpen;
+                return (
+                  <Group
+                    key={group.key}
+                    group={group}
+                    donations={groupDonations}
+                    role={role}
+                    open={open}
+                    onToggle={() => toggleGroup(group.key, defaultOpen)}
+                    onUpdated={handleUpdated}
+                  />
+                );
+              })}
           </div>
         )}
       </section>

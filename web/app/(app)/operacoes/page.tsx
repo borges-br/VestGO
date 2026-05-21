@@ -63,8 +63,16 @@ export default async function OperacoesPage({
     redirect('/rastreio');
   }
 
-  const [response, batchesResponse, profile] = await Promise.all([
-    getOperationalDonations(accessToken, buildFiltersFromSearchParams(searchParams)),
+  const activeFilters = buildFiltersFromSearchParams(searchParams);
+  const kpiFilters = {
+    ...activeFilters,
+    status: undefined,
+    limit: 1,
+  };
+
+  const [response, kpiResponse, batchesResponse, profile] = await Promise.all([
+    getOperationalDonations(accessToken, activeFilters),
+    getOperationalDonations(accessToken, kpiFilters),
     role !== 'NGO'
       ? getOperationalBatches(accessToken, { limit: 50 })
       : Promise.resolve({ data: [] }),
@@ -80,7 +88,8 @@ export default async function OperacoesPage({
           availableCollectionPoints={response.meta.availableCollectionPoints}
           availableNgos={response.meta.availableNgos}
           initialFilters={response.meta.filters}
-          actionableCount={response.meta.actionableCount}
+          statusCounts={kpiResponse.meta.statusCounts ?? {}}
+          actionableCount={kpiResponse.meta.actionableCount}
           organizationName={
             profile?.organizationName ??
             session?.user?.organizationName ??
