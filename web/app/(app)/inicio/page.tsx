@@ -1,41 +1,36 @@
 import Link from 'next/link';
 import {
+  AlertCircle,
   ArrowRight,
-  ChevronRight,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
   ClipboardList,
-  HeartHandshake,
+  Clock3,
+  ExternalLink,
   Map,
-  MapPin,
   Package,
-  Plus,
+  QrCode,
   ShieldCheck,
-  Sparkles,
-  Store,
   Truck,
-  User,
-  Users,
   type LucideIcon,
 } from 'lucide-react';
-import {
-  BadgeCollectionCard,
-  ImpactProgressCard,
-  ImpactSummaryCard,
-  RankingPreviewCard,
-} from '@/components/gamification/impact-widgets';
+import { DonorHome } from '@/components/dashboard/donor-home';
+import { OperationalHomeScanButton } from '@/components/dashboard/operational-home-scan-button';
+import { StatusActionPanel } from '@/components/donations/status-action-panel';
 import { PickupRequestsPanel } from '@/components/operations/pickup-requests-panel';
 import { auth } from '@/lib/auth';
 import {
   getAdminProfiles,
   getMyGamification,
-  getMyProfile,
-  getOperationalDonations,
   getMyPartnerships,
+  getMyProfile,
   getNearbyPoints,
   getNotifications,
+  getOperationalDonations,
   getPickupRequests,
   getUserDonations,
   type AdminProfileRecord,
-  type CollectionPoint,
   type DonationRecord,
   type DonationStatus,
   type DonorGamificationResponse,
@@ -45,48 +40,7 @@ import {
   type PartnershipRecord,
   type PickupRequestRecord,
 } from '@/lib/api';
-import { DonorHome } from '@/components/dashboard/donor-home';
-import { formatAddressSummary } from '@/lib/address';
 import { formatDayMonthLabel } from '@/lib/date-time';
-
-const quickActions = [
-  {
-    href: '/doar',
-    label: 'Nova doação',
-    description: 'Registrar peças',
-    icon: Plus,
-    tone: 'bg-primary-deeper text-white',
-  },
-  {
-    href: '/mapa',
-    label: 'Explorar pontos',
-    description: 'Encontrar parceiros',
-    icon: Map,
-    tone: 'bg-primary-light text-primary',
-  },
-  {
-    href: '/rastreio',
-    label: 'Acompanhar status',
-    description: 'Ver andamento',
-    icon: Truck,
-    tone: 'bg-blue-50 text-blue-600',
-  },
-  {
-    href: '/perfil',
-    label: 'Minha solidariedade',
-    description: 'Resumo pessoal',
-    icon: HeartHandshake,
-    tone: 'bg-amber-50 text-amber-600',
-  },
-];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  CLOTHING: 'Roupas',
-  SHOES: 'Calçados',
-  ACCESSORIES: 'Acessórios',
-  BAGS: 'Bolsas',
-  OTHER: 'Outros',
-};
 
 const PROFILE_STATE_LABELS: Record<string, string> = {
   DRAFT: 'Rascunho',
@@ -102,117 +56,13 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Administrador',
 };
 
-const GOVERNANCE_NOTIFICATION_TYPES = new Set([
-  'PROFILE_APPROVAL_REQUIRED',
-  'PROFILE_REVISION_PENDING',
-]);
-
-const operationalActionMap: Record<
-  string,
-  { href: string; label: string; description: string; icon: LucideIcon; tone: string }[]
-> = {
-  COLLECTION_POINT: [
-    {
-      href: '/operacoes',
-      label: 'Fila operacional',
-      description: 'Receber e atualizar doações',
-      icon: ClipboardList,
-      tone: 'bg-primary-deeper text-white',
-    },
-    {
-      href: '/perfil/operacional',
-      label: 'Perfil público',
-      description: 'Endereço, status e checklist',
-      icon: Store,
-      tone: 'bg-primary-light text-primary',
-    },
-    {
-      href: '/mapa',
-      label: 'Explorar pontos',
-      description: 'Validar descoberta pública',
-      icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
-    },
-    {
-      href: '/rastreio',
-      label: 'Rastreio',
-      description: 'Acompanhar jornadas',
-      icon: Truck,
-      tone: 'bg-amber-50 text-amber-600',
-    },
-  ],
-  NGO: [
-    {
-      href: '/operacoes',
-      label: 'Fila operacional',
-      description: 'Receber e concluir etapas',
-      icon: ClipboardList,
-      tone: 'bg-primary-deeper text-white',
-    },
-    {
-      href: '/perfil/operacional',
-      label: 'Perfil público',
-      description: 'Base, cobertura e status',
-      icon: Users,
-      tone: 'bg-primary-light text-primary',
-    },
-    {
-      href: '/mapa',
-      label: 'Explorar parceiros',
-      description: 'Ver pontos e ONGs ativas',
-      icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
-    },
-    {
-      href: '/rastreio',
-      label: 'Rastreio',
-      description: 'Acompanhar distribuições',
-      icon: Truck,
-      tone: 'bg-amber-50 text-amber-600',
-    },
-  ],
-  ADMIN: [
-    {
-      href: '/admin/perfis',
-      label: 'Governança',
-      description: 'Revisar perfis operacionais',
-      icon: ShieldCheck,
-      tone: 'bg-primary-deeper text-white',
-    },
-    {
-      href: '/operacoes',
-      label: 'Operações',
-      description: 'Visão ampla da operação',
-      icon: ClipboardList,
-      tone: 'bg-primary-light text-primary',
-    },
-    {
-      href: '/mapa',
-      label: 'Descoberta pública',
-      description: 'Validar mapa e busca',
-      icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
-    },
-    {
-      href: '/perfil',
-      label: 'Minha conta',
-      description: 'Dados da sessão atual',
-      icon: User,
-      tone: 'bg-amber-50 text-amber-600',
-    },
-  ],
-};
-
-const STATUS_META: Record<
-  DonationStatus,
-  { label: string; tone: string; stepIndex: number }
-> = {
-  PENDING: { label: 'Pendente', tone: 'bg-amber-50 text-amber-600', stepIndex: 0 },
-  AT_POINT: { label: 'No ponto', tone: 'bg-blue-50 text-blue-600', stepIndex: 1 },
-  IN_TRANSIT: { label: 'Em trânsito', tone: 'bg-indigo-50 text-indigo-600', stepIndex: 2 },
-  DELIVERED: { label: 'Entregue', tone: 'bg-primary-light text-primary', stepIndex: 3 },
-  DISTRIBUTED: { label: 'Distribuída', tone: 'bg-emerald-50 text-emerald-600', stepIndex: 3 },
-  CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-500', stepIndex: 0 },
+const STATUS_META: Record<DonationStatus, { label: string; tone: string }> = {
+  PENDING: { label: 'Pendente', tone: 'bg-amber-50 text-amber-700' },
+  AT_POINT: { label: 'No ponto', tone: 'bg-blue-50 text-blue-700' },
+  IN_TRANSIT: { label: 'Em trânsito', tone: 'bg-indigo-50 text-indigo-700' },
+  DELIVERED: { label: 'Entregue', tone: 'bg-primary-light text-primary' },
+  DISTRIBUTED: { label: 'Distribuída', tone: 'bg-emerald-50 text-emerald-700' },
+  CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-600' },
 };
 
 const NEXT_ACTION_LABELS: Partial<Record<DonationStatus, string>> = {
@@ -221,6 +71,43 @@ const NEXT_ACTION_LABELS: Partial<Record<DonationStatus, string>> = {
   DELIVERED: 'Confirmar entrega',
   DISTRIBUTED: 'Marcar distribuição',
 };
+
+const GOVERNANCE_NOTIFICATION_TYPES = new Set([
+  'PROFILE_APPROVAL_REQUIRED',
+  'PROFILE_REVISION_PENDING',
+]);
+
+type OperationalPeriod = 'today' | '7d' | '30d' | 'all';
+
+const OPERATIONAL_PERIOD_OPTIONS: Array<{
+  value: OperationalPeriod;
+  label: string;
+  summary: string;
+}> = [
+  { value: 'today', label: 'Hoje', summary: 'Atualizadas hoje' },
+  { value: '7d', label: '7 dias', summary: 'Últimos 7 dias' },
+  { value: '30d', label: '30 dias', summary: 'Últimos 30 dias' },
+  { value: 'all', label: 'Tudo', summary: 'Todo o histórico' },
+];
+
+function getOperationalPeriod(value: string | string[] | undefined): OperationalPeriod {
+  const candidate = Array.isArray(value) ? value[0] : value;
+
+  if (
+    candidate === 'today' ||
+    candidate === '7d' ||
+    candidate === '30d' ||
+    candidate === 'all'
+  ) {
+    return candidate;
+  }
+
+  return '7d';
+}
+
+function getOperationalPeriodSummary(period: OperationalPeriod) {
+  return OPERATIONAL_PERIOD_OPTIONS.find((option) => option.value === period)?.summary ?? 'Recorte atual';
+}
 
 function formatDateLabel(input: string) {
   return formatDayMonthLabel(input);
@@ -246,453 +133,494 @@ function getOperationPartnerLabel(role: string, donation: DonationRecord) {
 
 function getNextActionLabel(donation: DonationRecord) {
   const nextStatus = donation.allowedNextStatuses[0];
+
   return nextStatus ? NEXT_ACTION_LABELS[nextStatus] ?? STATUS_META[nextStatus].label : null;
 }
 
-function OperationalDonationMiniCard({
-  donation,
-  role,
-}: {
-  donation: DonationRecord;
-  role: string;
-}) {
-  const status = STATUS_META[donation.status];
-  const actionLabel = getNextActionLabel(donation);
+function getPickupPartnerName(role: string, pickupRequest: PickupRequestRecord) {
+  if (role === 'COLLECTION_POINT') {
+    return pickupRequest.ngo.organizationName ?? pickupRequest.ngo.name;
+  }
 
-  return (
-    <Link
-      href={`/operacoes?actionableOnly=true&status=${donation.status}`}
-      className="block rounded-[1.35rem] border border-gray-100 bg-white px-4 py-3 transition-colors hover:border-primary/30 hover:bg-primary-light/20"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-xs font-bold text-primary-deeper">{donation.code}</span>
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${status.tone}`}>
-          {status.label}
-        </span>
-      </div>
-      <p className="mt-2 truncate text-sm font-semibold text-on-surface">{donation.itemLabel}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-        <span>{donation.itemCount} item(ns)</span>
-        <span>{formatDateLabel(donation.updatedAt)}</span>
-      </div>
-      <p className="mt-2 truncate text-xs text-gray-400">{getOperationPartnerLabel(role, donation)}</p>
-      {actionLabel && (
-        <span className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary">
-          {actionLabel}
-          <ArrowRight size={13} />
-        </span>
-      )}
-    </Link>
-  );
+  return pickupRequest.collectionPoint.organizationName ?? pickupRequest.collectionPoint.name;
+}
+
+function getUpcomingPickup(pickupRequests: PickupRequestRecord[]) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const activeRequests = pickupRequests
+    .filter((pickupRequest) => pickupRequest.status !== 'REJECTED')
+    .filter((pickupRequest) => {
+      if (!pickupRequest.requestedDate) {
+        return true;
+      }
+
+      return new Date(pickupRequest.requestedDate).getTime() >= today.getTime();
+    })
+    .sort((left, right) => {
+      const leftDate = left.requestedDate ?? left.createdAt;
+      const rightDate = right.requestedDate ?? right.createdAt;
+
+      return new Date(leftDate).getTime() - new Date(rightDate).getTime();
+    });
+
+  return activeRequests[0] ?? null;
 }
 
 function OperationalHome({
   firstName,
   role,
   profile,
-  nearbyPoints,
   partnerships,
   pickupRequests,
   operationQueue,
   operationMeta,
   accessToken,
+  period,
+  hasDataError,
 }: {
   firstName: string;
   role: string;
   profile: MyProfile | null;
-  nearbyPoints: CollectionPoint[];
   partnerships: PartnershipRecord[];
   pickupRequests: PickupRequestRecord[];
   operationQueue: DonationRecord[];
   operationMeta: OperationalDonationListResponse['meta'] | null;
   accessToken: string;
+  period: OperationalPeriod;
+  hasDataError: boolean;
 }) {
-  const actions = operationalActionMap[role] ?? operationalActionMap.ADMIN;
-  const profileStateLabel =
-    role === 'ADMIN'
-      ? 'Painel administrativo'
-      : PROFILE_STATE_LABELS[profile?.publicProfileState ?? 'DRAFT'] ?? 'Rascunho';
+  const roleLabel = ROLE_LABELS[role] ?? role;
+  const organizationName =
+    profile?.organizationName ?? profile?.name ?? 'Organização não informada';
+  const profileStateLabel = PROFILE_STATE_LABELS[profile?.publicProfileState ?? 'DRAFT'] ?? 'Rascunho';
   const completion = profile?.profileCompletion;
-  const stats = profile?.stats ?? { handledDonations: 0, activePartnerships: 0 };
+  const completionPercent =
+    completion && completion.totalItems > 0
+      ? Math.round((completion.completedItems / completion.totalItems) * 100)
+      : null;
+  const isVerified = Boolean(profile?.verifiedAt || profile?.publicProfileState === 'VERIFIED');
   const activePartnership = partnerships.find(
     (partnership) => partnership.status === 'ACTIVE' && partnership.isActive,
   );
+  const activePartnerName = activePartnership
+    ? role === 'COLLECTION_POINT'
+      ? activePartnership.ngo.organizationName ?? activePartnership.ngo.name
+      : activePartnership.collectionPoint.organizationName ?? activePartnership.collectionPoint.name
+    : null;
   const pendingPickupRequests = pickupRequests.filter(
     (pickupRequest) => pickupRequest.status === 'PENDING',
   );
   const actionableOperations = operationQueue.filter(
     (donation) => donation.allowedNextStatuses.length > 0,
   );
-  const recentOperations = operationQueue.slice(0, 4);
   const nextAction = actionableOperations[0] ?? null;
   const statusCounts = operationMeta?.statusCounts ?? {};
-  const operationalStageCards = [
-    { status: 'PENDING' as DonationStatus, label: 'Pendentes' },
-    { status: 'AT_POINT' as DonationStatus, label: 'No ponto' },
-    { status: 'IN_TRANSIT' as DonationStatus, label: 'Em trânsito' },
-    { status: 'DELIVERED' as DonationStatus, label: 'Entregues' },
+  const countFor = (status: DonationStatus) => (operationMeta ? statusCounts[status] ?? 0 : null);
+  const upcomingPickup = getUpcomingPickup(pickupRequests);
+  const pickupTimeWindow =
+    upcomingPickup?.timeWindowStart && upcomingPickup.timeWindowEnd
+      ? `${upcomingPickup.timeWindowStart} - ${upcomingPickup.timeWindowEnd}`
+      : null;
+  const operationalStageCards: Array<{
+    status: DonationStatus;
+    label: string;
+    hint: string;
+    icon: LucideIcon;
+    tone: string;
+  }> = [
+    {
+      status: 'PENDING',
+      label: 'Pendentes',
+      hint: role === 'COLLECTION_POINT' ? 'aguardando recebimento' : 'aguardando origem',
+      icon: Clock3,
+      tone: 'bg-amber-50 text-amber-700',
+    },
+    {
+      status: role === 'NGO' ? 'DELIVERED' : 'AT_POINT',
+      label: role === 'NGO' ? 'Recebidas' : 'No ponto',
+      hint: role === 'NGO' ? 'para conferir ou distribuir' : 'prontas para preparar',
+      icon: Package,
+      tone: 'bg-blue-50 text-blue-700',
+    },
+    {
+      status: 'IN_TRANSIT',
+      label: 'Em trânsito',
+      hint: 'em deslocamento',
+      icon: Truck,
+      tone: 'bg-indigo-50 text-indigo-700',
+    },
+    {
+      status: role === 'NGO' ? 'DISTRIBUTED' : 'DELIVERED',
+      label: role === 'NGO' ? 'Distribuídas' : 'Entregues',
+      hint: role === 'NGO' ? 'ciclo social concluído' : 'recebidas pela ONG',
+      icon: CheckCircle2,
+      tone: 'bg-emerald-50 text-emerald-700',
+    },
+  ];
+  const navLinks = [
+    { href: '/inicio', label: 'Início' },
+    { href: '/mapa', label: 'Explorar pontos' },
+    { href: '/operacoes', label: 'Operações' },
+    { href: '/rastreio', label: 'Rastreio' },
   ];
 
   return (
-    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+    <div className="vg-dark-fix px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-shell space-y-4">
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
-          <div className="overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
-                <ClipboardList size={14} />
-                Central operacional
-              </span>
-              <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                {ROLE_LABELS[role] ?? role}
-              </span>
+        {hasDataError && (
+          <section className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="flex gap-3">
+              <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+              <p>
+                Alguns dados operacionais não puderam ser carregados agora. Os blocos abaixo usam
+                somente informações disponíveis nesta leitura.
+              </p>
             </div>
+          </section>
+        )}
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-              <div>
-                <p className="text-3xl font-bold tracking-tight sm:text-4xl">Olá, {firstName}.</p>
-                <p className="mt-3 max-w-2xl text-base leading-8 text-primary-muted">
-                  Acompanhe pendências reais, próximos passos e atalhos do seu papel sem sair da rotina operacional.
+        <section className="overflow-hidden rounded-[2rem] bg-white p-4 shadow-card sm:p-5 lg:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Link href="/inicio" className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-deeper text-sm font-black text-white">
+                VG
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xl font-black tracking-tight text-primary-deeper">
+                  VestGO
                 </p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-400">
+                  Doações Rastreáveis
+                </p>
+              </div>
+            </Link>
 
-                <div className="mt-6 flex flex-wrap gap-3">
-                  {actions.slice(0, 2).map(({ href, label, icon: Icon }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-                    >
-                      <Icon size={16} />
-                      {label}
-                    </Link>
-                  ))}
-                </div>
+            <nav className="hidden items-center gap-1 rounded-full border border-gray-200 bg-surface p-1 lg:flex">
+              {navLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-gray-500 transition-colors hover:bg-white hover:text-primary-deeper"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
 
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {[
-                    `${operationMeta?.actionableCount ?? actionableOperations.length} pendência(s) de ação`,
-                    `${operationMeta?.count ?? operationQueue.length} coleta(s) no recorte recente`,
-                    completion?.totalItems
-                      ? `${completion.completedItems}/${completion.totalItems} itens essenciais preenchidos`
-                      : 'checklist operacional em monitoramento',
-                  ].map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted"
-                    >
-                      {item}
-                    </span>
-                  ))}
+          <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="rounded-[1.75rem] bg-primary-deeper p-5 text-white lg:p-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary-muted">
+                  {roleLabel}
+                </span>
+                {isVerified && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-primary-deeper">
+                    <ShieldCheck size={13} />
+                    Verificado
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-primary-muted">Olá, {firstName}</p>
+                <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+                  Painel operacional
+                </h1>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-primary-muted">
+                  <span className="rounded-full bg-white/10 px-3 py-2">
+                    {organizationName}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-2">
+                    {activePartnerName ? `Parceria ativa: ${activePartnerName}` : 'Sem parceria ativa'}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-2">
+                    {operationMeta ? `${operationMeta.actionableCount} ação(ões) pendente(s)` : 'Fila indisponível'}
+                  </span>
                 </div>
               </div>
 
-              <div className="rounded-[1.75rem] bg-white/10 p-5 backdrop-blur">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-muted">
-                  Próxima ação
-                </p>
-                {nextAction ? (
-                  <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-on-surface">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-mono text-sm font-bold text-primary-deeper">
-                        {nextAction.code}
+              <div className="mt-5 flex flex-wrap gap-2">
+                {OPERATIONAL_PERIOD_OPTIONS.map((option) => (
+                  <Link
+                    key={option.value}
+                    href={option.value === '7d' ? '/inicio' : `/inicio?period=${option.value}`}
+                    className={`rounded-full px-4 py-2 text-sm font-bold transition-colors ${
+                      period === option.value
+                        ? 'bg-white text-primary-deeper'
+                        : 'bg-white/10 text-primary-muted hover:bg-white/20'
+                    }`}
+                    aria-current={period === option.value ? 'page' : undefined}
+                  >
+                    {option.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <aside className="rounded-[1.75rem] border border-gray-100 bg-surface p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                Perfil operacional
+              </p>
+              {profile ? (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-primary-deeper shadow-sm">
+                      <Building2 size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-bold text-primary-deeper">
+                        {organizationName}
                       </p>
+                      <p className="mt-1 text-sm text-gray-500">{roleLabel}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl bg-white p-3">
+                      <p className="text-xs font-semibold text-gray-400">Perfil público</p>
+                      <p className="mt-1 text-sm font-bold text-primary-deeper">{profileStateLabel}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-3">
+                      <p className="text-xs font-semibold text-gray-400">Completude</p>
+                      <p className="mt-1 text-sm font-bold text-primary-deeper">
+                        {completionPercent != null ? `${completionPercent}%` : 'Pendente'}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/perfil/operacional"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-primary-deeper transition-colors hover:bg-primary-light"
+                  >
+                    Ver perfil público
+                    <ExternalLink size={14} />
+                  </Link>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl bg-white p-4">
+                  <p className="text-sm font-bold text-primary-deeper">Sem perfil operacional carregado</p>
+                  <p className="mt-2 text-sm leading-6 text-gray-500">
+                    Revise seu cadastro operacional para publicar dados, parceria e checklist.
+                  </p>
+                  <Link
+                    href="/perfil/operacional"
+                    className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary"
+                  >
+                    Abrir perfil
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+              )}
+            </aside>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {operationalStageCards.map(({ status, label, hint, icon: Icon, tone }) => {
+            const value = countFor(status);
+
+            return (
+              <Link
+                key={`${label}-${status}`}
+                href={`/operacoes?status=${status}`}
+                className="rounded-[1.5rem] border border-gray-100 bg-white p-4 shadow-card transition-colors hover:border-primary/20 hover:bg-primary-light/20"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${tone}`}>
+                    <Icon size={18} />
+                  </div>
+                  <ArrowRight size={16} className="text-gray-300" />
+                </div>
+                <p className="mt-4 text-3xl font-black text-primary-deeper">
+                  {value == null ? '—' : value}
+                </p>
+                <p className="mt-1 text-sm font-bold text-on-surface">{label}</p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">{hint}</p>
+              </Link>
+            );
+          })}
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="rounded-[2rem] bg-white p-5 shadow-card lg:p-6">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="rounded-[1.75rem] bg-primary-light p-5">
+                <div className="flex items-center gap-2 text-primary-deeper">
+                  <QrCode size={18} />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em]">
+                    Entrada operacional
+                  </p>
+                </div>
+                <h2 className="mt-3 text-2xl font-black text-primary-deeper">
+                  {role === 'COLLECTION_POINT' ? 'Receber doação' : 'Localizar doação'}
+                </h2>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row lg:flex-col">
+                  <Link
+                    href="/operacoes?actionableOnly=true"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary-deeper px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  >
+                    <ClipboardList size={16} />
+                    {role === 'COLLECTION_POINT' ? 'Receber doação' : 'Abrir fila'}
+                  </Link>
+                  <OperationalHomeScanButton accessToken={accessToken} />
+                </div>
+              </div>
+
+              <div className="rounded-[1.75rem] border border-gray-100 bg-white p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                      Próxima ação recomendada
+                    </p>
+                    <h2 className="mt-2 text-2xl font-black text-primary-deeper">
+                      {nextAction ? nextAction.code : 'Sem ação imediata'}
+                    </h2>
+                  </div>
+                  <Link
+                    href="/operacoes?actionableOnly=true"
+                    className="inline-flex items-center gap-1.5 text-sm font-bold text-primary"
+                  >
+                    Ver fila
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+
+                {nextAction ? (
+                  <div className="mt-5 space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                        className={`rounded-full px-3 py-1 text-xs font-bold ${
                           STATUS_META[nextAction.status].tone
                         }`}
                       >
                         {STATUS_META[nextAction.status].label}
                       </span>
+                      <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-gray-500">
+                        {formatDateLabel(nextAction.updatedAt)}
+                      </span>
                     </div>
-                    <p className="mt-2 truncate text-sm font-semibold">{nextAction.itemLabel}</p>
-                    <p className="mt-1 truncate text-xs text-gray-500">
-                      {getOperationPartnerLabel(role, nextAction)}
-                    </p>
-                    <Link
-                      href="/operacoes?actionableOnly=true"
-                      className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-primary"
-                    >
-                      {getNextActionLabel(nextAction) ?? 'Abrir operação'}
-                      <ArrowRight size={14} />
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="mt-3 rounded-2xl bg-white/10 px-4 py-4">
-                    <p className="text-sm font-semibold text-white">Sem ação imediata</p>
-                    <p className="mt-2 text-sm leading-6 text-primary-muted">
-                      Quando uma coleta exigir seu próximo passo, ela aparece aqui.
-                    </p>
-                  </div>
-                )}
-                <p className="mt-4 text-xs leading-6 text-primary-muted">
-                  Perfil: {profileStateLabel}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Fila agora
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {operationalStageCards.map(({ status, label }) => (
-                <Link
-                  key={status}
-                  href={`/operacoes?status=${status}`}
-                  className="rounded-[1.25rem] bg-surface p-4 transition-colors hover:bg-primary-light/50"
-                >
-                  <p className="text-2xl font-bold text-primary-deeper">
-                    {statusCounts[status] ?? 0}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-gray-500">{label}</p>
-                </Link>
-              ))}
-            </div>
-            <div className="mt-4 space-y-3">
-              {role === 'ADMIN' ? (
-                <>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
-                      Governança e operação continuam centralizadas entre `/admin/perfis` e `/operacoes`
-                    </p>
-                  </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
-                      O dashboard dedicado desta fase foca COLLECTION_POINT e NGO
-                    </p>
-                  </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
-                      A administração segue acompanhando a descoberta pública e a fila completa
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
-                      {activePartnership
-                        ? role === 'COLLECTION_POINT'
-                          ? `ONG ativa: ${activePartnership.ngo.organizationName ?? activePartnership.ngo.name}`
-                          : `Ponto ativo: ${activePartnership.collectionPoint.organizationName ?? activePartnership.collectionPoint.name}`
-                        : 'Nenhuma parceria ativa no momento'}
-                    </p>
-                  </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
-                      {pendingPickupRequests.length} solicitação(ões) de retirada pendente(s)
-                    </p>
-                  </div>
-                  <div className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-primary-deeper">
-                      {role === 'COLLECTION_POINT'
-                        ? 'Aprovações de retirada ficam neste dashboard'
-                        : 'Novas retiradas podem ser solicitadas neste dashboard'}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Pendências de ação
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">
-                  Coletas para resolver agora
-                </h2>
-              </div>
-              <Link href="/operacoes?actionableOnly=true" className="text-sm font-semibold text-primary">
-                Ver fila
-              </Link>
-            </div>
-
-            <div className="mt-5 grid gap-3 lg:grid-cols-2">
-              {actionableOperations.length > 0 ? (
-                actionableOperations
-                  .slice(0, 4)
-                  .map((donation) => (
-                    <OperationalDonationMiniCard key={donation.id} donation={donation} role={role} />
-                  ))
-              ) : (
-                <div className="rounded-[1.75rem] bg-surface px-5 py-8 text-sm text-gray-500 lg:col-span-2">
-                  Nenhuma coleta exige ação deste perfil no momento.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Atualizações recentes
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Últimas coletas</h2>
-              </div>
-              <Package size={18} className="text-primary" />
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {recentOperations.length > 0 ? (
-                recentOperations.map((donation) => (
-                  <OperationalDonationMiniCard key={donation.id} donation={donation} role={role} />
-                ))
-              ) : (
-                <div className="rounded-[1.75rem] bg-surface px-5 py-8 text-sm text-gray-500">
-                  A fila operacional ainda não tem coletas neste recorte.
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Ações rápidas
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Atalhos do seu papel</h2>
-              </div>
-              <ArrowRight size={18} className="text-primary" />
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {actions.map(({ href, label, description, icon: Icon, tone }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="flex items-start gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-card-lg"
-                >
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}>
-                    <Icon size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-on-surface">{label}</p>
-                    <p className="mt-1 text-sm text-gray-400">{description}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Perfil operacional
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Visibilidade do estado</h2>
-              </div>
-              <ShieldCheck size={18} className="text-primary" />
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.5rem] bg-surface p-4">
-                <p className="text-3xl font-bold text-primary-deeper">{stats.handledDonations}</p>
-                <p className="mt-1 text-sm text-gray-500">Doações ligadas ao perfil</p>
-              </div>
-              <div className="rounded-[1.5rem] bg-surface p-4">
-                <p className="text-3xl font-bold text-primary-deeper">{stats.activePartnerships}</p>
-                <p className="mt-1 text-sm text-gray-500">Parcerias ativas</p>
-              </div>
-            </div>
-
-            {role !== 'ADMIN' && completion && completion.missingFields.length > 0 && (
-              <div className="mt-5 rounded-[1.75rem] border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-semibold text-amber-800">Campos que ainda afetam a publicação</p>
-                <div className="mt-3 space-y-2 text-sm text-amber-700">
-                  {completion.missingFields.slice(0, 5).map((field) => (
-                    <div key={field}>{field}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Descoberta pública
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Mapa e busca vivos</h2>
-              </div>
-              <MapPin size={20} className="text-primary" />
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {nearbyPoints.length > 0 ? (
-                nearbyPoints.map((point) => (
-                  <div key={point.id} className="rounded-3xl bg-surface p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-on-surface">
-                          {point.organizationName ?? point.name}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-400">
-                          {point.distanceKm ? `${point.distanceKm} km - ` : ''}
-                          {formatAddressSummary(point) ?? 'Endereço não informado'}
-                        </p>
-                        <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
-                          {point.acceptedCategories
-                            .slice(0, 3)
-                            .map((item) => CATEGORY_LABELS[item] ?? item)
-                            .join(' - ')}
-                        </p>
-                      </div>
-                      <Link href={`/mapa/${point.id}`} className="mt-1 text-primary">
-                        <ChevronRight size={16} />
+                    <div className="rounded-2xl bg-surface p-4">
+                      <p className="text-sm font-bold text-on-surface">{nextAction.itemLabel}</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {nextAction.itemCount} item(ns) · {getOperationPartnerLabel(role, nextAction)}
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <StatusActionPanel compact donation={nextAction} />
+                      <Link
+                        href={`/rastreio/${nextAction.id}`}
+                        className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold text-primary-deeper transition-colors hover:bg-surface"
+                      >
+                        Detalhes
                       </Link>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
-                    Ainda não há parceiros públicos nessa busca.
+                ) : (
+                  <div className="mt-5 rounded-[1.5rem] bg-surface p-5">
+                    <p className="text-sm font-bold text-primary-deeper">
+                      Nenhuma doação exige ação deste perfil no recorte atual.
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-gray-500">
+                      {getOperationalPeriodSummary(period)} · {operationMeta ? `${operationMeta.count} registro(s)` : 'dados indisponíveis'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-[2rem] bg-white p-5 shadow-card lg:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                    Agenda
                   </p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
-                    Assim que um ponto ou ONG verificado surgir por aqui, ele aparece nessa lista e no mapa.
+                  <h2 className="mt-2 text-2xl font-black text-primary-deeper">
+                    Próxima retirada
+                  </h2>
+                </div>
+                <CalendarDays size={20} className="text-primary" />
+              </div>
+
+              {upcomingPickup ? (
+                <div className="mt-5 rounded-[1.5rem] bg-surface p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">
+                      <p className="text-[10px] font-bold uppercase text-gray-400">
+                        {upcomingPickup.requestedDate ? formatDateLabel(upcomingPickup.requestedDate) : 'A definir'}
+                      </p>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-on-surface">
+                        {getPickupPartnerName(role, upcomingPickup)}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {pickupTimeWindow ?? 'Janela de horário não definida'}
+                      </p>
+                      <p className="mt-2 text-xs font-semibold text-gray-400">
+                        {pendingPickupRequests.length} solicitação(ões) para responder
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-gray-400">
+                        Itens: sem contagem vinculada à retirada
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-[1.5rem] bg-surface p-5">
+                  <p className="text-sm font-bold text-primary-deeper">
+                    Nenhuma retirada agendada.
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-gray-500">
+                    Quando uma solicitação real tiver data ou resposta, ela aparece aqui.
                   </p>
                 </div>
               )}
             </div>
 
-            <Link href="/mapa" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary">
-              Abrir mapa e busca
-              <ArrowRight size={15} />
-            </Link>
-          </div>
-
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Radar operacional
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-primary-deeper">O que este painel coordena agora</h2>
-            <div className="mt-5 space-y-3">
-              {[
-                'retiradas com data prevista, faixa de horário e resposta do parceiro',
-                'distinção entre rastreio operacional e fila de operações',
-                'parcerias ativas que tornam o ponto elegível para doações',
-                'perfil público, checklist e status acompanhados no mesmo fluxo',
-              ].map((item) => (
-                <div key={item} className="rounded-3xl bg-surface p-4">
-                  <p className="text-sm font-semibold text-on-surface">{item}</p>
+            <div className="rounded-[2rem] bg-white p-5 shadow-card lg:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                    Saúde do perfil
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black text-primary-deeper">Status</h2>
                 </div>
-              ))}
+                <ShieldCheck size={20} className="text-primary" />
+              </div>
+
+              <div className="mt-5 space-y-3">
+                <div className="flex items-center justify-between gap-3 rounded-[1.25rem] bg-surface p-4">
+                  <span className="text-sm font-semibold text-gray-500">Perfil público</span>
+                  <span className="text-sm font-bold text-primary-deeper">{profileStateLabel}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-[1.25rem] bg-surface p-4">
+                  <span className="text-sm font-semibold text-gray-500">Parceria</span>
+                  <span className="text-sm font-bold text-primary-deeper">
+                    {activePartnerName ? 'Ativa' : 'Sem ativa'}
+                  </span>
+                </div>
+                <div className="rounded-[1.25rem] bg-surface p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-gray-500">Completude</span>
+                    <span className="text-sm font-bold text-primary-deeper">
+                      {completionPercent != null ? `${completionPercent}%` : 'Pendente'}
+                    </span>
+                  </div>
+                  {completion && (
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${completionPercent ?? 0}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          </aside>
         </section>
 
         {(role === 'COLLECTION_POINT' || role === 'NGO') && (
@@ -719,177 +647,88 @@ function AdminHome({
   pendingRevisions: AdminProfileRecord[];
   notifications: NotificationRecord[];
 }) {
-  const actionCards = [
-    {
-      href: '/admin/perfis',
-      label: 'Governança',
-      description: 'Aprovar novos perfis e revisar mudanças públicas',
-      icon: ShieldCheck,
-      tone: 'bg-primary-deeper text-white',
-    },
-    {
-      href: '/operacoes',
-      label: 'Operações',
-      description: 'Abrir a fila operacional compartilhada',
-      icon: ClipboardList,
-      tone: 'bg-primary-light text-primary',
-    },
-    {
-      href: '/mapa',
-      label: 'Mapa público',
-      description: 'Validar como pontos e ONGs aparecem para doadores',
-      icon: Map,
-      tone: 'bg-blue-50 text-blue-600',
-    },
-  ];
-
   return (
-    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+    <div className="vg-dark-fix px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-shell space-y-4">
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
-          <div className="overflow-hidden rounded-[2rem] bg-primary-deeper p-6 text-white shadow-card-lg lg:p-8">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-muted">
-                <ShieldCheck size={14} />
-                Governança ativa
-              </span>
-              <span className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-                Administrador
-              </span>
-            </div>
-
-            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-              <div>
-                <p className="text-3xl font-bold tracking-tight sm:text-4xl">Olá, {firstName}.</p>
-                <p className="mt-3 max-w-2xl text-base leading-8 text-primary-muted">
-                  Este painel centraliza aprovações iniciais, revisões públicas pendentes e alertas recentes de governança, sem misturar a administração com o fluxo doador.
-                </p>
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  {actionCards.slice(0, 2).map(({ href, label, icon: Icon }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-                    >
-                      <Icon size={16} />
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {[
-                    `${pendingApprovals.length} perfis aguardando aprovação`,
-                    `${pendingRevisions.length} revisões públicas pendentes`,
-                    `${notifications.length} alertas recentes de governança`,
-                  ].map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-muted"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[1.75rem] bg-white/10 p-5 backdrop-blur">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-muted">
-                  Painel administrativo
-                </p>
-                <p className="mt-3 text-xl font-semibold">Governança, mapa e fila</p>
-                <p className="mt-3 text-sm leading-7 text-primary-muted">
-                  O admin não recebe CTA de doação nem rastreio operacional como papel principal. Aqui, a prioridade é aprovar perfis, revisar alterações públicas e acompanhar a saúde da operação.
-                </p>
-              </div>
-            </div>
+        <section className="rounded-[2rem] bg-white p-6 shadow-card lg:p-8">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-primary-light px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
+              <ShieldCheck size={14} />
+              Governança ativa
+            </span>
+            <span className="rounded-full bg-surface px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+              Administrador
+            </span>
           </div>
-
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-              Resumo rápido
-            </p>
-            <div className="mt-4 space-y-3">
-              <div className="rounded-3xl bg-surface p-4">
-                <p className="text-sm font-semibold text-primary-deeper">
-                  {pendingApprovals.length} perfis novos aguardando aprovação
-                </p>
-              </div>
-              <div className="rounded-3xl bg-surface p-4">
-                <p className="text-sm font-semibold text-primary-deeper">
-                  {pendingRevisions.length} revisões públicas aguardando avaliação
-                </p>
-              </div>
-              <div className="rounded-3xl bg-surface p-4">
-                <p className="text-sm font-semibold text-primary-deeper">
-                  {notifications.length > 0
-                    ? 'Há alertas recentes prontos para abrir'
-                    : 'Nenhum alerta novo de governança no momento'}
-                </p>
-              </div>
-            </div>
+          <h1 className="mt-5 text-3xl font-black tracking-tight text-primary-deeper sm:text-4xl">
+            Olá, {firstName}
+          </h1>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <Link href="/admin/perfis" className="rounded-[1.5rem] bg-surface p-4 transition-colors hover:bg-primary-light/40">
+              <p className="text-3xl font-black text-primary-deeper">{pendingApprovals.length}</p>
+              <p className="mt-1 text-sm font-semibold text-gray-500">Perfis aguardando aprovação</p>
+            </Link>
+            <Link href="/admin/perfis" className="rounded-[1.5rem] bg-surface p-4 transition-colors hover:bg-primary-light/40">
+              <p className="text-3xl font-black text-primary-deeper">{pendingRevisions.length}</p>
+              <p className="mt-1 text-sm font-semibold text-gray-500">Revisões públicas pendentes</p>
+            </Link>
+            <Link href="/notificacoes" className="rounded-[1.5rem] bg-surface p-4 transition-colors hover:bg-primary-light/40">
+              <p className="text-3xl font-black text-primary-deeper">{notifications.length}</p>
+              <p className="mt-1 text-sm font-semibold text-gray-500">Alertas recentes</p>
+            </Link>
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
                   Aprovação inicial
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Perfis aguardando aprovação</h2>
+                <h2 className="mt-2 text-2xl font-black text-primary-deeper">Perfis pendentes</h2>
               </div>
-              <Link href="/admin/perfis" className="text-sm font-semibold text-primary">
-                Abrir governança
-              </Link>
+              <Link href="/admin/perfis" className="text-sm font-bold text-primary">Abrir</Link>
             </div>
-
             <div className="mt-5 space-y-3">
               {pendingApprovals.length > 0 ? (
                 pendingApprovals.map((profile) => (
-                  <div key={profile.id} className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-on-surface">
+                  <div key={profile.id} className="rounded-[1.25rem] bg-surface p-4">
+                    <p className="text-sm font-bold text-on-surface">
                       {profile.organizationName ?? profile.name}
                     </p>
-                    <p className="mt-1 text-sm text-gray-400">
+                    <p className="mt-1 text-sm text-gray-500">
                       {ROLE_LABELS[profile.role] ?? profile.role}
-                      {profile.city && profile.state ? ` - ${profile.city}, ${profile.state}` : ''}
+                      {profile.city && profile.state ? ` · ${profile.city}, ${profile.state}` : ''}
                     </p>
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
-                    Nenhum perfil novo aguardando aprovação.
-                  </p>
+                <div className="rounded-[1.25rem] bg-surface p-5 text-sm font-semibold text-primary-deeper">
+                  Nenhum perfil novo aguardando aprovação.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
+          <div className="rounded-[2rem] bg-white p-6 shadow-card">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
                   Revisões públicas
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Alterações pendentes</h2>
+                <h2 className="mt-2 text-2xl font-black text-primary-deeper">Alterações pendentes</h2>
               </div>
-              <Link href="/admin/perfis" className="text-sm font-semibold text-primary">
-                Revisar agora
-              </Link>
+              <Link href="/admin/perfis" className="text-sm font-bold text-primary">Revisar</Link>
             </div>
-
             <div className="mt-5 space-y-3">
               {pendingRevisions.length > 0 ? (
                 pendingRevisions.map((profile) => (
-                  <div key={profile.id} className="rounded-3xl bg-surface p-4">
-                    <p className="text-sm font-semibold text-on-surface">
+                  <div key={profile.id} className="rounded-[1.25rem] bg-surface p-4">
+                    <p className="text-sm font-bold text-on-surface">
                       {profile.organizationName ?? profile.name}
                     </p>
-                    <p className="mt-1 text-sm text-gray-400">
+                    <p className="mt-1 text-sm text-gray-500">
                       {profile.pendingPublicRevision?.fields.length
                         ? profile.pendingPublicRevision.fields.join(', ')
                         : 'Alterações públicas aguardando avaliação'}
@@ -897,75 +736,8 @@ function AdminHome({
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
-                    Nenhuma revisão pública pendente no momento.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Ações rápidas
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Atalhos do admin</h2>
-              </div>
-              <ShieldCheck size={18} className="text-primary" />
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {actionCards.map(({ href, label, description, icon: Icon, tone }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="flex items-start gap-4 rounded-3xl border border-gray-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-card-lg"
-                >
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}>
-                    <Icon size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-on-surface">{label}</p>
-                    <p className="mt-1 text-sm text-gray-400">{description}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] bg-white p-6 shadow-card lg:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
-                  Alertas recentes
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Notificações de governança</h2>
-              </div>
-              <ArrowRight size={18} className="text-primary" />
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {notifications.length > 0 ? (
-                notifications.map((notification) => (
-                  <Link
-                    key={notification.id}
-                    href={notification.href ?? '/notificacoes'}
-                    className="block rounded-3xl bg-surface p-4 transition-colors hover:bg-primary-light"
-                  >
-                    <p className="text-sm font-semibold text-on-surface">{notification.title}</p>
-                    <p className="mt-1 text-sm text-gray-400">{notification.body}</p>
-                  </Link>
-                ))
-              ) : (
-                <div className="rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">
-                    Nenhum alerta de governança no momento.
-                  </p>
+                <div className="rounded-[1.25rem] bg-surface p-5 text-sm font-semibold text-primary-deeper">
+                  Nenhuma revisão pública pendente no momento.
                 </div>
               )}
             </div>
@@ -976,7 +748,11 @@ function AdminHome({
   );
 }
 
-export default async function InicioPage() {
+export default async function InicioPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const session = await auth();
   const firstName = session?.user?.name?.split(' ')[0] ?? 'você';
   const accessToken = session?.user?.accessToken ?? '';
@@ -988,29 +764,31 @@ export default async function InicioPage() {
     let notifications: NotificationRecord[] = [];
 
     if (accessToken) {
-      try {
-        const [pendingApprovalsResponse, pendingRevisionsResponse, notificationsResponse] =
-          await Promise.all([
-            getAdminProfiles(accessToken, {
-              status: 'PENDING',
-              limit: 6,
-            }),
-            getAdminProfiles(accessToken, {
-              revisionStatus: 'PENDING',
-              limit: 6,
-            }),
-            getNotifications(accessToken, { limit: 8 }),
-          ]);
+      const [pendingApprovalsResponse, pendingRevisionsResponse, notificationsResponse] =
+        await Promise.allSettled([
+          getAdminProfiles(accessToken, {
+            status: 'PENDING',
+            limit: 6,
+          }),
+          getAdminProfiles(accessToken, {
+            revisionStatus: 'PENDING',
+            limit: 6,
+          }),
+          getNotifications(accessToken, { limit: 8 }),
+        ]);
 
-        pendingApprovals = pendingApprovalsResponse.data;
-        pendingRevisions = pendingRevisionsResponse.data;
-        notifications = notificationsResponse.data
+      if (pendingApprovalsResponse.status === 'fulfilled') {
+        pendingApprovals = pendingApprovalsResponse.value.data;
+      }
+
+      if (pendingRevisionsResponse.status === 'fulfilled') {
+        pendingRevisions = pendingRevisionsResponse.value.data;
+      }
+
+      if (notificationsResponse.status === 'fulfilled') {
+        notifications = notificationsResponse.value.data
           .filter((notification) => GOVERNANCE_NOTIFICATION_TYPES.has(notification.type))
           .slice(0, 5);
-      } catch {
-        pendingApprovals = [];
-        pendingRevisions = [];
-        notifications = [];
       }
     }
 
@@ -1025,61 +803,50 @@ export default async function InicioPage() {
   }
 
   if (role !== 'DONOR') {
+    const period = getOperationalPeriod(searchParams?.period);
     let profile: MyProfile | null = null;
-    let nearbyPoints: CollectionPoint[] = [];
     let partnerships: PartnershipRecord[] = [];
     let pickupRequests: PickupRequestRecord[] = [];
     let operationQueue: DonationRecord[] = [];
     let operationMeta: OperationalDonationListResponse['meta'] | null = null;
+    let hasDataError = !accessToken;
 
     if (accessToken) {
-      try {
-        const [
-          profileResponse,
-          partnershipsResponse,
-          pickupRequestsResponse,
-          operationResponse,
-        ] = await Promise.all([
+      const [profileResponse, partnershipsResponse, pickupRequestsResponse, operationResponse] =
+        await Promise.allSettled([
           getMyProfile(accessToken),
-          role === 'ADMIN' ? Promise.resolve(null) : getMyPartnerships(accessToken),
-          role === 'ADMIN' ? Promise.resolve(null) : getPickupRequests(accessToken),
+          getMyPartnerships(accessToken),
+          getPickupRequests(accessToken),
           getOperationalDonations(accessToken, {
             limit: 8,
             sortBy: 'updatedAt',
             direction: 'desc',
+            period,
           }),
         ]);
 
-        profile = profileResponse;
-        partnerships = partnershipsResponse?.data ?? [];
-        pickupRequests = pickupRequestsResponse?.data ?? [];
-        operationQueue = operationResponse.data;
-        operationMeta = operationResponse.meta;
+      hasDataError = [
+        profileResponse,
+        partnershipsResponse,
+        pickupRequestsResponse,
+        operationResponse,
+      ].some((result) => result.status === 'rejected');
 
-        const pointsResponse =
-          profile.latitude != null && profile.longitude != null
-            ? await getNearbyPoints({
-                lat: profile.latitude,
-                lng: profile.longitude,
-                radius: 20,
-                limit: 4,
-                accessToken,
-              })
-            : await getNearbyPoints({
-                search:
-                  [profile.city, profile.state].filter(Boolean).join(' ').trim() || undefined,
-                limit: 4,
-                accessToken,
-              });
+      if (profileResponse.status === 'fulfilled') {
+        profile = profileResponse.value;
+      }
 
-        nearbyPoints = pointsResponse.data;
-      } catch {
-        profile = null;
-        nearbyPoints = [];
-        partnerships = [];
-        pickupRequests = [];
-        operationQueue = [];
-        operationMeta = null;
+      if (partnershipsResponse.status === 'fulfilled') {
+        partnerships = partnershipsResponse.value.data;
+      }
+
+      if (pickupRequestsResponse.status === 'fulfilled') {
+        pickupRequests = pickupRequestsResponse.value.data;
+      }
+
+      if (operationResponse.status === 'fulfilled') {
+        operationQueue = operationResponse.value.data;
+        operationMeta = operationResponse.value.meta;
       }
     }
 
@@ -1089,11 +856,12 @@ export default async function InicioPage() {
         firstName={firstName}
         role={role}
         profile={profile}
-        nearbyPoints={nearbyPoints}
         partnerships={partnerships}
         pickupRequests={pickupRequests}
         operationQueue={operationQueue}
         operationMeta={operationMeta}
+        period={period}
+        hasDataError={hasDataError}
       />
     );
   }
@@ -1112,9 +880,11 @@ export default async function InicioPage() {
     if (donationsResult.status === 'fulfilled') {
       donations = donationsResult.value.data;
     }
+
     if (pointsResult.status === 'fulfilled') {
       nearbyPoints = pointsResult.value.data;
     }
+
     if (gamificationResult.status === 'fulfilled') {
       gamification = gamificationResult.value;
     }
