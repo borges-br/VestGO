@@ -54,22 +54,22 @@ const DONATION_STATUSES: DonationStatus[] = [
 const ROLE_LABELS: Record<string, string> = {
   COLLECTION_POINT: 'Ponto de coleta',
   NGO: 'ONG parceira',
-  ADMIN: 'Administracao operacional',
+  ADMIN: 'Administração operacional',
 };
 
 const PROFILE_STATE_LABELS: Partial<Record<PublicProfileState, string>> = {
   ACTIVE: 'Perfil ativo',
   VERIFIED: 'Verificada',
-  PENDING: 'Em revisao',
+  PENDING: 'Em revisão',
 };
 
 const STATUS_OPTIONS: Array<{ value: 'ALL' | DonationStatus; label: string }> = [
   { value: 'ALL', label: 'Todos os status' },
   { value: 'PENDING', label: 'Pendentes' },
   { value: 'AT_POINT', label: 'No ponto' },
-  { value: 'IN_TRANSIT', label: 'Em transito' },
+  { value: 'IN_TRANSIT', label: 'Em trânsito' },
   { value: 'DELIVERED', label: 'Entregues' },
-  { value: 'DISTRIBUTED', label: 'Distribuidas' },
+  { value: 'DISTRIBUTED', label: 'Distribuídas' },
   { value: 'CANCELLED', label: 'Canceladas' },
 ];
 
@@ -152,7 +152,7 @@ function isDonationStatus(value: string | null): value is DonationStatus {
 }
 
 function pointLabel(point: DonationPoint | null | undefined) {
-  return point?.organizationName ?? point?.name ?? 'Nao informado';
+  return point?.organizationName ?? point?.name ?? 'Não informado';
 }
 
 function partnerLine(role: string, donation: DonationRecord) {
@@ -177,16 +177,16 @@ function getGroupsForRole(role: string): GroupSpec[] {
         statuses: ['IN_TRANSIT'],
         tone: 'indigo',
         defaultOpen: true,
-        emptyMessage: 'Nenhuma doacao em transito agora.',
+        emptyMessage: 'Nenhuma doação em trânsito agora.',
       },
       {
         key: 'ngo-delivered',
         label: 'Recebidas (a distribuir)',
-        hint: 'Proximo passo: distribuicao',
+        hint: 'Próximo passo: distribuição',
         statuses: ['DELIVERED'],
         tone: 'primary',
         defaultOpen: true,
-        emptyMessage: 'Nada aguardando distribuicao neste recorte.',
+        emptyMessage: 'Nada aguardando distribuição neste recorte.',
       },
       {
         key: 'ngo-collecting',
@@ -194,25 +194,25 @@ function getGroupsForRole(role: string): GroupSpec[] {
         hint: 'Acompanhamento da origem',
         statuses: ['AT_POINT', 'PENDING'],
         tone: 'blue',
-        emptyMessage: 'Nenhuma doacao em coleta.',
+        emptyMessage: 'Nenhuma doação em coleta.',
       },
       {
         key: 'ngo-distributed',
-        label: 'Distribuidas',
-        hint: 'Ciclo concluido',
+        label: 'Distribuídas',
+        hint: 'Ciclo concluído',
         statuses: ['DISTRIBUTED'],
         tone: 'emerald',
         defaultOpen: false,
-        emptyMessage: 'Nenhuma distribuicao registrada.',
+        emptyMessage: 'Nenhuma distribuição registrada.',
       },
       {
         key: 'ngo-cancelled',
         label: 'Canceladas',
-        hint: 'Historico operacional',
+        hint: 'Histórico operacional',
         statuses: ['CANCELLED'],
         tone: 'red',
         defaultOpen: false,
-        emptyMessage: 'Nenhuma doacao cancelada.',
+        emptyMessage: 'Nenhuma doação cancelada.',
       },
     ];
   }
@@ -221,24 +221,24 @@ function getGroupsForRole(role: string): GroupSpec[] {
     {
       key: 'cp-pending',
       label: 'Pendentes (a receber no ponto)',
-      hint: 'Doador trara as pecas',
+      hint: 'Doador trará as peças',
       statuses: ['PENDING'],
       tone: 'amber',
       defaultOpen: true,
-      emptyMessage: 'Nenhuma doacao pendente para receber.',
+      emptyMessage: 'Nenhuma doação pendente para receber.',
     },
     {
       key: 'cp-at-point',
       label: 'No ponto (a despachar)',
-      hint: 'Agrupar em carga (LOT)',
+      hint: 'Agrupar em carga (Lote)',
       statuses: ['AT_POINT'],
       tone: 'blue',
       defaultOpen: true,
-      emptyMessage: 'Nenhuma doacao aguardando despacho.',
+      emptyMessage: 'Nenhuma doação aguardando despacho.',
     },
     {
       key: 'cp-transit',
-      label: 'Em transito',
+      label: 'Em trânsito',
       hint: 'Carga em rota',
       statuses: ['IN_TRANSIT'],
       tone: 'indigo',
@@ -247,21 +247,21 @@ function getGroupsForRole(role: string): GroupSpec[] {
     },
     {
       key: 'cp-complete',
-      label: 'Concluidas',
+      label: 'Concluídas',
       hint: 'Recebidas pela ONG',
       statuses: ['DELIVERED', 'DISTRIBUTED'],
       tone: 'emerald',
       defaultOpen: false,
-      emptyMessage: 'Nenhuma doacao concluida.',
+      emptyMessage: 'Nenhuma doação concluída.',
     },
     {
       key: 'cp-cancelled',
       label: 'Canceladas',
-      hint: 'Historico operacional',
+      hint: 'Histórico operacional',
       statuses: ['CANCELLED'],
       tone: 'red',
       defaultOpen: false,
-      emptyMessage: 'Nenhuma doacao cancelada.',
+      emptyMessage: 'Nenhuma doação cancelada.',
     },
   ];
 }
@@ -271,7 +271,7 @@ function getKpisForRole(role: string): KpiSpec[] {
     return [
       { key: 'IN_TRANSIT', label: 'A caminho', statuses: ['IN_TRANSIT'], tone: 'indigo' },
       { key: 'DELIVERED', label: 'Para distribuir', statuses: ['DELIVERED'], tone: 'primary' },
-      { key: 'DISTRIBUTED', label: 'Distribuidas', statuses: ['DISTRIBUTED'], tone: 'emerald' },
+      { key: 'DISTRIBUTED', label: 'Distribuídas', statuses: ['DISTRIBUTED'], tone: 'emerald' },
       { key: 'ngo-collecting', label: 'Em coleta', statuses: ['AT_POINT', 'PENDING'], tone: 'blue' },
     ];
   }
@@ -279,8 +279,8 @@ function getKpisForRole(role: string): KpiSpec[] {
   return [
     { key: 'PENDING', label: 'Pendentes', statuses: ['PENDING'], tone: 'amber' },
     { key: 'AT_POINT', label: 'No ponto', statuses: ['AT_POINT'], tone: 'blue' },
-    { key: 'IN_TRANSIT', label: 'Em transito', statuses: ['IN_TRANSIT'], tone: 'indigo' },
-    { key: 'cp-complete', label: 'Concluidas', statuses: ['DELIVERED', 'DISTRIBUTED'], tone: 'emerald' },
+    { key: 'IN_TRANSIT', label: 'Em trânsito', statuses: ['IN_TRANSIT'], tone: 'indigo' },
+    { key: 'cp-complete', label: 'Concluídas', statuses: ['DELIVERED', 'DISTRIBUTED'], tone: 'emerald' },
   ];
 }
 
@@ -296,7 +296,7 @@ function getActionLabel(donation: DonationRecord) {
   if (donation.status === 'PENDING') return 'Receber no ponto';
   if (donation.status === 'AT_POINT') return 'Vincular a carga & despachar';
   if (donation.status === 'IN_TRANSIT') return 'Confirmar recebimento';
-  if (donation.status === 'DELIVERED') return 'Marcar como distribuida';
+  if (donation.status === 'DELIVERED') return 'Marcar como distribuída';
   return null;
 }
 
@@ -326,7 +326,7 @@ function CategoryCluster({ items }: { items: DonationItem[] }) {
   if (categories.length === 0) {
     return (
       <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-gray-500">
-        Itens nao informados
+        Itens não informados
       </span>
     );
   }
@@ -403,7 +403,7 @@ function Timeline({ events }: { events: DonationEvent[] }) {
   );
 
   return (
-    <ol className="relative space-y-0 pl-5" aria-label="Historico da doacao">
+    <ol className="relative space-y-0 pl-5" aria-label="Histórico da doação">
       <span aria-hidden className="absolute bottom-2 left-[7px] top-2 w-px bg-gray-200" />
       {sorted.map((event, index) => {
         const cfg = DONATION_STATUS_CONFIG[event.status];
@@ -435,11 +435,11 @@ function Timeline({ events }: { events: DonationEvent[] }) {
 
 function ItemsSummary({ items }: { items: DonationItem[] }) {
   if (items.length === 0) {
-    return <p className="text-sm text-gray-500">Itens nao especificados.</p>;
+    return <p className="text-sm text-gray-500">Itens não especificados.</p>;
   }
 
   return (
-    <ul className="grid gap-2" aria-label="Itens da doacao">
+    <ul className="grid gap-2" aria-label="Itens da doação">
       {items.map((item) => (
         <li
           key={item.id}
@@ -482,9 +482,9 @@ function DonationPrimaryAction({ donation, compact = false, onUpdated }: Donatio
   const handledByBatchFlow = donation.status === 'AT_POINT';
   const disabled = pending || !isAllowed || handledByBatchFlow;
   const helper = !isAllowed
-    ? 'Sem permissao para esta etapa'
+    ? 'Sem permissão para esta etapa'
     : handledByBatchFlow
-      ? 'Use a faixa de cargas (LOT) para vincular e despachar com seguranca.'
+      ? 'Use a faixa de cargas (LOT) para vincular e despachar com segurança.'
       : null;
 
   async function execute() {
@@ -493,7 +493,7 @@ function DonationPrimaryAction({ donation, compact = false, onUpdated }: Donatio
     }
 
     if (!session?.user?.accessToken) {
-      toast.error('Sessao expirada', { description: 'Entre novamente para continuar.' });
+      toast.error('Sessão expirada', { description: 'Entre novamente para continuar.' });
       return;
     }
 
@@ -516,7 +516,7 @@ function DonationPrimaryAction({ donation, compact = false, onUpdated }: Donatio
       });
       startTransition(() => router.refresh());
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Nao foi possivel atualizar o status.';
+      const message = err instanceof Error ? err.message : 'Não foi possível atualizar o status.';
       toast.error('Falha ao atualizar status', { description: message });
     } finally {
       setPending(false);
@@ -617,7 +617,7 @@ function DonationRow({ donation, role, defaultOpen = false, onUpdated }: Donatio
             <span className="block text-lg font-bold leading-none text-primary-deeper tabular-nums">
               {donation.itemCount}
             </span>
-            <span className="text-[11px] font-semibold text-gray-400">pecas</span>
+            <span className="text-[11px] font-semibold text-gray-400">peças</span>
           </span>
           <span
             aria-hidden
@@ -678,7 +678,7 @@ function DonationRow({ donation, role, defaultOpen = false, onUpdated }: Donatio
                 <DonationPrimaryAction donation={donation} compact onUpdated={onUpdated} />
                 <Link
                   href={`/rastreio/${donation.id}`}
-                  aria-label={`Ver rastreio completo da doacao ${donation.code}`}
+                  aria-label={`Ver rastreio completo da doação ${donation.code}`}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <Route size={14} aria-hidden />
@@ -707,12 +707,6 @@ function Group({ group, donations, role, onUpdated }: GroupProps) {
   const actionable = donations.filter((donation) => donation.allowedNextStatuses.length > 0).length;
   const contentId = `operation-group-${group.key}`;
 
-  useEffect(() => {
-    if (donations.length > 0 && group.defaultOpen) {
-      setOpen(true);
-    }
-  }, [donations.length, group.defaultOpen]);
-
   return (
     <section aria-labelledby={`${contentId}-heading`}>
       <button
@@ -739,7 +733,7 @@ function Group({ group, donations, role, onUpdated }: GroupProps) {
             </span>
             {actionable > 0 && (
               <span className="rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold text-white">
-                {actionable} acao
+                {actionable} {actionable === 1 ? 'ação' : 'ações'}
               </span>
             )}
           </span>
@@ -782,12 +776,12 @@ function EmptyState({
         <Package size={30} className="mx-auto text-primary/50" aria-hidden />
       )}
       <p className="mt-4 text-base font-semibold text-primary-deeper">
-        {hasFilters ? 'Nenhum resultado neste recorte' : 'Nenhuma doacao operacional por aqui'}
+        {hasFilters ? 'Nenhum resultado neste recorte' : 'Nenhuma doação operacional por aqui'}
       </p>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
         {hasFilters
-          ? 'Remova algum filtro ou ajuste a busca para encontrar outras doacoes.'
-          : 'Quando a rede movimentar novas doacoes, elas aparecem agrupadas por etapa operacional.'}
+          ? 'Remova algum filtro ou ajuste a busca para encontrar outras doações.'
+          : 'Quando a rede movimentar novas doações, elas aparecem agrupadas por etapa operacional.'}
       </p>
       {hasFilters && (
         <button
@@ -1034,7 +1028,7 @@ export function OperationalBoard({
               {actionableCount > 0 ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
                   <AlertTriangle size={12} aria-hidden />
-                  {actionableCount} acao{actionableCount === 1 ? '' : 'es'} pendente
+                  {actionableCount} {actionableCount === 1 ? 'ação pendente' : 'ações pendentes'}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
@@ -1089,7 +1083,7 @@ export function OperationalBoard({
       >
         <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_auto_auto_auto_auto] xl:items-center">
           <label className="relative min-w-0">
-            <span className="sr-only">Buscar doacoes</span>
+            <span className="sr-only">Buscar doações</span>
             <Search
               size={16}
               aria-hidden
@@ -1099,7 +1093,7 @@ export function OperationalBoard({
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por codigo, ponto ou ONG..."
+              placeholder="Buscar por código, ponto ou ONG..."
               className="h-11 w-full rounded-xl border border-gray-200 bg-surface pl-10 pr-10 text-sm text-on-surface outline-none transition-colors focus:border-primary/50 focus:bg-white focus:ring-2 focus:ring-primary/15"
             />
             {search && (
@@ -1189,7 +1183,7 @@ export function OperationalBoard({
             )}
           >
             <Clock3 size={14} aria-hidden />
-            Acionaveis
+            Acionáveis
           </button>
 
           <button
@@ -1228,7 +1222,7 @@ export function OperationalBoard({
               Fila operacional
             </p>
             <h2 className="mt-1 text-lg font-bold text-primary-deeper">
-              Doacoes por etapa
+              Doações por etapa
             </h2>
           </div>
           <Truck size={18} className="text-primary" aria-hidden />
@@ -1260,7 +1254,7 @@ export function OperationalBoard({
       </section>
 
       <p className="sr-only" aria-live="polite">
-        {initialActionableCount} acoes carregadas inicialmente.
+        {initialActionableCount} ações carregadas inicialmente.
       </p>
     </div>
   );

@@ -15,7 +15,7 @@ export function RecentActivity({ donations }: RecentActivityProps) {
           Sua linha solidária aparece aqui.
         </p>
         <p className="vg-text-secondary mt-2 text-[13px] leading-relaxed">
-          Cada doação registrada vira um marco com pontos, status e destino real.
+          Cada doação registrada vira um marco com status, destino real e histórico de impacto.
         </p>
       </div>
     );
@@ -69,9 +69,7 @@ export function RecentActivity({ donations }: RecentActivityProps) {
                 >
                   {meta.label}
                 </span>
-                <span className="text-[11px] font-bold uppercase tracking-wide text-primary">
-                  +{donation.pointsAwarded} pts
-                </span>
+
               </div>
             </Link>
           </li>

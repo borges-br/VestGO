@@ -70,7 +70,7 @@ export function DonorDashboardHero({
             <h1 className="mt-3 text-[clamp(2.25rem,4vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-primary-deeper">
               {greeting}, {firstName}.
             </h1>
-            <p className="vg-text-secondary mt-3 max-w-[34rem] text-[17px] leading-relaxed">
+            <p className="vg-text-secondary mt-3 max-w-[34rem] text-[17px] leading-relaxed hidden sm:block">
               {isNew
                 ? 'Sua jornada solidária começa com a primeira peça registrada. Veja por onde começar ao lado.'
                 : 'Você está construindo impacto contínuo. Próximo passo: registrar mais uma doação ou explorar parceiros próximos.'}
@@ -93,10 +93,7 @@ export function DonorDashboardHero({
                   {level.name}
                 </p>
                 <p className="vg-text-secondary mt-1 text-[13px]">
-                  <strong className="vg-text-primary font-bold tabular-nums">
-                    {points.toLocaleString('pt-BR')}
-                  </strong>{' '}
-                  pontos solidários acumulados
+                  Nível {level.current} de {level.total} · Progresso contínuo
                 </p>
               </div>
               {levelLocked ? (
@@ -109,7 +106,7 @@ export function DonorDashboardHero({
                 <LevelProgressBar
                   pct={level.progressPct}
                   label={`Próximo: ${level.nextLevelName}`}
-                  hint={`+${level.pointsToNext.toLocaleString('pt-BR')} pts`}
+                  hint="Continue doando para avançar"
                 />
               ) : (
                 <span className="text-xs font-semibold text-primary">

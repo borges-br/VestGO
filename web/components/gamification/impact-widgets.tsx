@@ -86,7 +86,7 @@ export function ImpactSummaryCard({
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
             Meu progresso
           </p>
-          <h2 className="mt-2 text-2xl font-bold text-primary-deeper">{snapshot.levelTitle}</h2>
+          <h2 className="mt-2 text-2xl font-bold text-primary-deeper">Jornada Solidária</h2>
         </div>
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-primary">
           <Award size={20} />
@@ -95,11 +95,11 @@ export function ImpactSummaryCard({
 
       <div className="mt-5 rounded-[1.75rem] bg-primary-deeper p-5 text-white">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-muted">
-          {snapshot.pointsLabel}
+          Nível Atual
         </p>
-        <p className="mt-3 text-4xl font-bold tracking-tight">{snapshot.points}</p>
+        <p className="mt-3 text-2xl font-bold tracking-tight">{snapshot.levelTitle}</p>
         <p className="mt-2 text-sm leading-7 text-primary-muted">
-          Reconhecimento acumulado por entregas registradas, avancos da jornada e constancia.
+          Reconhecimento acumulado por entregas registradas, avanços da jornada e constância.
         </p>
       </div>
 
@@ -317,9 +317,11 @@ export function ImpactHistoryCard({
                     {item.date}
                   </p>
                 </div>
-                <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                  {item.points}
-                </span>
+                {item.points ? (
+                  <span className="rounded-full bg-primary-light px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                    {item.points}
+                  </span>
+                ) : null}
               </div>
             </div>
           ))
@@ -327,7 +329,7 @@ export function ImpactHistoryCard({
           <div className="rounded-[1.75rem] bg-surface p-5">
             <p className="text-sm font-semibold text-primary-deeper">Seu historico ainda vai comecar.</p>
             <p className="mt-2 text-sm leading-7 text-gray-500">
-              As próximas doações registradas vão aparecer aqui, com pontos ganhos e o contexto solidário.
+              As próximas doações registradas vão aparecer aqui, com detalhes de entrega e histórico de impacto.
             </p>
           </div>
         )}
@@ -350,12 +352,14 @@ export function PostDonationRewardCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-            Pontuação prevista desta entrega
+            Retorno solidário previsto
           </p>
           <p className="mt-2 text-xl font-bold text-primary-deeper">
-            até +{reward.potentialPoints} pontos
+            Progresso e conquistas
           </p>
-          <p className="mt-2 text-sm leading-7 text-gray-500">{reward.pendingPointsLabel}</p>
+          <p className="mt-2 text-sm leading-7 text-gray-500">
+            Esta doação avança sua jornada pessoal, destrava novos níveis e registra conquistas.
+          </p>
         </div>
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
           <Award size={18} />
@@ -366,16 +370,16 @@ export function PostDonationRewardCard({
         <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">No ponto de coleta</p>
           <p className="mt-2 text-sm font-semibold text-primary-deeper">
-            +{reward.confirmationPoints} pontos
+            Confirmação
           </p>
-          <p className="mt-1 text-sm text-gray-500">{reward.confirmationLabel}</p>
+          <p className="mt-1 text-sm text-gray-500">O ponto parceiro receberá e validará seus itens.</p>
         </div>
         <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Após distribuição da ONG</p>
           <p className="mt-2 text-sm font-semibold text-primary-deeper">
-            +{reward.distributionBonus} pontos
+            Destino Final
           </p>
-          <p className="mt-1 text-sm text-gray-500">{reward.distributionLabel}</p>
+          <p className="mt-1 text-sm text-gray-500">A ONG distribuirá os itens para a comunidade.</p>
         </div>
       </div>
 

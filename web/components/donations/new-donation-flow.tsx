@@ -143,7 +143,7 @@ export const categoryOptions: CategoryOption[] = [
   {
     id: 'FOOD',
     label: 'Alimentos',
-    hint: 'Não perecíveis dentro da validade',
+    hint: 'Não perecíveis dentro da validade, lacrados e com embalagem limpa.',
     icon: Apple,
     tone: {
       iconBg: 'bg-yellow-50',
@@ -1043,6 +1043,12 @@ function ItemQuantityCard({
   const Icon = option.icon;
   const inputId = `item-quantity-${item.id}`;
 
+  useEffect(() => {
+    if (item.category === 'FOOD' && item.condition !== 'EXCELLENT') {
+      onUpdateItem(item.id, { condition: 'EXCELLENT' });
+    }
+  }, [item.id, item.category, item.condition, onUpdateItem]);
+
   return (
     <div className="rounded-[1.75rem] border border-gray-100 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-surface-ink">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_42px] lg:items-start">
@@ -1053,24 +1059,33 @@ function ItemQuantityCard({
           <div className="min-w-0">
             <p className="text-sm font-bold text-primary-deeper dark:text-white">{option.label}</p>
             <p className="mt-1 text-xs leading-5 text-gray-500">{option.hint}</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {conditionOptions.map((condition) => (
-                <button
-                  key={condition.id}
-                  type="button"
-                  onClick={() => onUpdateItem(item.id, { condition: condition.id })}
-                  className={cn(
-                    'rounded-2xl border px-3 py-2 text-left text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-                    item.condition === condition.id
-                      ? 'border-primary bg-primary-light/60 text-primary-deeper dark:bg-primary/20 dark:text-white'
-                      : 'border-gray-200 bg-white text-gray-500 hover:border-primary/40 dark:border-white/10 dark:bg-surface-inkSoft',
-                  )}
-                >
-                  <span className="block font-semibold">{condition.label}</span>
-                  <span className="mt-1 block leading-5">{condition.description}</span>
-                </button>
-              ))}
-            </div>
+            {item.category === 'FOOD' ? (
+              <div className="mt-3 rounded-2xl border border-yellow-200 bg-yellow-50/50 p-3 text-xs text-yellow-800 dark:border-yellow-900/30 dark:bg-yellow-950/20 dark:text-yellow-200">
+                <span className="block font-bold">Lacrado e dentro da validade</span>
+                <span className="mt-0.5 block leading-relaxed text-yellow-700 dark:text-yellow-300">
+                  Alimentos não perecíveis, limpos e lacrados para consumo seguro.
+                </span>
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {conditionOptions.map((condition) => (
+                  <button
+                    key={condition.id}
+                    type="button"
+                    onClick={() => onUpdateItem(item.id, { condition: condition.id })}
+                    className={cn(
+                      'rounded-2xl border px-3 py-2 text-left text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                      item.condition === condition.id
+                        ? 'border-primary bg-primary-light/60 text-primary-deeper dark:bg-primary/20 dark:text-white'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-primary/40 dark:border-white/10 dark:bg-surface-inkSoft',
+                    )}
+                  >
+                    <span className="block font-semibold">{condition.label}</span>
+                    <span className="mt-1 block leading-5">{condition.description}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

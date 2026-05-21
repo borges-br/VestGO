@@ -103,8 +103,8 @@ export function GamificationSyncToast({ sync, onDismiss }: GamificationSyncToast
             </p>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-primary-light px-3 py-1 text-sm font-extrabold text-primary tabular-nums">
-              +{displayPoints.toLocaleString('pt-BR')} pontos
+            <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-bold text-primary">
+              Progresso atualizado
             </span>
             <Link
               href="/perfil#conquistas"

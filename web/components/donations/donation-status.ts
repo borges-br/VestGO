@@ -29,42 +29,42 @@ export const DONATION_STATUS_CONFIG: Record<
 > = {
   PENDING: {
     label: 'Pendente',
-    description: 'Doacao registrada. Aguardando entrega no ponto de coleta.',
+    description: 'Doação registrada. Aguardando entrega no ponto de coleta.',
     color: 'text-amber-600',
     bg: 'bg-amber-50',
     icon: Clock,
   },
   AT_POINT: {
     label: 'No ponto',
-    description: 'Item recebido no ponto de coleta e aguardando o proximo passo.',
+    description: 'Item recebido no ponto de coleta e aguardando o próximo passo.',
     color: 'text-blue-600',
     bg: 'bg-blue-50',
     icon: Package,
   },
   IN_TRANSIT: {
-    label: 'Em transito',
-    description: 'A doacao esta em deslocamento para o parceiro responsavel.',
+    label: 'Em trânsito',
+    description: 'A doação está em deslocamento para o parceiro responsável.',
     color: 'text-indigo-600',
     bg: 'bg-indigo-50',
     icon: Truck,
   },
   DELIVERED: {
     label: 'Entregue',
-    description: 'Chegou ao destino parceiro e ja pode seguir para triagem social.',
+    description: 'Chegou ao destino parceiro e já pode seguir para triagem social.',
     color: 'text-primary',
     bg: 'bg-primary-light',
     icon: CheckCircle,
   },
   DISTRIBUTED: {
-    label: 'Distribuida',
-    description: 'Doacao distribuida para atendimento social. Obrigado por movimentar a solidariedade.',
+    label: 'Distribuída',
+    description: 'Doação distribuída para atendimento social. Obrigado por movimentar a solidariedade.',
     color: 'text-emerald-600',
     bg: 'bg-emerald-50',
     icon: CheckCircle,
   },
   CANCELLED: {
     label: 'Cancelada',
-    description: 'Esta doacao foi cancelada.',
+    description: 'Esta doação foi cancelada.',
     color: 'text-red-500',
     bg: 'bg-red-50',
     icon: XCircle,
@@ -77,7 +77,7 @@ export const DONATION_STATUS_ACTIONS: Record<
 > = {
   PENDING: {
     label: 'Aguardando recebimento',
-    description: 'A doacao foi registrada e ainda nao iniciou o fluxo operacional.',
+    description: 'A doação foi registrada e ainda não iniciou o fluxo operacional.',
   },
   AT_POINT: {
     label: 'Receber no ponto',
@@ -92,12 +92,12 @@ export const DONATION_STATUS_ACTIONS: Record<
     description: 'Recebimento confirmado pela ONG parceira.',
   },
   DISTRIBUTED: {
-    label: 'Marcar como distribuida',
-    description: 'Distribuicao social concluida.',
+    label: 'Marcar como distribuída',
+    description: 'Distribuição social concluída.',
   },
   CANCELLED: {
-    label: 'Cancelar doacao',
-    description: 'Doacao cancelada antes da coleta.',
+    label: 'Cancelar doação',
+    description: 'Doação cancelada antes da coleta.',
   },
 };
 

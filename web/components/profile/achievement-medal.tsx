@@ -86,6 +86,7 @@ type AchievementMedalProps = {
   achievement: DonorAchievement;
   onSelect?: (achievement: DonorAchievement) => void;
   compact?: boolean;
+  showMeta?: boolean;
   className?: string;
 };
 
@@ -93,6 +94,7 @@ export function AchievementMedal({
   achievement,
   onSelect,
   compact = false,
+  showMeta = true,
   className,
 }: AchievementMedalProps) {
   const tier = achievement.tier ?? achievement.nextTier ?? 'BRONZE';
@@ -109,7 +111,9 @@ export function AchievementMedal({
       className={cn(
         'group flex flex-shrink-0 flex-col items-center text-center outline-none transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
         compact
-          ? 'w-[76px] gap-1 rounded-xl px-1 py-1'
+          ? showMeta
+            ? 'w-[76px] gap-1 rounded-xl px-1 py-1'
+            : 'w-auto gap-0 rounded-xl p-0'
           : 'w-[136px] scroll-ml-8 gap-2 rounded-2xl px-2 py-2',
         isInteractive && 'motion-safe:hover:-translate-y-1',
         !isInteractive && 'cursor-default',
@@ -166,21 +170,25 @@ export function AchievementMedal({
           <Icon size={compact ? 20 : 27} strokeWidth={1.8} />
         </span>
       </span>
-      <span
-        className={cn(
-          'vg-text-primary line-clamp-2 font-extrabold leading-tight tracking-tight',
-          compact ? 'min-h-[30px] text-[11px]' : 'min-h-[34px] text-[13px]',
-        )}
-      >
-        {achievement.title}
-      </span>
-      <span className={cn('vg-text-secondary leading-tight', compact ? 'text-[10px]' : 'text-[11px]')}>
-        {achievement.unavailable
-          ? 'Indisponível'
-          : achievement.tier
-            ? styles.label
-            : achievement.progressLabel}
-      </span>
+      {showMeta && (
+        <>
+          <span
+            className={cn(
+              'vg-text-primary line-clamp-2 font-extrabold leading-tight tracking-tight',
+              compact ? 'min-h-[30px] text-[11px]' : 'min-h-[34px] text-[13px]',
+            )}
+          >
+            {achievement.title}
+          </span>
+          <span className={cn('vg-text-secondary leading-tight', compact ? 'text-[10px]' : 'text-[11px]')}>
+            {achievement.unavailable
+              ? 'Indisponível'
+              : achievement.tier
+                ? styles.label
+                : achievement.progressLabel}
+          </span>
+        </>
+      )}
     </button>
   );
 }

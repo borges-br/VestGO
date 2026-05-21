@@ -184,7 +184,7 @@ function getNextMilestone(points: number) {
     label: nextLevel ? nextLevel.name : 'Próximo nível',
     current: points,
     target: level.nextThreshold,
-    note: `Faltam ${level.nextThreshold - points} pontos para o próximo nível.`,
+    note: 'Continue doando para avançar de nível.',
   };
 }
 
@@ -294,10 +294,7 @@ export function buildImpactSnapshot(donations: DonationRecord[]): ImpactSnapshot
         donation.latestEvent?.description ??
         'Doação registrada. Aguardando confirmação no ponto de coleta.',
       date: formatDateLabel(donation.createdAt),
-      points:
-        donation.pointsAwarded > 0
-          ? `+${donation.pointsAwarded} pts`
-          : `até +${donation.pointsBreakdown?.totalPotentialPoints ?? 0} pts`,
+      points: '',
     })),
   };
 }
