@@ -75,6 +75,7 @@ const listOperationalDonationsQuerySchema = z.object({
   status: z.nativeEnum(DonationStatus).optional(),
   collectionPointId: z.string().trim().min(1).optional(),
   ngoId: z.string().trim().min(1).optional(),
+  period: z.enum(['today', '7d', '30d', 'all']).default('all'),
   actionableOnly: z.coerce.boolean().default(false),
   sortBy: z.enum(['updatedAt', 'createdAt']).default('updatedAt'),
   direction: z.enum(['asc', 'desc']).default('desc'),
@@ -596,12 +597,48 @@ function buildOperationalWhere(
   query: z.infer<typeof listOperationalDonationsQuerySchema>,
   user: Viewer,
 ) {
+  const clauses: Prisma.DonationWhereInput[] = [getRoleScopeWhere(user)];
+
+  if (query.status) {
+    clauses.push({ status: query.status });
+  }
+
+  if (query.collectionPointId) {
+    clauses.push({ collectionPointId: query.collectionPointId });
+  }
+
+  if (query.ngoId) {
+    clauses.push({ ngoId: query.ngoId });
+  }
+
+  const periodStart = getOperationalPeriodStart(query.period);
+
+  if (periodStart) {
+    clauses.push({ updatedAt: { gte: periodStart } });
+  }
+
   return {
-    ...getRoleScopeWhere(user),
-    ...(query.status ? { status: query.status } : {}),
-    ...(query.collectionPointId ? { collectionPointId: query.collectionPointId } : {}),
-    ...(query.ngoId ? { ngoId: query.ngoId } : {}),
+    AND: clauses,
   } satisfies Prisma.DonationWhereInput;
+}
+
+function getOperationalPeriodStart(period: z.infer<typeof listOperationalDonationsQuerySchema>['period']) {
+  if (period === 'all') {
+    return null;
+  }
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  if (period === '7d') {
+    start.setDate(start.getDate() - 6);
+  }
+
+  if (period === '30d') {
+    start.setDate(start.getDate() - 29);
+  }
+
+  return start;
 }
 
 function buildPartnerOptions(
@@ -919,7 +956,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
       return reply.send({
         data: limitedDonations,
         meta: {
-          count: limitedDonations.length,
+          count: filteredDonations.length,
           actionableCount: mappedDonations.filter(
             (donation) => donation.allowedNextStatuses.length > 0,
           ).length,
@@ -930,6 +967,7 @@ export default async function donationRoutes(fastify: FastifyInstance) {
             status: query.status ?? null,
             collectionPointId: query.collectionPointId ?? null,
             ngoId: query.ngoId ?? null,
+            period: query.period,
             actionableOnly: query.actionableOnly,
             sortBy: query.sortBy,
             direction: query.direction,
