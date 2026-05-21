@@ -6,21 +6,23 @@ import {
   BadgeCheck,
   Building2,
   CheckCircle2,
-  ChevronDown,
   ClipboardList,
+  FileStack,
   Code2,
   ExternalLink,
+  Github,
   Gift,
   Globe,
   HeartHandshake,
+  Linkedin,
   MapPin,
   MessageSquare,
   PackageCheck,
   Route,
+  Presentation,
   Send,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   Star,
   Trophy,
   Users,
@@ -29,7 +31,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import { VestgoMark } from '@/components/branding/vestgo-mark';
 import { cn } from '@/lib/utils';
 
@@ -39,14 +41,88 @@ const LINKS = {
   github: 'https://github.com/borges-br/VestGO',
   docs: 'https://github.com/borges-br/VestGO#readme',
   team: '#equipe',
-  contactEmail: 'contato@vestgo.com.br',
+  ods: '#ods',
+  architecture: 'https://github.com/borges-br/VestGO/blob/main/ARCHITECTURE.md',
+  feedbackWebhook: 'https://example.com/webhook',
+  contactEmail: 'contato@mosfet.com.br',
 };
 
-const TEAM = [
-  { name: 'Nome do integrante', role: 'Função no projeto', link: '#', initials: 'VG' },
-  { name: 'Nome do integrante', role: 'Função no projeto', link: '#', initials: 'VG' },
-  { name: 'Nome do integrante', role: 'Função no projeto', link: '#', initials: 'VG' },
-  { name: 'Nome do integrante', role: 'Função no projeto', link: '#', initials: 'VG' },
+type TeamMember = {
+  name: string;
+  role: string;
+  subrole: string | null;
+  initials: string;
+  photo: string;
+  linkedin: string | null;
+  github: string | null;
+};
+
+// Coloque os retratos em /public/images/team com nome compatível com o campo photo.
+// Recomendação: .webp ou .jpg, enquadramento quadrado e 800x800 px ou maior.
+const TEAM: TeamMember[] = [
+  {
+    name: 'Nathan Borges',
+    role: 'Gestor e Dev do Projeto',
+    subrole: 'Scrum Master',
+    initials: 'NB',
+    photo: '/images/team/nathan-borges.png',
+    linkedin: 'https://www.linkedin.com/in/nathan-borges-ti/',
+    github: 'https://github.com/borges-br/',
+  },
+  {
+    name: 'Bernardo Comelli',
+    role: 'Analista de Requisitos',
+    subrole: 'Desenvolvedor de Sistemas da Informação',
+    initials: 'BC',
+    photo: '/images/team/bernardo-comelli.png',
+    linkedin: 'https://www.linkedin.com/in/bernardo-comelli-dos-santos-1821b3353/',
+    github: null,
+  },
+  {
+    name: 'Julio Melendes',
+    role: 'Analista de Viabilidade',
+    subrole: null,
+    initials: 'JM',
+    photo: '/images/team/julio-melendes.png',
+    linkedin: null,
+    github: null,
+  },
+  {
+    name: 'Henrique Barros',
+    role: 'Arquitetura de Sistemas',
+    subrole: 'Desenvolvedor de Algoritmos',
+    initials: 'HB',
+    photo: '/images/team/henrique-barros.png',
+    linkedin: 'https://www.linkedin.com/in/henrique-barros-4751313a0/',
+    github: 'https://github.com/DeathHapyness',
+  },
+  {
+    name: 'Antônio Carlos',
+    role: 'Suporte e Manutenção',
+    subrole: null,
+    initials: 'AC',
+    photo: '/images/team/antonio-carlos.png',
+    linkedin: null,
+    github: null,
+  },
+  {
+    name: 'Guilherme Carvalho',
+    role: 'Consultor de Usabilidade',
+    subrole: null,
+    initials: 'GC',
+    photo: '/images/team/guilherme-carvalho.png',
+    linkedin: null,
+    github: null,
+  },
+  {
+    name: 'Francisco Comelli',
+    role: 'Product Owner (P.O.)',
+    subrole: null,
+    initials: 'FC',
+    photo: '/images/team/francisco-comelli.png',
+    linkedin: null,
+    github: null,
+  },
 ];
 
 const quickLinks: Array<{
@@ -54,10 +130,11 @@ const quickLinks: Array<{
   description: string;
   href: string;
   icon: LucideIcon;
+  disabled?: boolean;
 }> = [
   {
     label: 'App',
-    description: 'Acessar demo',
+    description: 'Acessar a plataforma',
     href: LINKS.app,
     icon: Smartphone,
   },
@@ -75,9 +152,52 @@ const quickLinks: Array<{
   },
   {
     label: 'Equipe',
-    description: 'Integrantes e contatos',
+    description: 'Integrantes, fotos e contatos',
     href: LINKS.team,
     icon: Users,
+  },
+  {
+    label: 'ODS',
+    description: '3, 10, 12 e 17',
+    href: LINKS.ods,
+    icon: Globe,
+  },
+  {
+    label: 'Pitch',
+    description: 'Apresentação em vídeo',
+    href: '#pitch',
+    icon: Presentation,
+    disabled: true,
+  },
+  {
+    label: 'Arquitetura',
+    description: 'Arquitetura de sistemas e decisões técnicas',
+    href: LINKS.architecture,
+    icon: FileStack,
+    disabled: false,
+  },
+];
+
+const odsItems = [
+  {
+    number: '03',
+    title: 'Saúde e bem-estar',
+    text: 'Apoio direto a iniciativas sociais que fortalecem redes de cuidado e assistência.',
+  },
+  {
+    number: '10',
+    title: 'Redução das desigualdades',
+    text: 'Conecta doadores, pontos de coleta e ONGs com uma operação mais acessível e transparente.',
+  },
+  {
+    number: '12',
+    title: 'Consumo e produção responsáveis',
+    text: 'Estimula o reaproveitamento e uma logística mais consciente de itens doados.',
+  },
+  {
+    number: '17',
+    title: 'Parcerias e meios de implementação',
+    text: 'Valoriza integração entre universidade, comunidade e organizações parceiras.',
   },
 ];
 
@@ -203,7 +323,35 @@ const container: Variants = {
   },
 };
 
-type ActiveModal = 'opinion' | 'rating' | null;
+type ActiveModal = 'rating' | null;
+
+type RatingKey = 'apresentacao' | 'uiux' | 'proposta' | 'justificativa' | 'clareza';
+
+type RatingState = Record<RatingKey, number>;
+
+const RATING_FIELDS: Array<{ key: RatingKey; label: string }> = [
+  { key: 'apresentacao', label: 'Apresentação' },
+  { key: 'uiux', label: 'UI/UX' },
+  { key: 'proposta', label: 'Proposta' },
+  { key: 'justificativa', label: 'Justificativa' },
+  { key: 'clareza', label: 'Clareza' },
+];
+
+const RATING_LABELS = {
+  1: 'Não satisfatório',
+  2: 'Pode melhorar',
+  3: 'Razoável',
+  4: 'Bom',
+  5: 'Ótimo',
+} as const;
+
+const INITIAL_RATINGS: RatingState = {
+  apresentacao: 0,
+  uiux: 0,
+  proposta: 0,
+  justificativa: 0,
+  clareza: 0,
+};
 
 type AnimatedLinkProps = {
   href: string;
@@ -212,6 +360,7 @@ type AnimatedLinkProps = {
   ariaLabel?: string;
   icon?: LucideIcon;
   showArrow?: boolean;
+  disabled?: boolean;
 };
 
 function AnimatedLink({
@@ -221,12 +370,18 @@ function AnimatedLink({
   ariaLabel,
   icon: Icon,
   showArrow = true,
+  disabled = false,
 }: AnimatedLinkProps) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const [isLeaving, setIsLeaving] = useState(false);
 
   function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (disabled) {
+      event.preventDefault();
+      return;
+    }
+
     if (
       event.defaultPrevented ||
       event.button !== 0 ||
@@ -268,6 +423,36 @@ function AnimatedLink({
     }, delay);
   }
 
+  const sharedContent = (
+    <>
+      {Icon ? <Icon aria-hidden size={18} strokeWidth={1.9} /> : null}
+      {children}
+      {showArrow ? (
+        <ArrowRight
+          aria-hidden
+          size={16}
+          className="transition-transform duration-200 group-hover:translate-x-1"
+          strokeWidth={2}
+        />
+      ) : null}
+    </>
+  );
+
+  if (disabled) {
+    return (
+      <motion.span
+        aria-disabled="true"
+        aria-label={ariaLabel}
+        className={cn(
+          'group inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold opacity-60 grayscale transition-all',
+          className,
+        )}
+      >
+        {sharedContent}
+      </motion.span>
+    );
+  }
+
   return (
     <motion.a
       href={href}
@@ -281,16 +466,7 @@ function AnimatedLink({
       whileHover={shouldReduceMotion ? undefined : { y: -2 }}
       whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
     >
-      {Icon ? <Icon aria-hidden size={18} strokeWidth={1.9} /> : null}
-      {children}
-      {showArrow ? (
-        <ArrowRight
-          aria-hidden
-          size={16}
-          className="transition-transform duration-200 group-hover:translate-x-1"
-          strokeWidth={2}
-        />
-      ) : null}
+      {sharedContent}
     </motion.a>
   );
 }
@@ -346,6 +522,146 @@ function SectionHeader({
   );
 }
 
+function TeamPortrait({
+  member,
+  className,
+}: {
+  member: TeamMember;
+  className: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return <div className={className}>{member.initials}</div>;
+  }
+
+  return (
+    <img
+      src={member.photo}
+      alt={`Foto de ${member.name}`}
+      className={className}
+      loading="lazy"
+      onError={() => setHasError(true)}
+    />
+  );
+}
+
+function TeamMemberModal({
+  member,
+  onClose,
+}: {
+  member: TeamMember | null;
+  onClose: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      {member ? (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="team-modal-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
+          }}
+        >
+          <motion.div
+            className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,246,0.96))] p-5 shadow-2xl sm:p-7"
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.97 }}
+            transition={{ duration: 0.25 }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="relative h-20 w-20 overflow-hidden rounded-[1.5rem] border border-white bg-primary-deeper shadow-lg sm:h-24 sm:w-24">
+                  <TeamPortrait
+                    member={member}
+                    className="flex h-full w-full items-center justify-center object-cover text-xl font-black text-white"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/25 to-transparent" />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">
+                    Integrante da equipe
+                  </p>
+                  <h3 id="team-modal-title" className="mt-2 text-2xl font-black text-on-surface">
+                    {member.name}
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold text-gray-600">{member.role}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full bg-gray-100 p-2 text-gray-600 transition-colors hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Fechar modal"
+              >
+                <X aria-hidden size={20} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+              {member.subrole ? (
+                <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
+                    Subrole
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-gray-700">{member.subrole}</p>
+                </div>
+              ) : null}
+
+              <div className="rounded-[1.5rem] border border-gray-200 bg-surface p-5 shadow-sm">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
+                  Redes
+                </p>
+                <div className="mt-4 flex gap-3">
+                  {[
+                    { label: 'LinkedIn', href: member.linkedin, icon: Linkedin },
+                    { label: 'GitHub', href: member.github, icon: Github },
+                  ].map((social) => {
+                    const Icon = social.icon;
+
+                    if (!social.href) {
+                      return (
+                        <span
+                          key={social.label}
+                          aria-disabled="true"
+                          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-400 grayscale"
+                          title={`${social.label} não informado`}
+                        >
+                          <Icon aria-hidden size={20} />
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <a
+                        key={social.label}
+                        href={social.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-white text-primary transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        aria-label={social.label}
+                        title={social.label}
+                      >
+                        <Icon aria-hidden size={20} />
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 function FeedbackModal({
   activeModal,
   onClose,
@@ -353,15 +669,59 @@ function FeedbackModal({
   activeModal: ActiveModal;
   onClose: () => void;
 }) {
-  const isOpinion = activeModal === 'opinion';
+  const [ratings, setRatings] = useState<RatingState>(INITIAL_RATINGS);
+  const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const subject = isOpinion ? 'Opinião sobre o VestGO' : 'Avaliação da apresentação VestGO';
-    const lines = Array.from(formData.entries()).map(([key, value]) => `${key}: ${value}`);
-    const mailto = `mailto:${LINKS.contactEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join('\n'))}`;
-    window.location.href = mailto;
+  useEffect(() => {
+    if (activeModal) {
+      setRatings(INITIAL_RATINGS);
+      setComment('');
+      setStatus('idle');
+      setIsSubmitting(false);
+    }
+  }, [activeModal]);
+
+  function setScore(key: RatingKey, value: number) {
+    setRatings((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleSubmit() {
+    setIsSubmitting(true);
+    setStatus('idle');
+
+    const payload = {
+      source: 'vestgo-presentation',
+      anonymous: true,
+      submittedAt: new Date().toISOString(),
+      webhookTarget: LINKS.feedbackWebhook,
+      ratings,
+      labels: Object.fromEntries(
+        Object.entries(ratings).map(([key, value]) => [key, value ? RATING_LABELS[value as keyof typeof RATING_LABELS] : ''])
+      ),
+      comment,
+    };
+
+    try {
+      const response = await fetch(LINKS.feedbackWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Webhook returned a non-OK response');
+      }
+
+      setStatus('success');
+      setRatings(INITIAL_RATINGS);
+      setComment('');
+    } catch {
+      setStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -380,7 +740,7 @@ function FeedbackModal({
           }}
         >
           <motion.div
-            className="w-full max-w-xl rounded-[2rem] bg-white p-5 shadow-2xl sm:p-7"
+            className="w-full max-w-3xl rounded-[2rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(244,248,246,0.97))] p-5 shadow-2xl sm:p-7"
             initial={{ opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
@@ -388,16 +748,12 @@ function FeedbackModal({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">
-                  Feedback
-                </p>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">Feedback</p>
                 <h3 id="feedback-modal-title" className="mt-2 text-2xl font-black text-on-surface">
-                  {isOpinion ? 'Dê sua opinião' : 'Avalie nossa apresentação'}
+                  Avalie nosso projeto
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-gray-600">
-                  {isOpinion
-                    ? 'Compartilhe uma sugestão, dúvida ou ideia para evoluir o produto.'
-                    : 'Ajude a equipe a entender clareza, impacto visual e potencial do projeto.'}
+                  Votação anônima. Nenhum nome, e-mail ou dado pessoal será solicitado. Sua nota será enviada para o webhook configurado em LINKS.feedbackWebhook.
                 </p>
               </div>
               <button
@@ -410,73 +766,63 @@ function FeedbackModal({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              {isOpinion ? (
-                <>
-                  <label className="block">
-                    <span className="text-sm font-bold text-on-surface">Nome ou identificação</span>
-                    <input
-                      name="Nome"
-                      className="mt-2 w-full rounded-2xl border border-gray-200 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white"
-                      placeholder="Opcional"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm font-bold text-on-surface">Sua opinião</span>
-                    <textarea
-                      name="Opinião"
-                      required
-                      rows={5}
-                      className="mt-2 w-full resize-none rounded-2xl border border-gray-200 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white"
-                      placeholder="O que chamou atenção? O que poderia melhorar?"
-                    />
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label className="block">
-                    <span className="text-sm font-bold text-on-surface">Perfil</span>
-                    <select
-                      name="Perfil"
-                      className="mt-2 w-full rounded-2xl border border-gray-200 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white"
-                    >
-                      <option>Avaliador júnior</option>
-                      <option>Avaliador pleno</option>
-                      <option>Avaliador sênior</option>
-                      <option>Professor</option>
-                      <option>Aluno</option>
-                      <option>Empresa</option>
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="text-sm font-bold text-on-surface">Nota geral</span>
-                    <select
-                      name="Nota"
-                      className="mt-2 w-full rounded-2xl border border-gray-200 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white"
-                    >
-                      <option>5 - Excelente</option>
-                      <option>4 - Muito bom</option>
-                      <option>3 - Bom</option>
-                      <option>2 - Pode melhorar</option>
-                      <option>1 - Precisa rever</option>
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="text-sm font-bold text-on-surface">Comentário</span>
-                    <textarea
-                      name="Comentário"
-                      rows={4}
-                      className="mt-2 w-full resize-none rounded-2xl border border-gray-200 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white"
-                      placeholder="Clareza, inovação, execução, impacto..."
-                    />
-                  </label>
-                </>
-              )}
-
+            <div className="mt-6 space-y-5">
               <div className="rounded-2xl bg-primary-light p-4 text-sm leading-6 text-primary-deeper">
-                O envio abre um e-mail pré-preenchido. Para usar outro destino, altere
-                `LINKS.contactEmail` no topo do arquivo.
+                A avaliação é anônima. Escolha entre 1 e 5 estrelas para cada critério e, se quiser, adicione uma opinião livre ao final.
               </div>
+
+              <div className="grid gap-4">
+                {RATING_FIELDS.map((field) => {
+                  const value = ratings[field.key];
+
+                  return (
+                    <div key={field.key} className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-black text-on-surface">{field.label}</p>
+                          <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
+                            {value ? `${value} estrela${value > 1 ? 's' : ''} · ${RATING_LABELS[value as keyof typeof RATING_LABELS]}` : 'Selecione uma nota'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {[1, 2, 3, 4, 5].map((score) => {
+                            const active = score <= value;
+
+                            return (
+                              <button
+                                key={score}
+                                type="button"
+                                onClick={() => setScore(field.key, score)}
+                                className={cn(
+                                  'transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                                  active ? 'text-amber-400' : 'text-gray-300',
+                                )}
+                                aria-label={`${field.label}: ${score} estrela${score > 1 ? 's' : ''}`}
+                              >
+                                <Star aria-hidden size={24} fill={active ? 'currentColor' : 'none'} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-gray-600">
+                        {value ? `${value}*: ${RATING_LABELS[value as keyof typeof RATING_LABELS]}` : '1*: Não satisfatório · 2*: Pode melhorar · 3*: Razoável · 4*: Bom · 5*: Ótimo'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <label className="block rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
+                <span className="text-sm font-bold text-on-surface">Opinião em texto</span>
+                <textarea
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  rows={4}
+                  className="mt-2 w-full resize-none rounded-2xl border border-gray-200 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white"
+                  placeholder="Escreva comentários, sugestões ou observações adicionais."
+                />
+              </label>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                 <button
@@ -487,14 +833,28 @@ function FeedbackModal({
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-transform active:scale-[0.98]"
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <Send aria-hidden size={17} />
-                  Enviar por e-mail
+                  {isSubmitting ? 'Enviando...' : 'Enviar avaliação'}
                 </button>
               </div>
-            </form>
+
+              {status === 'success' ? (
+                <div className="rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+                  Avaliação enviada com sucesso.
+                </div>
+              ) : null}
+
+              {status === 'error' ? (
+                <div className="rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-900">
+                  Não foi possível enviar para o webhook configurado. Verifique LINKS.feedbackWebhook.
+                </div>
+              ) : null}
+            </div>
           </motion.div>
         </motion.div>
       ) : null}
@@ -594,10 +954,12 @@ function AppPreview() {
 
 export function PresentationLanding() {
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
   return (
     <main className="min-h-screen overflow-hidden bg-surface text-on-surface">
       <FeedbackModal activeModal={activeModal} onClose={() => setActiveModal(null)} />
+      <TeamMemberModal member={selectedMember} onClose={() => setSelectedMember(null)} />
 
       <header className="sticky top-0 z-50 border-b border-gray-200/60 bg-surface/90 shadow-[0_12px_30px_-20px_rgba(15,23,42,0.35)] backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-shell items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -662,6 +1024,7 @@ export function PresentationLanding() {
                     href={link.href}
                     icon={Icon}
                     showArrow={false}
+                    disabled={link.disabled}
                     className="h-full w-full justify-start gap-4 border border-white bg-white p-5 text-left text-on-surface shadow-sm hover:-translate-y-1 hover:shadow-card-lg"
                     ariaLabel={link.label}
                   >
@@ -682,7 +1045,7 @@ export function PresentationLanding() {
           <SectionHeader
             eyebrow="Equipe"
             title="O time por trás do impacto"
-            description="Estrutura pronta para inserir nomes reais, papéis e links de LinkedIn ou contato."
+            description="Clique na foto para abrir o perfil com nome completo, role, subrole e redes sociais."
             center
           />
 
@@ -694,25 +1057,75 @@ export function PresentationLanding() {
             className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4"
           >
             {TEAM.map((member, index) => (
-              <motion.a
+              <motion.article
                 key={`${member.name}-${index}`}
                 variants={fadeUp}
                 whileHover={{ y: -5 }}
-                href={member.link}
-                className="group text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                aria-label={`Contato de ${member.name}`}
+                className="group text-center"
               >
-                <div className="relative mx-auto mb-4 h-28 w-28 md:h-32 md:w-32">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMember(member)}
+                  className="group relative mx-auto mb-4 block h-28 w-28 rounded-[1.4rem] outline-none transition focus-visible:ring-2 focus-visible:ring-primary md:h-32 md:w-32"
+                  aria-label={`Abrir perfil de ${member.name}`}
+                >
                   <div className="absolute inset-0 rounded-2xl bg-primary transition-transform group-hover:rotate-6" />
-                  <div className="relative flex h-full w-full items-center justify-center rounded-2xl border border-white bg-primary-deeper text-2xl font-black text-white shadow-xl">
-                    {member.initials}
+                  <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl border border-white bg-primary-deeper text-2xl font-black text-white shadow-xl transition-transform group-hover:-translate-y-1 group-hover:shadow-2xl">
+                    <TeamPortrait
+                      member={member}
+                      className="flex h-full w-full items-center justify-center object-cover text-2xl font-black text-white"
+                    />
                   </div>
-                </div>
+                </button>
                 <h3 className="text-lg font-black text-on-surface">{member.name}</h3>
                 <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-gray-500">
                   {member.role}
                 </p>
-              </motion.a>
+              </motion.article>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      <section id="ods" className="bg-white px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-shell">
+          <SectionHeader
+            eyebrow="ODS relacionadas"
+            title="Impacto alinhado com objetivos globais"
+            description="As metas abaixo reforçam o posicionamento social do VestGO e o propósito da solução apresentada."
+          />
+
+          <motion.div
+            variants={container}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+            className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+          >
+            {odsItems.map((item) => (
+              <motion.article
+                key={item.number}
+                variants={fadeUp}
+                whileHover={{ y: -4 }}
+                className="relative overflow-hidden rounded-[2rem] border border-gray-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(242,244,246,0.92))] p-6 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+                      ODS {item.number}
+                    </p>
+                    <h3 className="mt-2 text-xl font-black text-on-surface">{item.title}</h3>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-lg font-black text-primary">
+                    {item.number}
+                  </div>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-gray-600">{item.text}</p>
+                <div
+                  className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-primary/10"
+                  aria-hidden
+                />
+              </motion.article>
             ))}
           </motion.div>
         </div>
@@ -722,21 +1135,11 @@ export function PresentationLanding() {
         <div className="mx-auto max-w-shell text-center">
           <SectionHeader
             eyebrow="Feedback e sugestões"
-            title="Ajude o VestGO a evoluir"
-            description="As respostas abrem em e-mail pré-preenchido, sem depender de backend ou banco de dados."
+            title="Avalie nosso projeto"
+            description="Votação anônima para cinco critérios, com envio direto para o webhook configurado."
             center
           />
-          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <motion.button
-              type="button"
-              onClick={() => setActiveModal('opinion')}
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              className="inline-flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-primary px-8 py-4 text-base font-black text-white shadow-xl shadow-emerald-600/20 transition-all hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <MessageSquare aria-hidden size={21} />
-              Dê sua opinião
-            </motion.button>
+          <div className="mt-8 flex justify-center">
             <motion.button
               type="button"
               onClick={() => setActiveModal('rating')}
@@ -745,256 +1148,8 @@ export function PresentationLanding() {
               className="inline-flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-primary px-8 py-4 text-base font-black text-white shadow-xl shadow-emerald-600/20 transition-all hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Star aria-hidden size={21} />
-              Avalie nossa apresentação
+              Avalie nosso projeto
             </motion.button>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-white to-surface px-4 py-20 sm:px-6 lg:px-8">
-        <div className="absolute inset-0 bg-[radial-gradient(50%_50%_at_50%_0%,rgba(16,185,129,0.16),transparent_65%)]" />
-        <div className="relative mx-auto max-w-shell text-center">
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.25 }}
-          >
-            <motion.p variants={fadeUp} className="text-xs font-black uppercase tracking-[0.22em] text-primary">
-              VestGO
-            </motion.p>
-            <motion.h2
-              variants={fadeUp}
-              className="mx-auto mt-4 max-w-4xl text-4xl font-black leading-tight tracking-[-0.02em] sm:text-5xl lg:text-6xl"
-            >
-              Doe com <span className="bg-gradient-to-br from-primary to-primary-dark bg-clip-text text-transparent">propósito</span>, acompanhe com transparência.
-            </motion.h2>
-            <motion.p variants={fadeUp} className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-gray-600">
-              Doações rastreáveis com tecnologia, transparência e impacto social, conectando
-              doadores, pontos de coleta e ONGs em uma jornada mensurável.
-            </motion.p>
-            <motion.div variants={fadeUp} className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-              <AnimatedLink
-                href={LINKS.app}
-                icon={Smartphone}
-                className="bg-primary text-white shadow-xl shadow-emerald-600/20 hover:brightness-110"
-              >
-                Acessar aplicação
-              </AnimatedLink>
-              <AnimatedLink
-                href={LINKS.github}
-                icon={Code2}
-                className="border border-gray-300 bg-white text-on-surface hover:bg-surface"
-              >
-                Ver repositório
-              </AnimatedLink>
-            </motion.div>
-          </motion.div>
-
-          <AppPreview />
-
-          <div className="mt-12 flex flex-col items-center gap-2 text-gray-500">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em]">
-              Saiba mais sobre o projeto
-            </span>
-            <ChevronDown aria-hidden className="animate-bounce text-primary" size={32} />
-          </div>
-        </div>
-      </section>
-
-      <section id="problema" className="bg-primary-deeper px-4 py-20 text-white sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-shell gap-10 md:grid-cols-[0.9fr_1.1fr] md:items-center">
-          <SectionHeader
-            eyebrow="O problema"
-            title="Por que o sistema atual falha?"
-            description="Muitas doações sofrem com falta de rastreabilidade, comunicação manual, perda de controle e pouca transparência sobre o destino final."
-            invert
-          />
-
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            className="grid gap-4"
-          >
-            {problemCards.map((card) => {
-              const Icon = card.icon;
-
-              return (
-                <motion.article
-                  key={card.title}
-                  variants={fadeUp}
-                  whileHover={{ y: -3 }}
-                  className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.06] p-5"
-                >
-                  <Icon aria-hidden className="mt-1 shrink-0 text-primary-glow" size={24} />
-                  <div>
-                    <h3 className="text-xl font-black text-white">{card.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-white/65">{card.text}</p>
-                  </div>
-                </motion.article>
-              );
-            })}
-          </motion.div>
-        </div>
-      </section>
-
-      <section id="solucao" className="bg-primary/5 px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-shell">
-          <SectionHeader
-            eyebrow="A solução"
-            title="A ponte entre intenção, operação e impacto"
-            description="O VestGO acompanha a jornada da doação do registro até a entrega final, com status claros para cada ator da rede."
-            center
-          />
-
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            className="mt-10 grid gap-5 md:grid-cols-3"
-          >
-            {solutionCards.map((card) => {
-              const Icon = card.icon;
-
-              return (
-                <motion.article
-                  key={card.title}
-                  variants={fadeUp}
-                  whileHover={{ y: -5 }}
-                  className="rounded-[2rem] border border-white bg-white/80 p-7 text-center shadow-lg backdrop-blur"
-                >
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Icon aria-hidden size={30} />
-                  </div>
-                  <h3 className="mt-6 text-xl font-black text-on-surface">{card.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-gray-600">{card.text}</p>
-                </motion.article>
-              );
-            })}
-          </motion.div>
-        </div>
-      </section>
-
-      <section id="fluxo" className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
-        <SectionHeader
-          eyebrow="Fluxo visual"
-          title="O ciclo da transparência"
-          description="Doador → Ponto de Coleta → ONG → Impacto, sem caixa preta entre as etapas."
-          center
-        />
-
-        <div className="relative mt-14">
-          <div className="absolute bottom-0 left-6 top-0 w-px bg-gradient-to-b from-primary via-primary to-gray-300" />
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            className="relative space-y-12"
-          >
-            {journeySteps.map((step, index) => {
-              const Icon = step.icon;
-              const isLast = index === journeySteps.length - 1;
-
-              return (
-                <motion.article key={step.title} variants={fadeUp} className="group flex gap-6">
-                  <div
-                    className={cn(
-                      'z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-lg transition-transform group-hover:scale-110',
-                      isLast ? 'bg-primary-deeper' : 'bg-primary',
-                    )}
-                  >
-                    <Icon aria-hidden size={22} />
-                  </div>
-                  <div className="pt-1">
-                    <h3 className="text-2xl font-black text-primary">{step.title}</h3>
-                    <p className="mt-2 text-base leading-7 text-gray-600">{step.text}</p>
-                  </div>
-                </motion.article>
-              );
-            })}
-          </motion.div>
-        </div>
-      </section>
-
-      <section id="recursos" className="bg-white px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-shell">
-          <SectionHeader
-            eyebrow="Recursos principais"
-            title="Produto social com base técnica de produto real"
-            description="Rastreio, gestão, operação, gamificação e visão de produto escalável em uma experiência clara para cada perfil."
-          />
-
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.18 }}
-            className="mt-10 grid gap-4 md:grid-cols-4"
-          >
-            {features.map((feature) => {
-              const Icon = feature.icon;
-              const dark = feature.className.includes('text-white');
-
-              return (
-                <motion.article
-                  key={feature.title}
-                  variants={fadeUp}
-                  whileHover={{ y: -4 }}
-                  className={cn(
-                    'relative overflow-hidden rounded-[2rem] border border-gray-200 p-7 shadow-sm',
-                    feature.className,
-                  )}
-                >
-                  <Icon
-                    aria-hidden
-                    className={cn('mb-5', dark ? 'text-primary-glow' : 'text-primary')}
-                    size={36}
-                  />
-                  <h3 className={cn('text-2xl font-black', dark ? 'text-white' : 'text-on-surface')}>
-                    {feature.title}
-                  </h3>
-                  <p className={cn('mt-3 text-sm leading-6', dark ? 'text-white/70' : 'text-gray-600')}>
-                    {feature.text}
-                  </p>
-                  <div
-                    className={cn(
-                      'absolute -bottom-16 -right-16 h-44 w-44 rounded-full',
-                      dark ? 'bg-white/10' : 'bg-primary/10',
-                    )}
-                    aria-hidden
-                  />
-                </motion.article>
-              );
-            })}
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="bg-surface px-4 py-20 sm:px-6 lg:px-8">
-        <div className="relative mx-auto max-w-4xl overflow-hidden rounded-[2.5rem] bg-primary p-8 text-center text-white shadow-2xl shadow-emerald-700/20 sm:p-12">
-          <div className="absolute right-0 top-0 h-64 w-64 translate-x-1/2 -translate-y-1/2 rounded-full bg-white/15 blur-3xl" />
-          <div className="relative z-10">
-            <VestgoMark className="mx-auto h-14 w-14" />
-            <h2 className="mt-6 text-3xl font-black leading-tight sm:text-5xl">
-              VestGO — tecnologia aplicada para tornar a solidariedade mais transparente,
-              organizada e mensurável.
-            </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/80">
-              Uma apresentação feita para ser escaneada rápido, mas lembrada depois.
-            </p>
-            <div className="mt-8 flex justify-center">
-              <AnimatedLink
-                href={LINKS.app}
-                icon={Globe}
-                className="bg-white text-primary hover:bg-surface"
-              >
-                Começar agora
-              </AnimatedLink>
-            </div>
           </div>
         </div>
       </section>
@@ -1006,14 +1161,8 @@ export function PresentationLanding() {
             <span className="text-xl font-black text-primary-glow">VestGO</span>
           </div>
           <div className="flex flex-wrap justify-center gap-5 text-sm font-bold text-white/65">
-            <a href="#problema" className="transition-colors hover:text-white">
-              Problema
-            </a>
-            <a href="#solucao" className="transition-colors hover:text-white">
-              Solução
-            </a>
-            <a href="#fluxo" className="transition-colors hover:text-white">
-              Jornada
+            <a href={LINKS.app} className="transition-colors hover:text-white">
+              Aplicação
             </a>
             <a href={LINKS.github} className="inline-flex items-center gap-1 transition-colors hover:text-white">
               GitHub
