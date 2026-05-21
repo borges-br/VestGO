@@ -15,6 +15,6 @@ web/.next/
 
 coverage/
 *.log
-
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
