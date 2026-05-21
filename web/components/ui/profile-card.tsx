@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import './profile-card.css';
 
 const DEFAULT_INNER_GRADIENT = 'linear-gradient(145deg,#60496e8c 0%,#71C4FF44 100%)';
@@ -17,6 +17,7 @@ const adjust = (v: number, fMin: number, fMax: number, tMin: number, tMax: numbe
 
 interface ProfileCardProps {
   avatarUrl?: string;
+  initials?: string;
   iconUrl?: string;
   grainUrl?: string;
   innerGradient?: string;
@@ -48,7 +49,8 @@ interface TiltEngine {
 }
 
 const ProfileCardComponent: React.FC<ProfileCardProps> = ({
-  avatarUrl = '/placeholder.jpg',
+  avatarUrl,
+  initials,
   iconUrl,
   grainUrl,
   innerGradient,
@@ -74,6 +76,19 @@ const ProfileCardComponent: React.FC<ProfileCardProps> = ({
 
   const enterTimerRef = useRef<number | null>(null);
   const leaveRafRef = useRef<number | null>(null);
+
+  const [hasError, setHasError] = useState(false);
+  const [miniHasError, setMiniHasError] = useState(false);
+
+  const computedInitials = useMemo(() => {
+    if (initials) return initials;
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  }, [name, initials]);
 
   const tiltEngine = useMemo<TiltEngine | null>(() => {
     if (!enableTilt) return null;
@@ -349,30 +364,35 @@ const ProfileCardComponent: React.FC<ProfileCardProps> = ({
             <div className="pc-shine" />
             <div className="pc-glare" />
             <div className="pc-content pc-avatar-content">
-              <img
-                className="avatar"
-                src={avatarUrl}
-                alt={`${name || 'User'} avatar`}
-                loading="lazy"
-                onError={e => {
-                  const t = e.target as HTMLImageElement;
-                  t.style.display = 'none';
-                }}
-              />
+              {!hasError && avatarUrl && !avatarUrl.includes('Placeholder') ? (
+                <img
+                  className="avatar"
+                  src={avatarUrl}
+                  alt={`${name || 'User'} avatar`}
+                  loading="lazy"
+                  onError={() => setHasError(true)}
+                />
+              ) : (
+                <div className="pc-avatar-placeholder">
+                  <span>{computedInitials}</span>
+                </div>
+              )}
               {showUserInfo && (
                 <div className="pc-user-info">
                   <div className="pc-user-details">
                     <div className="pc-mini-avatar">
-                      <img
-                        src={miniAvatarUrl || avatarUrl}
-                        alt={`${name || 'User'} mini avatar`}
-                        loading="lazy"
-                        onError={e => {
-                          const t = e.target as HTMLImageElement;
-                          t.style.opacity = '0.5';
-                          t.src = avatarUrl;
-                        }}
-                      />
+                      {!miniHasError && (miniAvatarUrl || avatarUrl) && !(miniAvatarUrl || avatarUrl)?.includes('Placeholder') ? (
+                        <img
+                          src={miniAvatarUrl || avatarUrl}
+                          alt={`${name || 'User'} mini avatar`}
+                          loading="lazy"
+                          onError={() => setMiniHasError(true)}
+                        />
+                      ) : (
+                        <div className="pc-mini-avatar-placeholder">
+                          <span>{computedInitials}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="pc-user-text">
                       <div className="pc-handle">@{handle}</div>

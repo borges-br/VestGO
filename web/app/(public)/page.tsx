@@ -14,6 +14,8 @@ import { VestgoHero } from '@/components/ui/vestgo-hero';
 import { MotionSection } from '@/components/ui/motion-section';
 import { StatusTrack, type TrackStep } from '@/components/ui/status-track';
 import { VestgoMark } from '@/components/branding/vestgo-mark';
+import TeamSection from '@/components/ui/team-section';
+
 
 const journeySteps: TrackStep[] = [
   {
@@ -329,6 +331,9 @@ export default async function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Seção de Equipe */}
+      <TeamSection />
 
       {/* Seção 6: CTA final */}
       <section id="impacto" className="relative overflow-hidden vg-ink">

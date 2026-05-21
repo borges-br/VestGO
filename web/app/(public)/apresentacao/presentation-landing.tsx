@@ -18,7 +18,6 @@ import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import { VestgoMark } from '@/components/branding/vestgo-mark';
-import { ProfileCard } from '@/components/ui/profile-card';
 import { cn } from '@/lib/utils';
 
 // Edite estes links antes da feira se houver URLs finais de deploy e contatos.
@@ -870,32 +869,34 @@ export function PresentationLanding() {
             variants={container}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.15 }}
-            className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-items-center"
+            viewport={{ once: true, amount: 0.2 }}
+            className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4"
           >
             {TEAM.map((member, index) => (
               <motion.article
                 key={`${member.name}-${index}`}
                 variants={fadeUp}
-                className="w-full max-w-[340px]"
+                whileHover={{ y: -5 }}
+                className="group text-center"
               >
-                <ProfileCard
-                  name={member.name}
-                  title={member.role}
-                  subrole={member.subrole}
-                  handle={member.name.toLowerCase().replace(/\s+/g, '')}
-                  status={member.subrole || 'Colaborador'}
-                  contactText="Contatar"
-                  avatarUrl={member.photo}
-                  showUserInfo={true}
-                  enableTilt={true}
-                  enableMobileTilt={true}
-                  onContactClick={() => setSelectedMember(member)}
-                  behindGlowEnabled={true}
-                  behindGlowColor="rgba(16, 185, 129, 0.4)"
-                  behindGlowSize="60%"
-                  innerGradient="linear-gradient(145deg, rgba(16, 185, 129, 0.2) 0%, rgba(15, 23, 42, 0.95) 100%)"
-                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedMember(member)}
+                  className="group relative mx-auto mb-4 block h-28 w-28 rounded-[1.4rem] outline-none transition focus-visible:ring-2 focus-visible:ring-primary md:h-32 md:w-32"
+                  aria-label={`Abrir perfil de ${member.name}`}
+                >
+                  <div className="absolute inset-0 rounded-2xl bg-primary transition-transform group-hover:rotate-6" />
+                  <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl border border-white bg-primary-deeper text-2xl font-black text-white shadow-xl transition-transform group-hover:-translate-y-1 group-hover:shadow-2xl">
+                    <TeamPortrait
+                      member={member}
+                      className="flex h-full w-full items-center justify-center object-cover text-2xl font-black text-white"
+                    />
+                  </div>
+                </button>
+                <h3 className="text-lg font-black text-on-surface">{member.name}</h3>
+                <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-gray-500">
+                  {member.role}
+                </p>
               </motion.article>
             ))}
           </motion.div>
