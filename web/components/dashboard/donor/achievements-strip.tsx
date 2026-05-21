@@ -56,7 +56,7 @@ export function AchievementsStrip({ items }: AchievementsStripProps) {
   if (visibleItems.length === 0) {
     return (
       <div className="vg-card-soft flex items-center gap-4 rounded-2xl border-dashed px-5 py-5">
-        {fallbackAchievement ? <AchievementMedal achievement={fallbackAchievement} compact /> : null}
+        {fallbackAchievement ? <AchievementMedal achievement={fallbackAchievement} compact showMeta={false} /> : null}
         <div>
           <p className="vg-text-primary text-[13px] font-bold">
             Suas conquistas aparecem aqui conforme seu progresso avança.
@@ -79,7 +79,7 @@ export function AchievementsStrip({ items }: AchievementsStripProps) {
             achievement.unlocked ? 'vg-card' : 'vg-card-soft border-dashed',
           )}
         >
-          <AchievementMedal achievement={achievement} compact />
+          <AchievementMedal achievement={achievement} compact showMeta={false} />
           <div className="min-w-0">
             <p
               className={cn(
@@ -88,13 +88,6 @@ export function AchievementsStrip({ items }: AchievementsStripProps) {
               )}
             >
               {achievement.title}
-            </p>
-            <p className="vg-text-muted mt-1 text-[11px]">
-              {achievement.unlocked
-                ? achievement.tier
-                  ? `Desbloqueada · ${tierLabels[achievement.tier]}`
-                  : 'Desbloqueada'
-                : achievement.progressLabel || 'Em progresso'}
             </p>
           </div>
         </li>

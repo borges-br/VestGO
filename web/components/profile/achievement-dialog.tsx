@@ -89,7 +89,7 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
           )}
         </div>
 
-        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+        <dl className="mt-5 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-[var(--vg-border)] p-4">
             <dt className="vg-text-muted text-[10px] font-bold uppercase tracking-[0.16em]">
               Progresso
@@ -102,14 +102,6 @@ export function AchievementDialog({ achievement, onClose }: AchievementDialogPro
             </dt>
             <dd className="vg-text-primary mt-2 text-sm font-bold">
               {achievement.tier ? tierLabels[achievement.tier] : 'Bloqueada'}
-            </dd>
-          </div>
-          <div className="rounded-2xl border border-[var(--vg-border)] p-4">
-            <dt className="vg-text-muted text-[10px] font-bold uppercase tracking-[0.16em]">
-              Pontos
-            </dt>
-            <dd className="vg-text-primary mt-2 text-sm font-bold">
-              {achievement.points.toLocaleString('pt-BR')}
             </dd>
           </div>
         </dl>

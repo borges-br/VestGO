@@ -38,11 +38,11 @@ export function LevelRing({ points, level, levelName, className }: LevelRingProp
     <div
       className={className}
       role="img"
-      aria-label={`Nível ${currentLevel} de ${totalLevels}. ${points} pontos acumulados.${
+      aria-label={`Nível ${currentLevel} de ${totalLevels}. Progresso contínuo na jornada.${
         level?.lockedUntilFirstDonation && level.unlockMessage
           ? ` ${level.unlockMessage}`
           : pointsToNext > 0
-            ? ` Faltam ${pointsToNext} pontos para o próximo nível.`
+            ? ' Continue doando para avançar de nível.'
             : ' Nível máximo alcançado.'
       }`}
     >

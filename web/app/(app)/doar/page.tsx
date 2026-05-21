@@ -522,7 +522,7 @@ export default function DoarPage() {
     setItems((current) => {
       const existing = current.find((item) => item.category === category);
       if (existing) return current.filter((item) => item.id !== existing.id);
-      return [...current, { id: makeId(), category, quantity: 1, condition: 'GOOD' }];
+      return [...current, { id: makeId(), category, quantity: 1, condition: category === 'FOOD' ? 'EXCELLENT' : 'GOOD' }];
     });
     setConfirmed(false);
   }

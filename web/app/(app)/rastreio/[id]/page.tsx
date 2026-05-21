@@ -144,8 +144,8 @@ export default async function RastreioDetalhePage({
                 Sua doação foi registrada com sucesso.
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-7 text-gray-500">
-                Ela ainda não gerou pontos. A pontuação entra apenas quando o ponto de coleta
-                confirmar o recebimento e, depois, quando a ONG concluir a distribuição.
+                Sua doação entra no fluxo de processamento real. Acompanhe a triagem pelo ponto de coleta
+                e a distribuição pela ONG parceira em tempo real.
               </p>
             </div>
           </section>
@@ -173,13 +173,13 @@ export default async function RastreioDetalhePage({
 
               <div className="rounded-[1.75rem] bg-white p-5 shadow-sm">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-                  Pontos desta doação
+                  Status da doação
                 </p>
                 <p className="mt-2 text-3xl font-bold text-primary-deeper">
-                  +{donation.pointsAwarded} pts
+                  Confirmada
                 </p>
                 <p className="mt-2 text-sm leading-7 text-gray-500">
-                  Seu progresso total agora está em {snapshot.points} pontos solidários.
+                  Sua doação já está pronta para gerar impacto e apoiar famílias atendidas pela rede.
                 </p>
               </div>
             </div>
@@ -543,10 +543,8 @@ export default async function RastreioDetalhePage({
                   <Target size={20} className="text-primary" />
                 </div>
 
-                <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
-                  <p className="text-sm font-semibold text-primary-deeper">Pontos solidários</p>
-                  <p className="mt-2 text-3xl font-bold text-primary-deeper">{snapshot.points}</p>
-                  <p className="mt-2 text-sm leading-7 text-gray-500">
+                 <div className="mt-5 rounded-[1.75rem] bg-surface p-5">
+                  <p className="text-sm leading-7 text-gray-500">
                     {snapshot.nextMilestone.note}
                   </p>
                 </div>

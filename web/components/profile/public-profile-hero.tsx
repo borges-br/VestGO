@@ -196,7 +196,7 @@ export function PublicProfileHero({
               {level?.name ?? levelName}
             </p>
             <p className="vg-text-secondary mt-1 text-xs leading-5">
-              {points.toLocaleString('pt-BR')} pontos acumulados
+              Jornada em evolução
             </p>
             {level?.lockedUntilFirstDonation && (
               <p className="mt-3 rounded-2xl bg-primary-light px-3 py-2 text-xs font-semibold leading-5 text-primary">
@@ -205,17 +205,10 @@ export function PublicProfileHero({
             )}
             {!level?.lockedUntilFirstDonation && level && level.pointsToNextLevel > 0 && (
               <p className="vg-text-muted mt-2 text-xs leading-5">
-                +{level.pointsToNextLevel.toLocaleString('pt-BR')} para o próximo nível
+                Continue doando para avançar de nível
               </p>
             )}
           </div>
-          {pointsBreakdown && (
-            <p className="vg-text-secondary mx-auto mt-3 max-w-[250px] text-center text-xs leading-5">
-              {pointsBreakdown.totalPoints.toLocaleString('pt-BR')} pontos -{' '}
-              {pointsBreakdown.donationPoints.toLocaleString('pt-BR')} de doações +{' '}
-              {pointsBreakdown.achievementPoints.toLocaleString('pt-BR')} de conquistas
-            </p>
-          )}
         </div>
       </div>
     </header>
