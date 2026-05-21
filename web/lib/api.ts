@@ -393,6 +393,7 @@ export type OperationalFilters = {
   status?: DonationStatus;
   collectionPointId?: string;
   ngoId?: string;
+  period?: 'today' | '7d' | '30d' | 'all';
   actionableOnly?: boolean;
   limit?: number;
   sortBy?: 'updatedAt' | 'createdAt';
@@ -456,6 +457,7 @@ export type OperationalDonationListResponse = {
       status: DonationStatus | null;
       collectionPointId: string | null;
       ngoId: string | null;
+      period: 'today' | '7d' | '30d' | 'all';
       actionableOnly: boolean;
       sortBy: 'updatedAt' | 'createdAt';
       direction: 'asc' | 'desc';
@@ -1167,6 +1169,7 @@ export async function getOperationalDonations(
     ...(params?.status ? { status: params.status } : {}),
     ...(params?.collectionPointId ? { collectionPointId: params.collectionPointId } : {}),
     ...(params?.ngoId ? { ngoId: params.ngoId } : {}),
+    ...(params?.period ? { period: params.period } : {}),
     ...(params?.actionableOnly ? { actionableOnly: 'true' } : {}),
     ...(params?.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params?.direction ? { direction: params.direction } : {}),
