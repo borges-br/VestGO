@@ -41,7 +41,7 @@ const TEAM: TeamMember[] = [
     initials: 'JM',
     photo: '/images/team/julio-melendes.png',
     linkedin: null,
-    github: null,
+    github: 'https://github.com/Melendesz',
   },
   {
     name: 'Henrique Barros',
