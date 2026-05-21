@@ -65,7 +65,7 @@ const TEAM: TeamMember[] = [
     subrole: null,
     initials: 'JM',
     photo: '/images/team/julio-melendes.png',
-    linkedin: null,
+    linkedin: 'www.linkedin.com/in/julio-giardina-bb1113373',
     github: 'https://github.com/Melendesz',
   },
   {
@@ -92,7 +92,7 @@ const TEAM: TeamMember[] = [
     subrole: null,
     initials: 'GC',
     photo: '/images/team/guilherme-carvalho.png',
-    linkedin: null,
+    linkedin: 'https://www.linkedin.com/in/guilherme-carvalho-5a20b23b4',
     github: null,
   },
   {
@@ -101,7 +101,7 @@ const TEAM: TeamMember[] = [
     subrole: null,
     initials: 'FC',
     photo: '/images/team/francisco-comelli.png',
-    linkedin: null,
+    linkedin: 'https://www.linkedin.com/in/francisco-comelli-696596249',
     github: null,
   },
 ];
