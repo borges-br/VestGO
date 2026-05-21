@@ -26,7 +26,7 @@ const LINKS = {
   app: '/login',
   github: 'https://github.com/borges-br/VestGO',
   team: '#equipe',
-  feedbackWebhook: 'https://n8n.borgesti.com/webhook-test/mosfet-unifacens',
+  feedbackWebhook: 'https://n8n.borgesti.com/webhook/mosfet-unifacens',
 };
 
 type TeamMember = {
@@ -67,7 +67,7 @@ const TEAM: TeamMember[] = [
     initials: 'JM',
     photo: '/images/team/julio-melendes.png',
     linkedin: null,
-    github: null,
+    github: 'https://github.com/Melendesz',
   },
   {
     name: 'Henrique Barros',
@@ -627,9 +627,6 @@ function FeedbackModal({
                 <h3 id="feedback-modal-title" className="mt-2 text-2xl font-black text-on-surface">
                   Avalie nosso projeto
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-gray-600">
-                  Votação anônima. Nenhum nome, e-mail ou dado pessoal será solicitado. Sua nota será enviada para o webhook configurado em LINKS.feedbackWebhook.
-                </p>
               </div>
               <button
                 type="button"
@@ -736,7 +733,7 @@ function FeedbackModal({
 
               {status === 'error' ? (
                 <div className="rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-900">
-                  Não foi possível enviar para o webhook configurado. Verifique LINKS.feedbackWebhook.
+                  Não foi possível enviar para o webhook configurado.
                 </div>
               ) : null}
             </div>
@@ -861,8 +858,8 @@ export function PresentationLanding() {
         <div className="mx-auto max-w-shell">
           <SectionHeader
             eyebrow="Equipe"
-            title="O time por trás do impacto"
-            description="Clique na foto para abrir o perfil com nome completo, role, subrole e redes sociais."
+            title="O time por trás do projeto"
+            description="Clique na foto para abrir o perfil completo."
             center
           />
 
