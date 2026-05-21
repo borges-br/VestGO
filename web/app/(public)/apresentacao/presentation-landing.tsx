@@ -2,29 +2,14 @@
 
 import {
   ArrowRight,
-  BarChart3,
-  BadgeCheck,
-  Building2,
-  CheckCircle2,
-  ClipboardList,
-  FileStack,
   Code2,
   ExternalLink,
   Github,
-  Gift,
   Globe,
-  HeartHandshake,
   Linkedin,
-  MapPin,
-  MessageSquare,
-  PackageCheck,
-  Route,
-  Presentation,
   Send,
-  ShieldCheck,
   Smartphone,
   Star,
-  Trophy,
   Users,
   X,
   type LucideIcon,
@@ -39,12 +24,8 @@ import { cn } from '@/lib/utils';
 const LINKS = {
   app: '/login',
   github: 'https://github.com/borges-br/VestGO',
-  docs: 'https://github.com/borges-br/VestGO#readme',
   team: '#equipe',
-  ods: '#ods',
-  architecture: 'https://github.com/borges-br/VestGO/blob/main/ARCHITECTURE.md',
-  feedbackWebhook: 'https://example.com/webhook',
-  contactEmail: 'contato@mosfet.com.br',
+  feedbackWebhook: 'https://n8n.borgesti.com/webhook-test/mosfet-unifacens',
 };
 
 type TeamMember = {
@@ -125,12 +106,15 @@ const TEAM: TeamMember[] = [
   },
 ];
 
+type ActiveModal = 'rating' | null;
+
 const quickLinks: Array<{
   label: string;
   description: string;
-  href: string;
+  href?: string;
   icon: LucideIcon;
   disabled?: boolean;
+  modal?: Exclude<ActiveModal, null>;
 }> = [
   {
     label: 'App',
@@ -145,36 +129,16 @@ const quickLinks: Array<{
     icon: Code2,
   },
   {
-    label: 'Docs',
-    description: 'README técnico',
-    href: LINKS.docs,
-    icon: ClipboardList,
-  },
-  {
     label: 'Equipe',
     description: 'Integrantes, fotos e contatos',
     href: LINKS.team,
     icon: Users,
   },
   {
-    label: 'ODS',
-    description: '3, 10, 12 e 17',
-    href: LINKS.ods,
-    icon: Globe,
-  },
-  {
-    label: 'Pitch',
-    description: 'Apresentação em vídeo',
-    href: '#pitch',
-    icon: Presentation,
-    disabled: true,
-  },
-  {
-    label: 'Arquitetura',
-    description: 'Arquitetura de sistemas e decisões técnicas',
-    href: LINKS.architecture,
-    icon: FileStack,
-    disabled: false,
+    label: 'Nos avalie',
+    description: 'Avaliação anônima',
+    icon: Star,
+    modal: 'rating',
   },
 ];
 
@@ -201,112 +165,6 @@ const odsItems = [
   },
 ];
 
-const problemCards = [
-  {
-    title: 'Falta de rastreabilidade',
-    text: 'Depois da entrega, o doador quase nunca acompanha o caminho real da doação.',
-    icon: Route,
-  },
-  {
-    title: 'Comunicação manual',
-    text: 'Planilhas, mensagens soltas e confirmações informais atrasam a operação.',
-    icon: MessageSquare,
-  },
-  {
-    title: 'Controle limitado',
-    text: 'Pontos de coleta lidam com volume, capacidade e triagem sem visão integrada.',
-    icon: PackageCheck,
-  },
-  {
-    title: 'Pouca transparência',
-    text: 'O impacto final raramente volta para quem começou a corrente solidária.',
-    icon: ShieldCheck,
-  },
-];
-
-const solutionCards = [
-  {
-    title: 'Plataforma unificada',
-    text: 'Doadores, pontos de coleta e ONGs no mesmo fluxo operacional.',
-    icon: HeartHandshake,
-  },
-  {
-    title: 'Jornada verificável',
-    text: 'Cada doação ganha status, responsável e histórico de movimentação.',
-    icon: BadgeCheck,
-  },
-  {
-    title: 'Dados para operar melhor',
-    text: 'A rede consegue organizar retiradas, capacidade e impacto com menos ruído.',
-    icon: BarChart3,
-  },
-];
-
-const journeySteps: Array<{
-  title: string;
-  text: string;
-  icon: LucideIcon;
-}> = [
-  {
-    title: 'Doador',
-    text: 'Registra a doação e inicia uma trilha rastreável pelo app.',
-    icon: Gift,
-  },
-  {
-    title: 'Ponto de Coleta',
-    text: 'Recebe, valida e organiza o volume com visibilidade operacional.',
-    icon: MapPin,
-  },
-  {
-    title: 'ONG',
-    text: 'Planeja retiradas, consolida lotes e registra entregas.',
-    icon: Building2,
-  },
-  {
-    title: 'Impacto',
-    text: 'Fecha o ciclo com transparência e retorno para quem doou.',
-    icon: CheckCircle2,
-  },
-];
-
-const features: Array<{
-  title: string;
-  text: string;
-  icon: LucideIcon;
-  className: string;
-}> = [
-  {
-    title: 'Rastreamento de doações',
-    text: 'Linha do tempo para acompanhar registro, coleta, retirada e entrega.',
-    icon: Route,
-    className: 'md:col-span-2 md:row-span-2 bg-[#f2f4f6]',
-  },
-  {
-    title: 'Gestão de pontos',
-    text: 'Recebimentos, capacidade e parcerias em uma tela operacional.',
-    icon: MapPin,
-    className: 'md:col-span-2 bg-emerald-50',
-  },
-  {
-    title: 'Apoio para ONGs',
-    text: 'Retiradas, lotes e entregas com mais previsibilidade.',
-    icon: Building2,
-    className: 'md:col-span-2 bg-slate-100',
-  },
-  {
-    title: 'Gamificação',
-    text: 'Níveis e conquistas para engajar sem perder o propósito.',
-    icon: Trophy,
-    className: 'md:col-span-2 bg-white',
-  },
-  {
-    title: 'Impacto mensurável',
-    text: 'Transparência para tornar a solidariedade mais confiável.',
-    icon: BarChart3,
-    className: 'md:col-span-2 bg-primary-deeper text-white',
-  },
-];
-
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 22 },
   visible: {
@@ -322,8 +180,6 @@ const container: Variants = {
     transition: { staggerChildren: 0.08, delayChildren: 0.05 },
   },
 };
-
-type ActiveModal = 'rating' | null;
 
 type RatingKey = 'apresentacao' | 'uiux' | 'proposta' | 'justificativa' | 'clareza';
 
@@ -344,6 +200,24 @@ const RATING_LABELS = {
   4: 'Bom',
   5: 'Ótimo',
 } as const;
+
+type RatingValue = keyof typeof RATING_LABELS;
+
+const RATING_FEEDBACK_STYLES: Record<RatingValue, string> = {
+  1: 'border-red-200 bg-red-50 text-red-700',
+  2: 'border-orange-200 bg-orange-50 text-orange-700',
+  3: 'border-yellow-200 bg-yellow-50 text-yellow-800',
+  4: 'border-lime-200 bg-lime-50 text-lime-700',
+  5: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+};
+
+const RATING_STAR_STYLES: Record<RatingValue, string> = {
+  1: 'text-red-500',
+  2: 'text-orange-500',
+  3: 'text-yellow-500',
+  4: 'text-lime-500',
+  5: 'text-emerald-500',
+};
 
 const INITIAL_RATINGS: RatingState = {
   apresentacao: 0,
@@ -557,7 +431,7 @@ function TeamMemberModal({
     <AnimatePresence>
       {member ? (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -608,7 +482,7 @@ function TeamMemberModal({
               {member.subrole ? (
                 <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
-                    Subrole
+                    Papel adicional
                   </p>
                   <p className="mt-2 text-sm leading-7 text-gray-700">{member.subrole}</p>
                 </div>
@@ -728,7 +602,7 @@ function FeedbackModal({
     <AnimatePresence>
       {activeModal ? (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -740,7 +614,7 @@ function FeedbackModal({
           }}
         >
           <motion.div
-            className="w-full max-w-3xl rounded-[2rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(244,248,246,0.97))] p-5 shadow-2xl sm:p-7"
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-[2rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(244,248,246,0.97))] p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-7"
             initial={{ opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
@@ -776,17 +650,20 @@ function FeedbackModal({
                   const value = ratings[field.key];
 
                   return (
-                    <div key={field.key} className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
-                      <div className="flex items-center justify-between gap-4">
+                    <div key={field.key} className="rounded-[1.5rem] border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                         <div>
                           <p className="text-sm font-black text-on-surface">{field.label}</p>
-                          <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
-                            {value ? `${value} estrela${value > 1 ? 's' : ''} · ${RATING_LABELS[value as keyof typeof RATING_LABELS]}` : 'Selecione uma nota'}
-                          </p>
+                          {!value ? (
+                            <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
+                              Selecione uma nota
+                            </p>
+                          ) : null}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           {[1, 2, 3, 4, 5].map((score) => {
                             const active = score <= value;
+                            const ratingValue = value as RatingValue;
 
                             return (
                               <button
@@ -794,8 +671,8 @@ function FeedbackModal({
                                 type="button"
                                 onClick={() => setScore(field.key, score)}
                                 className={cn(
-                                  'transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                                  active ? 'text-amber-400' : 'text-gray-300',
+                                  'rounded-full transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                                  active && value ? RATING_STAR_STYLES[ratingValue] : 'text-gray-300',
                                 )}
                                 aria-label={`${field.label}: ${score} estrela${score > 1 ? 's' : ''}`}
                               >
@@ -805,9 +682,16 @@ function FeedbackModal({
                           })}
                         </div>
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-gray-600">
-                        {value ? `${value}*: ${RATING_LABELS[value as keyof typeof RATING_LABELS]}` : '1*: Não satisfatório · 2*: Pode melhorar · 3*: Razoável · 4*: Bom · 5*: Ótimo'}
-                      </p>
+                      {value ? (
+                        <p
+                          className={cn(
+                            'mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em]',
+                            RATING_FEEDBACK_STYLES[value as RatingValue],
+                          )}
+                        >
+                          {value} estrela{value > 1 ? 's' : ''} · {RATING_LABELS[value as RatingValue]}
+                        </p>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -862,96 +746,6 @@ function FeedbackModal({
   );
 }
 
-function AppPreview() {
-  return (
-    <div className="relative mx-auto mt-12 max-w-5xl rounded-[2rem] border border-white/70 bg-white/70 p-4 shadow-2xl backdrop-blur lg:p-6">
-      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-[1.5rem] bg-primary-deeper p-5 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary-muted">
-                Rastreio ativo
-              </p>
-              <p className="mt-2 text-2xl font-black">Doação VG-2048</p>
-            </div>
-            <div className="rounded-2xl bg-white/10 p-3">
-              <Route aria-hidden size={24} />
-            </div>
-          </div>
-          <div className="mt-7 space-y-4">
-            {journeySteps.map((step, index) => {
-              const Icon = step.icon;
-              const active = index < 3;
-
-              return (
-                <div key={step.title} className="flex items-start gap-3">
-                  <div
-                    className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border',
-                      active
-                        ? 'border-primary-glow bg-primary-glow text-primary-deeper'
-                        : 'border-white/20 bg-white/10 text-white/70',
-                    )}
-                  >
-                    <Icon aria-hidden size={18} />
-                  </div>
-                  <div>
-                    <p className="font-bold">{step.title}</p>
-                    <p className="text-sm leading-6 text-white/60">{step.text}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-[1.5rem] bg-surface p-5">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
-              Operação
-            </p>
-            <p className="mt-2 text-3xl font-black text-on-surface">86%</p>
-            <p className="mt-1 text-sm text-gray-600">lotes com status atualizado</p>
-            <div className="mt-5 h-3 overflow-hidden rounded-full bg-white">
-              <div className="h-full w-[86%] rounded-full bg-primary" />
-            </div>
-          </div>
-
-          <div className="rounded-[1.5rem] bg-primary p-5 text-white">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-white/70">
-              Impacto
-            </p>
-            <p className="mt-2 text-3xl font-black">+124</p>
-            <p className="mt-1 text-sm text-white/75">doações rastreadas na rede</p>
-            <div className="mt-5 flex -space-x-2">
-              {['D', 'P', 'O', 'I'].map((item) => (
-                <span
-                  key={item}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-primary bg-white text-xs font-black text-primary"
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[1.5rem] border border-gray-100 bg-white p-5 sm:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-black text-on-surface">Ponto parceiro mais próximo</p>
-                <p className="mt-1 text-sm text-gray-600">Hub Solidário FACENS · Sorocaba</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-light text-primary">
-                <MapPin aria-hidden size={22} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function PresentationLanding() {
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
@@ -996,16 +790,16 @@ export function PresentationLanding() {
               variants={fadeUp}
               className="text-xs font-black uppercase tracking-[0.22em] text-primary"
             >
-              Acesso rápido - feira
+              Obrigado por me escanear! :)
             </motion.p>
             <motion.h1
               variants={fadeUp}
               className="mt-3 text-4xl font-black tracking-[-0.02em] sm:text-5xl"
             >
-              Links do Projeto
+              Links Úteis
             </motion.h1>
             <motion.p variants={fadeUp} className="mx-auto mt-4 max-w-2xl text-base text-gray-600">
-              O essencial para avaliadores, professores, alunos e empresas em um QR Code.
+              MOSFET - Análise e Desenvolvimento de Sistemas 1º Semestre
             </motion.p>
           </motion.div>
 
@@ -1017,22 +811,44 @@ export function PresentationLanding() {
           >
             {quickLinks.map((link) => {
               const Icon = link.icon;
+              const content = (
+                <>
+                  <Icon aria-hidden size={18} strokeWidth={1.9} />
+                  <span className="flex flex-col">
+                    <span className="text-base font-black">{link.label}</span>
+                    <span className="text-sm font-medium text-gray-500">{link.description}</span>
+                  </span>
+                </>
+              );
 
               return (
                 <motion.div key={link.label} variants={fadeUp}>
-                  <AnimatedLink
-                    href={link.href}
-                    icon={Icon}
-                    showArrow={false}
-                    disabled={link.disabled}
-                    className="h-full w-full justify-start gap-4 border border-white bg-white p-5 text-left text-on-surface shadow-sm hover:-translate-y-1 hover:shadow-card-lg"
-                    ariaLabel={link.label}
-                  >
-                    <span className="flex flex-col">
-                      <span className="text-base font-black">{link.label}</span>
-                      <span className="text-sm font-medium text-gray-500">{link.description}</span>
-                    </span>
-                  </AnimatedLink>
+                  {link.modal ? (
+                    <motion.button
+                      type="button"
+                      onClick={() => setActiveModal(link.modal ?? null)}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="group inline-flex h-full min-h-12 w-full items-center justify-start gap-4 rounded-2xl border border-white bg-white p-5 text-left text-sm font-bold text-on-surface shadow-sm transition-all hover:-translate-y-1 hover:shadow-card-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                      aria-label={link.label}
+                    >
+                      {content}
+                    </motion.button>
+                  ) : (
+                    <AnimatedLink
+                      href={link.href ?? '#'}
+                      icon={Icon}
+                      showArrow={false}
+                      disabled={link.disabled}
+                      className="h-full w-full justify-start gap-4 border border-white bg-white p-5 text-left text-on-surface shadow-sm hover:-translate-y-1 hover:shadow-card-lg"
+                      ariaLabel={link.label}
+                    >
+                      <span className="flex flex-col">
+                        <span className="text-base font-black">{link.label}</span>
+                        <span className="text-sm font-medium text-gray-500">{link.description}</span>
+                      </span>
+                    </AnimatedLink>
+                  )}
                 </motion.div>
               );
             })}
