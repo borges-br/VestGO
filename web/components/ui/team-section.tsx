@@ -269,7 +269,7 @@ export function TeamSection() {
             <motion.article
               key={`${member.name}-${index}`}
               variants={itemVariants}
-              className="w-full max-w-[340px]"
+              className="w-full max-w-[280px] mx-auto"
             >
               <ProfileCard
                 name={member.name}
