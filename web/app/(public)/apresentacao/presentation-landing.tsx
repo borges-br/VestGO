@@ -626,9 +626,6 @@ function FeedbackModal({
                 <h3 id="feedback-modal-title" className="mt-2 text-2xl font-black text-on-surface">
                   Avalie nosso projeto
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-gray-600">
-                  Votação anônima. Nenhum nome, e-mail ou dado pessoal será solicitado. Sua nota será enviada para o webhook configurado em LINKS.feedbackWebhook.
-                </p>
               </div>
               <button
                 type="button"
@@ -641,9 +638,6 @@ function FeedbackModal({
             </div>
 
             <div className="mt-6 space-y-5">
-              <div className="rounded-2xl bg-primary-light p-4 text-sm leading-6 text-primary-deeper">
-                A avaliação é anônima. Escolha entre 1 e 5 estrelas para cada critério e, se quiser, adicione uma opinião livre ao final.
-              </div>
 
               <div className="grid gap-4">
                 {RATING_FIELDS.map((field) => {
@@ -735,7 +729,7 @@ function FeedbackModal({
 
               {status === 'error' ? (
                 <div className="rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-900">
-                  Não foi possível enviar para o webhook configurado. Verifique LINKS.feedbackWebhook.
+                  Ocorreu um erro ao enviar sua avaliação. Por favor, tente novamente.
                 </div>
               ) : null}
             </div>
@@ -952,7 +946,7 @@ export function PresentationLanding() {
           <SectionHeader
             eyebrow="Feedback e sugestões"
             title="Avalie nosso projeto"
-            description="Votação anônima para cinco critérios, com envio direto para o webhook configurado."
+            description="Sua opinião é muito importante. Avalie nosso projeto em poucos cliques."
             center
           />
           <div className="mt-8 flex justify-center">
