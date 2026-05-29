@@ -128,9 +128,9 @@ A lista abaixo separa por estado real no código.
 ### Planejadas / pendentes
 
 - Push notifications, e-mail transacional para todos os eventos e WebSocket
-- Sugestão de parceiros por proximidade operacional
+- Sugestão de parceiros por proximidade operacional.
 - Semântica operacional própria no rastreio (atualmente compartilha estados com a fila)
-- Métricas de impacto e dashboards mais ricos
+- Métricas de impacto e dashboards mais ricos.
 - Testes automatizados (não há suíte de testes no repositório)
 
 ---
