@@ -65,7 +65,7 @@ const TEAM: TeamMember[] = [
     subrole: null,
     initials: 'JM',
     photo: '/images/team/julio-melendes.png',
-    linkedin: 'www.linkedin.com/in/julio-giardina-bb1113373',
+    linkedin: 'https://www.linkedin.com/in/julio-giardina-bb1113373',
     github: 'https://github.com/Melendesz',
   },
   {
